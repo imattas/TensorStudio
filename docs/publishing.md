@@ -1,24 +1,22 @@
 # Publishing
 
-TensorStudio is configured for GitHub Actions, wheel builds, and PyPI trusted
-publishing. The preferred release path is trusted publishing because it avoids
-long-lived PyPI tokens in developer environments.
+TensorStudio is configured for GitHub Actions, wheel builds, and PyPI uploads
+using the repository secret `PYPI_TOKEN`.
 
-## Preferred Flow: Trusted Publishing
+## Release Flow
 
-1. Configure the PyPI project to trust `imattas/TensorStudio` and the
-   `.github/workflows/publish.yml` workflow.
-2. Ensure the workflow has `id-token: write` permission.
-3. Confirm CI is green.
-4. Create and push a version tag:
+1. Store a project-scoped PyPI API token as the GitHub Actions repository secret
+   `PYPI_TOKEN`.
+2. Confirm CI is green.
+3. Create and push a version tag:
 
    ```bash
    git tag v0.1.1
    git push origin v0.1.1
    ```
 
-5. Publish a GitHub release, or manually run the publish workflow.
-6. Verify installation in a clean virtual environment.
+4. Publish a GitHub release, or manually run the publish workflow.
+5. Verify installation in a clean virtual environment.
 
 The workflow must not contain hardcoded PyPI tokens.
 
