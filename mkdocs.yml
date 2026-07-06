@@ -1,0 +1,33 @@
+site_name: TensorStudio
+site_description: Compact C++ tensor and autograd engine with a Python API.
+repo_url: https://github.com/imattas/TensorStudio
+repo_name: imattas/TensorStudio
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Usage:
+      - Tensor Basics: Usage/tensors.md
+      - NumPy Interop: Usage/numpy-interop.md
+      - Serialization: Usage/serialization.md
+  - Autograd: Autograde/index.md
+  - Neural Networks:
+      - Modules: Neural Networks/modules.md
+      - Training: Neural Networks/training.md
+  - Hardware: Hardware/cpu-backend.md
+  - Benchmarks: Benchmarks/index.md
+  - API: api.md
+  - Development: development.md
+  - Publishing: publishing.md
+  - Roadmap: Roadmap/index.md

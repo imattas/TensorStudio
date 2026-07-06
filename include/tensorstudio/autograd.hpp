@@ -1,0 +1,15 @@
+#pragma once
+
+#include <optional>
+#include <vector>
+
+#include "tensorstudio/tensor.hpp"
+
+namespace tensorstudio {
+
+bool any_requires_grad(const std::vector<Tensor>& tensors);
+void set_history(Tensor& output, std::vector<Tensor> parents, BackwardFn backward);
+void backward(Tensor& output, const std::optional<Tensor>& gradient = std::nullopt);
+void accumulate_grad(Tensor& tensor, const Tensor& gradient);
+
+}  // namespace tensorstudio
