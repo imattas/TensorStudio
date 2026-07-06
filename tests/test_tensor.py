@@ -37,6 +37,16 @@ def test_creation_helpers() -> None:
     np.testing.assert_allclose(ts.linspace(0, 1, 5).numpy(), np.linspace(0, 1, 5, dtype=np.float32))
 
 
+def test_creation_helpers_accept_requires_grad() -> None:
+    x = ts.ones((2, 2), requires_grad=True)
+    y = ((x * 2.0) + 1.0).sum()
+    y.backward()
+
+    assert x.requires_grad is True
+    assert x.grad is not None
+    np.testing.assert_allclose(x.grad.numpy(), np.full((2, 2), 2.0, dtype=np.float32))
+
+
 def test_rand_and_manual_seed_are_deterministic() -> None:
     ts.manual_seed(123)
     a = ts.rand((2, 2))
