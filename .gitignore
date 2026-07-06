@@ -1,5 +1,6 @@
 build/
 dist/
+wheel_artifacts/
 *.egg-info/
 __pycache__/
 *.py[cod]
