@@ -10,6 +10,8 @@ jobs:
   build_wheels:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -22,6 +24,10 @@ jobs:
           python-version: "3.12"
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.23.3
+        env:
+          CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
+          CIBW_SKIP: "*-musllinux*"
+          CIBW_TEST_COMMAND: "python -c \"import tensorstudio as ts; x = ts.tensor([1.0, 2.0], requires_grad=True); y = (x * x).sum(); y.backward(); print(ts.__version__, x.grad.tolist())\""
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.os }}
