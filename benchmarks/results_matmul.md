@@ -25,14 +25,14 @@ TensorStudio did not beat NumPy on this machine for the available benchmark set.
 
 | category | operation | shape | library | median ms | mean ms | min ms | max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | result |
 |---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| matmul | matmul | `(16, 16)` | TensorStudio | 0.0869 | 0.0863 | 0.0848 | 0.0876 | 0.0012 | 0.0227 | n/a | n/a | n/a | loss vs NumPy |
-| matmul | matmul | `(16, 16)` | NumPy | 0.0020 | 0.0020 | 0.0020 | 0.0020 | 0.0000 | 0.0227 | n/a | n/a | n/a | NumPy baseline |
-| matmul | matmul | `(64, 64)` | TensorStudio | 4.0006 | 3.9999 | 3.9602 | 4.0581 | 0.0328 | 0.0027 | n/a | n/a | n/a | loss vs NumPy |
-| matmul | matmul | `(64, 64)` | NumPy | 0.0107 | 0.0116 | 0.0107 | 0.0149 | 0.0017 | 0.0027 | n/a | n/a | n/a | NumPy baseline |
-| matmul | matmul | `(128, 128)` | TensorStudio | 31.3731 | 31.5163 | 30.7380 | 32.2682 | 0.5995 | 0.0068 | n/a | n/a | n/a | loss vs NumPy |
-| matmul | matmul | `(128, 128)` | NumPy | 0.2132 | 0.2213 | 0.1444 | 0.3102 | 0.0627 | 0.0068 | n/a | n/a | n/a | NumPy baseline |
-| matmul | matmul | `(256, 256)` | TensorStudio | 258.7756 | 259.8867 | 256.2724 | 264.3848 | 2.7738 | 0.0016 | n/a | n/a | n/a | loss vs NumPy |
-| matmul | matmul | `(256, 256)` | NumPy | 0.4208 | 0.4424 | 0.3846 | 0.5473 | 0.0590 | 0.0016 | n/a | n/a | n/a | NumPy baseline |
+| matmul | matmul | `(16, 16)` | TensorStudio | 0.0037 | 0.0037 | 0.0037 | 0.0038 | 0.0000 | 0.5152 | n/a | n/a | n/a | loss vs NumPy |
+| matmul | matmul | `(16, 16)` | NumPy | 0.0019 | 0.0019 | 0.0019 | 0.0019 | 0.0000 | 0.5152 | n/a | n/a | n/a | NumPy baseline |
+| matmul | matmul | `(64, 64)` | TensorStudio | 0.0740 | 0.0743 | 0.0721 | 0.0769 | 0.0021 | 0.1394 | n/a | n/a | n/a | loss vs NumPy |
+| matmul | matmul | `(64, 64)` | NumPy | 0.0103 | 0.0106 | 0.0103 | 0.0115 | 0.0005 | 0.1394 | n/a | n/a | n/a | NumPy baseline |
+| matmul | matmul | `(128, 128)` | TensorStudio | 0.5220 | 0.5225 | 0.5156 | 0.5321 | 0.0063 | 0.3884 | n/a | n/a | n/a | loss vs NumPy |
+| matmul | matmul | `(128, 128)` | NumPy | 0.2027 | 0.1835 | 0.1362 | 0.2216 | 0.0342 | 0.3884 | n/a | n/a | n/a | NumPy baseline |
+| matmul | matmul | `(256, 256)` | TensorStudio | 4.1393 | 4.1426 | 3.9799 | 4.3337 | 0.1304 | 0.1020 | n/a | n/a | n/a | loss vs NumPy |
+| matmul | matmul | `(256, 256)` | NumPy | 0.4222 | 0.4184 | 0.3353 | 0.5050 | 0.0544 | 0.1020 | n/a | n/a | n/a | NumPy baseline |
 
 Speedup columns are `competitor median / TensorStudio median`; values above 1.0 mean
 TensorStudio was faster for that specific case.

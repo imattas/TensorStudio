@@ -2,8 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <functional>
 #include <limits>
+#include <type_traits>
+#include <vector>
 
 #include "tensorstudio/autograd.hpp"
 #include "tensorstudio/errors.hpp"
@@ -11,18 +12,346 @@
 namespace tensorstudio {
 namespace {
 
-using BinaryOp = std::function<double(double, double)>;
-using UnaryOp = std::function<double(double)>;
-
 Tensor full_like(const Shape& shape, double value, DType dtype) {
   return full(shape, value, dtype);
 }
 
+template <typename T>
+T* raw_data(Tensor& tensor) {
+  return reinterpret_cast<T*>(tensor.impl()->storage->data());
+}
+
+template <typename T>
+const T* raw_data(const Tensor& tensor) {
+  return reinterpret_cast<const T*>(tensor.impl()->storage->data());
+}
+
+template <typename T>
+double to_double(T value) {
+  if constexpr (std::is_same_v<T, bool>) {
+    return value ? 1.0 : 0.0;
+  } else {
+    return static_cast<double>(value);
+  }
+}
+
+template <typename T>
+T from_double(double value) {
+  if constexpr (std::is_same_v<T, bool>) {
+    return value != 0.0;
+  } else {
+    return static_cast<T>(value);
+  }
+}
+
+double value_at_storage_unchecked(const Tensor& tensor, int64_t storage_index) {
+  const auto index = static_cast<std::size_t>(storage_index);
+  switch (tensor.dtype()) {
+    case DType::Float32:
+      return to_double(raw_data<float>(tensor)[index]);
+    case DType::Float64:
+      return to_double(raw_data<double>(tensor)[index]);
+    case DType::Int32:
+      return to_double(raw_data<int32_t>(tensor)[index]);
+    case DType::Int64:
+      return to_double(raw_data<int64_t>(tensor)[index]);
+    case DType::Bool:
+      return to_double(raw_data<bool>(tensor)[index]);
+  }
+  throw DTypeError("unknown dtype");
+}
+
+void set_value_at_storage_unchecked(Tensor& tensor, int64_t storage_index, double value) {
+  const auto index = static_cast<std::size_t>(storage_index);
+  switch (tensor.dtype()) {
+    case DType::Float32:
+      raw_data<float>(tensor)[index] = from_double<float>(value);
+      return;
+    case DType::Float64:
+      raw_data<double>(tensor)[index] = from_double<double>(value);
+      return;
+    case DType::Int32:
+      raw_data<int32_t>(tensor)[index] = from_double<int32_t>(value);
+      return;
+    case DType::Int64:
+      raw_data<int64_t>(tensor)[index] = from_double<int64_t>(value);
+      return;
+    case DType::Bool:
+      raw_data<bool>(tensor)[index] = from_double<bool>(value);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+void fill_storage_unchecked(Tensor& tensor, double value) {
+  const auto count = static_cast<std::size_t>(tensor.numel());
+  const auto offset = static_cast<std::size_t>(tensor.offset());
+  switch (tensor.dtype()) {
+    case DType::Float32:
+      std::fill(raw_data<float>(tensor) + offset, raw_data<float>(tensor) + offset + count, from_double<float>(value));
+      return;
+    case DType::Float64:
+      std::fill(
+          raw_data<double>(tensor) + offset, raw_data<double>(tensor) + offset + count, from_double<double>(value));
+      return;
+    case DType::Int32:
+      std::fill(
+          raw_data<int32_t>(tensor) + offset, raw_data<int32_t>(tensor) + offset + count, from_double<int32_t>(value));
+      return;
+    case DType::Int64:
+      std::fill(
+          raw_data<int64_t>(tensor) + offset, raw_data<int64_t>(tensor) + offset + count, from_double<int64_t>(value));
+      return;
+    case DType::Bool:
+      std::fill(raw_data<bool>(tensor) + offset, raw_data<bool>(tensor) + offset + count, from_double<bool>(value));
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+void write_contiguous_from_accumulator(Tensor& tensor, const std::vector<double>& values) {
+  const auto offset = static_cast<std::size_t>(tensor.offset());
+  switch (tensor.dtype()) {
+    case DType::Float32: {
+      auto* out = raw_data<float>(tensor) + offset;
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        out[i] = from_double<float>(values[i]);
+      }
+      return;
+    }
+    case DType::Float64: {
+      auto* out = raw_data<double>(tensor) + offset;
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        out[i] = from_double<double>(values[i]);
+      }
+      return;
+    }
+    case DType::Int32: {
+      auto* out = raw_data<int32_t>(tensor) + offset;
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        out[i] = from_double<int32_t>(values[i]);
+      }
+      return;
+    }
+    case DType::Int64: {
+      auto* out = raw_data<int64_t>(tensor) + offset;
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        out[i] = from_double<int64_t>(values[i]);
+      }
+      return;
+    }
+    case DType::Bool: {
+      auto* out = raw_data<bool>(tensor) + offset;
+      for (std::size_t i = 0; i < values.size(); ++i) {
+        out[i] = from_double<bool>(values[i]);
+      }
+      return;
+    }
+  }
+  throw DTypeError("unknown dtype");
+}
+
+enum class BinaryFastPath {
+  Direct,
+  LeftScalar,
+  RightScalar,
+};
+
+template <typename OutT, typename LeftT, typename RightT, typename Op>
+void binary_direct_kernel(Tensor& out, const Tensor& left, const Tensor& right, Op op) {
+  const auto count = out.numel();
+  auto* out_data = raw_data<OutT>(out) + out.offset();
+  const auto* left_data = raw_data<LeftT>(left) + left.offset();
+  const auto* right_data = raw_data<RightT>(right) + right.offset();
+  for (int64_t i = 0; i < count; ++i) {
+    out_data[i] = from_double<OutT>(op(to_double(left_data[i]), to_double(right_data[i])));
+  }
+}
+
+template <typename OutT, typename LeftT, typename RightT, typename Op>
+void binary_left_scalar_kernel(Tensor& out, const Tensor& left, const Tensor& right, Op op) {
+  const auto count = out.numel();
+  auto* out_data = raw_data<OutT>(out) + out.offset();
+  const double left_value = to_double(raw_data<LeftT>(left)[static_cast<std::size_t>(left.offset())]);
+  const auto* right_data = raw_data<RightT>(right) + right.offset();
+  for (int64_t i = 0; i < count; ++i) {
+    out_data[i] = from_double<OutT>(op(left_value, to_double(right_data[i])));
+  }
+}
+
+template <typename OutT, typename LeftT, typename RightT, typename Op>
+void binary_right_scalar_kernel(Tensor& out, const Tensor& left, const Tensor& right, Op op) {
+  const auto count = out.numel();
+  auto* out_data = raw_data<OutT>(out) + out.offset();
+  const auto* left_data = raw_data<LeftT>(left) + left.offset();
+  const double right_value = to_double(raw_data<RightT>(right)[static_cast<std::size_t>(right.offset())]);
+  for (int64_t i = 0; i < count; ++i) {
+    out_data[i] = from_double<OutT>(op(to_double(left_data[i]), right_value));
+  }
+}
+
+template <typename OutT, typename LeftT, typename RightT, typename Op>
+void binary_kernel_by_mode(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    Op op,
+    BinaryFastPath mode) {
+  switch (mode) {
+    case BinaryFastPath::Direct:
+      binary_direct_kernel<OutT, LeftT, RightT>(out, left, right, op);
+      return;
+    case BinaryFastPath::LeftScalar:
+      binary_left_scalar_kernel<OutT, LeftT, RightT>(out, left, right, op);
+      return;
+    case BinaryFastPath::RightScalar:
+      binary_right_scalar_kernel<OutT, LeftT, RightT>(out, left, right, op);
+      return;
+  }
+  throw TensorStudioError("unknown binary fast path");
+}
+
+template <typename OutT, typename LeftT, typename Op>
+void dispatch_binary_right(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    Op op,
+    BinaryFastPath mode) {
+  switch (right.dtype()) {
+    case DType::Float32:
+      binary_kernel_by_mode<OutT, LeftT, float>(out, left, right, op, mode);
+      return;
+    case DType::Float64:
+      binary_kernel_by_mode<OutT, LeftT, double>(out, left, right, op, mode);
+      return;
+    case DType::Int32:
+      binary_kernel_by_mode<OutT, LeftT, int32_t>(out, left, right, op, mode);
+      return;
+    case DType::Int64:
+      binary_kernel_by_mode<OutT, LeftT, int64_t>(out, left, right, op, mode);
+      return;
+    case DType::Bool:
+      binary_kernel_by_mode<OutT, LeftT, bool>(out, left, right, op, mode);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename OutT, typename Op>
+void dispatch_binary_left(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    Op op,
+    BinaryFastPath mode) {
+  switch (left.dtype()) {
+    case DType::Float32:
+      dispatch_binary_right<OutT, float>(out, left, right, op, mode);
+      return;
+    case DType::Float64:
+      dispatch_binary_right<OutT, double>(out, left, right, op, mode);
+      return;
+    case DType::Int32:
+      dispatch_binary_right<OutT, int32_t>(out, left, right, op, mode);
+      return;
+    case DType::Int64:
+      dispatch_binary_right<OutT, int64_t>(out, left, right, op, mode);
+      return;
+    case DType::Bool:
+      dispatch_binary_right<OutT, bool>(out, left, right, op, mode);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename Op>
+void elementwise_binary_fast_path(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    Op op,
+    BinaryFastPath mode) {
+  switch (out.dtype()) {
+    case DType::Float32:
+      dispatch_binary_left<float>(out, left, right, op, mode);
+      return;
+    case DType::Float64:
+      dispatch_binary_left<double>(out, left, right, op, mode);
+      return;
+    case DType::Int32:
+      dispatch_binary_left<int32_t>(out, left, right, op, mode);
+      return;
+    case DType::Int64:
+      dispatch_binary_left<int64_t>(out, left, right, op, mode);
+      return;
+    case DType::Bool:
+      dispatch_binary_left<bool>(out, left, right, op, mode);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename OutT, typename InT, typename Op>
+void unary_contiguous_kernel(Tensor& out, const Tensor& input, Op op) {
+  const auto count = out.numel();
+  auto* out_data = raw_data<OutT>(out) + out.offset();
+  const auto* input_data = raw_data<InT>(input) + input.offset();
+  for (int64_t i = 0; i < count; ++i) {
+    out_data[i] = from_double<OutT>(op(to_double(input_data[i])));
+  }
+}
+
+template <typename OutT, typename Op>
+void dispatch_unary_input(Tensor& out, const Tensor& input, Op op) {
+  switch (input.dtype()) {
+    case DType::Float32:
+      unary_contiguous_kernel<OutT, float>(out, input, op);
+      return;
+    case DType::Float64:
+      unary_contiguous_kernel<OutT, double>(out, input, op);
+      return;
+    case DType::Int32:
+      unary_contiguous_kernel<OutT, int32_t>(out, input, op);
+      return;
+    case DType::Int64:
+      unary_contiguous_kernel<OutT, int64_t>(out, input, op);
+      return;
+    case DType::Bool:
+      unary_contiguous_kernel<OutT, bool>(out, input, op);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename Op>
+void elementwise_unary_fast_path(Tensor& out, const Tensor& input, Op op) {
+  switch (out.dtype()) {
+    case DType::Float32:
+      dispatch_unary_input<float>(out, input, op);
+      return;
+    case DType::Float64:
+      dispatch_unary_input<double>(out, input, op);
+      return;
+    case DType::Int32:
+      dispatch_unary_input<int32_t>(out, input, op);
+      return;
+    case DType::Int64:
+      dispatch_unary_input<int64_t>(out, input, op);
+      return;
+    case DType::Bool:
+      dispatch_unary_input<bool>(out, input, op);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename Op>
 Tensor elementwise_binary_impl(
     const Tensor& left,
     const Tensor& right,
     DType dtype,
-    const BinaryOp& op,
+    Op op,
     bool track_grad) {
   const Shape out_shape = broadcast_shapes(left.shape(), right.shape());
   Tensor out(out_shape, dtype, false);
@@ -32,29 +361,19 @@ Tensor elementwise_binary_impl(
   const bool right_scalar = right.numel() == 1;
 
   if (left_direct && right_direct) {
-    for (int64_t i = 0; i < out.numel(); ++i) {
-      out.set_value_at_storage(
-          i,
-          op(left.value_at_storage(left.offset() + i), right.value_at_storage(right.offset() + i)));
-    }
+    elementwise_binary_fast_path(out, left, right, op, BinaryFastPath::Direct);
     (void)track_grad;
     return out;
   }
 
   if (left_scalar && right_direct) {
-    const double left_value = left.value_at_logical(0);
-    for (int64_t i = 0; i < out.numel(); ++i) {
-      out.set_value_at_storage(i, op(left_value, right.value_at_storage(right.offset() + i)));
-    }
+    elementwise_binary_fast_path(out, left, right, op, BinaryFastPath::LeftScalar);
     (void)track_grad;
     return out;
   }
 
   if (right_scalar && left_direct) {
-    const double right_value = right.value_at_logical(0);
-    for (int64_t i = 0; i < out.numel(); ++i) {
-      out.set_value_at_storage(i, op(left.value_at_storage(left.offset() + i), right_value));
-    }
+    elementwise_binary_fast_path(out, left, right, op, BinaryFastPath::RightScalar);
     (void)track_grad;
     return out;
   }
@@ -64,24 +383,109 @@ Tensor elementwise_binary_impl(
         logical_to_storage_offset(i, out_shape, left.shape(), left.strides(), left.offset());
     const auto right_storage =
         logical_to_storage_offset(i, out_shape, right.shape(), right.strides(), right.offset());
-    out.set_value_at_logical(i, op(left.value_at_storage(left_storage), right.value_at_storage(right_storage)));
+    set_value_at_storage_unchecked(
+        out,
+        i,
+        op(value_at_storage_unchecked(left, left_storage), value_at_storage_unchecked(right, right_storage)));
   }
   (void)track_grad;
   return out;
 }
 
-Tensor elementwise_unary_impl(const Tensor& input, DType dtype, const UnaryOp& op) {
+template <typename Op>
+Tensor elementwise_unary_impl(const Tensor& input, DType dtype, Op op) {
   Tensor out(input.shape(), dtype, false);
   if (input.is_contiguous()) {
-    for (int64_t i = 0; i < out.numel(); ++i) {
-      out.set_value_at_storage(i, op(input.value_at_storage(input.offset() + i)));
-    }
+    elementwise_unary_fast_path(out, input, op);
     return out;
   }
   for (int64_t i = 0; i < out.numel(); ++i) {
-    out.set_value_at_logical(i, op(input.value_at_logical(i)));
+    const auto storage = logical_to_storage_offset(i, input.shape(), input.shape(), input.strides(), input.offset());
+    set_value_at_storage_unchecked(out, i, op(value_at_storage_unchecked(input, storage)));
   }
   return out;
+}
+
+template <typename LeftT, typename RightT>
+void matmul_contiguous_kernel(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    int64_t rows,
+    int64_t inner,
+    int64_t cols) {
+  const auto* left_data = raw_data<LeftT>(left) + left.offset();
+  const auto* right_data = raw_data<RightT>(right) + right.offset();
+  std::vector<double> accumulator(static_cast<std::size_t>(rows * cols), 0.0);
+
+  for (int64_t r = 0; r < rows; ++r) {
+    auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
+    const auto* left_row = left_data + r * inner;
+    for (int64_t k = 0; k < inner; ++k) {
+      const double left_value = to_double(left_row[k]);
+      const auto* right_row = right_data + k * cols;
+      for (int64_t c = 0; c < cols; ++c) {
+        out_row[c] += left_value * to_double(right_row[c]);
+      }
+    }
+  }
+
+  write_contiguous_from_accumulator(out, accumulator);
+}
+
+template <typename LeftT>
+void dispatch_matmul_right(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    int64_t rows,
+    int64_t inner,
+    int64_t cols) {
+  switch (right.dtype()) {
+    case DType::Float32:
+      matmul_contiguous_kernel<LeftT, float>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Float64:
+      matmul_contiguous_kernel<LeftT, double>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Int32:
+      matmul_contiguous_kernel<LeftT, int32_t>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Int64:
+      matmul_contiguous_kernel<LeftT, int64_t>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Bool:
+      matmul_contiguous_kernel<LeftT, bool>(out, left, right, rows, inner, cols);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+void matmul_contiguous_fast_path(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    int64_t rows,
+    int64_t inner,
+    int64_t cols) {
+  switch (left.dtype()) {
+    case DType::Float32:
+      dispatch_matmul_right<float>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Float64:
+      dispatch_matmul_right<double>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Int32:
+      dispatch_matmul_right<int32_t>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Int64:
+      dispatch_matmul_right<int64_t>(out, left, right, rows, inner, cols);
+      return;
+    case DType::Bool:
+      dispatch_matmul_right<bool>(out, left, right, rows, inner, cols);
+      return;
+  }
+  throw DTypeError("unknown dtype");
 }
 
 Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad);
@@ -193,17 +597,23 @@ Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   const int64_t inner = left.shape()[1];
   const int64_t cols = right.shape()[1];
   Tensor out({rows, cols}, promote_types(left.dtype(), right.dtype()), false);
-  for (int64_t r = 0; r < rows; ++r) {
-    for (int64_t c = 0; c < cols; ++c) {
-      double acc = 0.0;
-      for (int64_t k = 0; k < inner; ++k) {
-        const int64_t left_storage = left.offset() + r * left.strides()[0] + k * left.strides()[1];
-        const int64_t right_storage = right.offset() + k * right.strides()[0] + c * right.strides()[1];
-        acc += left.value_at_storage(left_storage) * right.value_at_storage(right_storage);
+
+  if (left.is_contiguous() && right.is_contiguous()) {
+    matmul_contiguous_fast_path(out, left, right, rows, inner, cols);
+  } else {
+    for (int64_t r = 0; r < rows; ++r) {
+      for (int64_t c = 0; c < cols; ++c) {
+        double acc = 0.0;
+        for (int64_t k = 0; k < inner; ++k) {
+          const int64_t left_storage = left.offset() + r * left.strides()[0] + k * left.strides()[1];
+          const int64_t right_storage = right.offset() + k * right.strides()[0] + c * right.strides()[1];
+          acc += value_at_storage_unchecked(left, left_storage) * value_at_storage_unchecked(right, right_storage);
+        }
+        set_value_at_storage_unchecked(out, r * cols + c, acc);
       }
-      out.set_value_at_logical(r * cols + c, acc);
     }
   }
+
   if (track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
       Tensor left_grad = matmul_impl(grad, transpose_impl(right, false), false);
@@ -219,14 +629,14 @@ Tensor sum_impl(const Tensor& input, bool track_grad) {
   double acc = 0.0;
   if (input.is_contiguous()) {
     for (int64_t i = 0; i < input.numel(); ++i) {
-      acc += input.value_at_storage(input.offset() + i);
+      acc += value_at_storage_unchecked(input, input.offset() + i);
     }
   } else {
     for (int64_t i = 0; i < input.numel(); ++i) {
       acc += input.value_at_logical(i);
     }
   }
-  out.set_value_at_logical(0, acc);
+  set_value_at_storage_unchecked(out, 0, acc);
   if (track_grad) {
     set_history(out, {input}, [shape = input.shape(), dtype = out.dtype()](const Tensor& grad) {
       return std::vector<Tensor>{full_like(shape, grad.value_at_logical(0), dtype)};
@@ -243,14 +653,14 @@ Tensor mean_impl(const Tensor& input, bool track_grad) {
   double acc = 0.0;
   if (input.is_contiguous()) {
     for (int64_t i = 0; i < input.numel(); ++i) {
-      acc += input.value_at_storage(input.offset() + i);
+      acc += value_at_storage_unchecked(input, input.offset() + i);
     }
   } else {
     for (int64_t i = 0; i < input.numel(); ++i) {
       acc += input.value_at_logical(i);
     }
   }
-  out.set_value_at_logical(0, acc / static_cast<double>(input.numel()));
+  set_value_at_storage_unchecked(out, 0, acc / static_cast<double>(input.numel()));
   if (track_grad) {
     set_history(out, {input}, [shape = input.shape(), n = input.numel()](const Tensor& grad) {
       return std::vector<Tensor>{full_like(shape, grad.value_at_logical(0) / static_cast<double>(n), grad.dtype())};
@@ -468,9 +878,7 @@ Tensor ones(const Shape& shape, DType dtype) {
 
 Tensor full(const Shape& shape, double fill_value, DType dtype) {
   Tensor out(shape, dtype, false);
-  for (int64_t i = 0; i < out.numel(); ++i) {
-    out.set_value_at_storage(i, fill_value);
-  }
+  fill_storage_unchecked(out, fill_value);
   return out;
 }
 
@@ -499,12 +907,10 @@ Tensor eye(int64_t n, int64_t m, DType dtype) {
   }
   const int64_t cols = m == -1 ? n : m;
   Tensor out({n, cols}, dtype, false);
-  for (int64_t i = 0; i < out.numel(); ++i) {
-    out.set_value_at_storage(i, 0.0);
-  }
+  fill_storage_unchecked(out, 0.0);
   const int64_t diagonal = std::min(n, cols);
   for (int64_t i = 0; i < diagonal; ++i) {
-    out.set_value_at_logical(i * cols + i, 1.0);
+    set_value_at_storage_unchecked(out, i * cols + i, 1.0);
   }
   return out;
 }

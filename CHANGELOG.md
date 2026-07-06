@@ -12,6 +12,8 @@
 - Added optimizer utilities for gradient clipping and lightweight
   `StepLR`/`ExponentialLR` learning-rate schedulers.
 - Added `len(DataLoader)` batch counting with `drop_last` support.
+- Added typed C++ fast paths for contiguous elementwise/unary kernels and a
+  contiguous matmul kernel that avoids per-element Tensor method dispatch.
 - Bumped the next release candidate after public `1.0.0rc1` artifacts.
 
 ## 1.0.0rc1

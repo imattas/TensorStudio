@@ -174,12 +174,13 @@ run locally:
 python benchmarks/benchmark_report.py
 ```
 
-On one Windows CPython 3.10 run for `1.0.0rc2`, TensorStudio beat NumPy on 10
-small activation/reduction benchmark cases and lost on 79 NumPy-comparable
+On one Windows CPython 3.10 run for `1.0.0rc2`, TensorStudio beat NumPy on 11
+small activation/reduction benchmark cases and lost on 78 NumPy-comparable
 cases. The strongest local wins were small `sigmoid`, `sum`, and `mean` cases;
-medium elementwise operations and matrix multiplication were much slower than
-NumPy. See `benchmarks/results.md` for the full table, platform details, and
-exact timings.
+medium elementwise operations and matrix multiplication remain slower than
+NumPy. The C++ contiguous matmul fast path is much faster than the original
+naive storage-access loop, but it is not a BLAS replacement. See
+`benchmarks/results.md` for the full table, platform details, and exact timings.
 
 Do not treat these results as universal. TensorStudio does not currently claim
 to be faster than NumPy, TensorFlow, PyTorch, or JAX overall.
