@@ -40,18 +40,20 @@ modules, optimizers, data utilities, and serialization helpers.
 ```python
 ts.tensor(data, dtype=None, requires_grad=False)
 ts.from_numpy(array, requires_grad=False)
-ts.zeros(shape, dtype="float32")
-ts.ones(shape, dtype="float32")
-ts.empty(shape, dtype="float32")
-ts.full(shape, fill_value, dtype="float32")
-ts.rand(shape, dtype="float32", seed=None)
-ts.randn(shape, dtype="float32", seed=None)
-ts.arange(start, stop=None, step=1, dtype="float32")
-ts.eye(n, m=None, dtype="float32")
-ts.linspace(start, stop, steps, dtype="float32")
+ts.zeros(shape, dtype="float32", requires_grad=False)
+ts.ones(shape, dtype="float32", requires_grad=False)
+ts.empty(shape, dtype="float32", requires_grad=False)
+ts.full(shape, fill_value, dtype="float32", requires_grad=False)
+ts.rand(shape, dtype="float32", seed=None, requires_grad=False)
+ts.randn(shape, dtype="float32", seed=None, requires_grad=False)
+ts.arange(start, stop=None, step=1, dtype="float32", requires_grad=False)
+ts.eye(n, m=None, dtype="float32", requires_grad=False)
+ts.linspace(start, stop, steps, dtype="float32", requires_grad=False)
 ```
 
 Nested Python data must be rectangular. Ragged lists raise `ShapeError`.
+`requires_grad=True` is accepted for floating point tensors and rejected for
+integer and boolean tensors.
 
 ## Tensor Properties
 
