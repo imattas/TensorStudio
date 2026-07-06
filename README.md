@@ -99,9 +99,9 @@ publishing, and the project roadmap.
 
 ## Publishing
 
-Releases are intended to be built by GitHub Actions. The publish workflow uses
-PyPI trusted publishing through `pypa/gh-action-pypi-publish`; do not commit PyPI
-API tokens.
+Releases are intended to be built by GitHub Actions. The publish workflow builds
+sdists and wheels for Linux, macOS, and Windows, then uploads to PyPI using the
+repository secret `PYPI_TOKEN`. Do not commit PyPI API tokens.
 
 ## Current Limitations
 
