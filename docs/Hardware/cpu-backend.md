@@ -1,6 +1,6 @@
 # CPU Backend
 
-TensorStudio `1.0.0rc1` supports CPU tensors only.
+TensorStudio `1.0.0rc2` supports CPU tensors only.
 
 ## Device Abstraction
 

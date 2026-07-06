@@ -67,11 +67,17 @@ print(s.item())
 ts.zeros((2, 3))
 ts.ones((2, 3), dtype="float64")
 ts.full((2, 3), 5.0)
+ts.zeros_like(x)
+ts.ones_like(x)
+ts.full_like(x, 5.0)
+ts.empty_like(x)
+ts.rand_like(x, seed=123)
+ts.randn_like(x, seed=123)
 ts.randn((2, 3), seed=123)
 ts.arange(0, 10, 2)
 ```
 
-`randn` accepts a seed for deterministic examples and tests.
+Random helpers accept a seed for deterministic examples and tests.
 
 ## Broadcasting
 
@@ -94,7 +100,7 @@ Rules:
 
 ## Views
 
-TensorStudio `1.0.0rc1` supports:
+TensorStudio `1.0.0rc2` supports:
 
 - `reshape`
 - `flatten`

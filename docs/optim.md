@@ -21,6 +21,19 @@ Every optimizer supports:
 Gradients are read from each parameter's `grad` field. Parameters with no
 gradient are skipped.
 
+## Gradient Clipping
+
+Clip gradients before `step()` when a training loop can produce very large
+updates:
+
+```python
+total_norm = optim.clip_grad_norm_(model.parameters(), max_norm=1.0)
+optim.clip_grad_value_(model.parameters(), clip_value=0.5)
+```
+
+`clip_grad_norm_` returns the original global L2 norm. Both helpers mutate
+gradient tensors in place.
+
 ## SGD
 
 ```python
@@ -56,6 +69,27 @@ optimizer = optim.AdamW(model.parameters(), lr=0.001, weight_decay=1e-2)
 ```
 
 AdamW applies decoupled weight decay.
+
+## Learning-Rate Schedulers
+
+TensorStudio includes minimal schedulers that mutate `optimizer.lr`:
+
+```python
+scheduler = optim.StepLR(optimizer, step_size=10, gamma=0.5)
+for _ in range(100):
+    optimizer.zero_grad()
+    loss = loss_fn(model(x), y)
+    loss.backward()
+    optimizer.step()
+    scheduler.step()
+```
+
+Available schedulers:
+
+- `optim.StepLR(optimizer, step_size, gamma=0.1)`
+- `optim.ExponentialLR(optimizer, gamma)`
+
+Schedulers support `state_dict()` and `load_state_dict()`.
 
 ## State
 

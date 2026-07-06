@@ -14,6 +14,7 @@ def test_tensor_dataset_and_dataloader_batches() -> None:
     batches = list(loader)
 
     assert len(dataset) == 5
+    assert len(loader) == 3
     assert len(batches) == 3
     np.testing.assert_allclose(batches[0][0].numpy(), np.array([[0.0], [1.0]], dtype=np.float32))
     np.testing.assert_allclose(batches[0][1].numpy(), np.array([[1.0], [3.0]], dtype=np.float32))
@@ -30,5 +31,6 @@ def test_dataloader_shuffle_is_deterministic_and_drop_last() -> None:
     dropped = list(DataLoader(dataset, batch_size=4, drop_last=True))
 
     assert first == second
+    assert len(DataLoader(dataset, batch_size=4, drop_last=True)) == 1
     assert len(dropped) == 1
     assert dropped[0][0].shape == (4,)

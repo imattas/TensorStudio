@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.0.0rc1` is a release candidate for a CPU-only stable API
+TensorStudio `1.0.0rc2` is a release candidate for a CPU-only stable API
 foundation. It is eager-only, intentionally small, and not a replacement for
 mature ML frameworks. The final `1.0.0` version should only be tagged after the
 Windows, Linux, and macOS release checklist passes.
@@ -97,6 +97,7 @@ d = ts.linspace(0.0, 1.0, 5)
 print(a.shape, a.strides, a.device, a.is_contiguous)
 print((b.clamp(0.2, 0.8) + 1).mean().item())
 print(c.tolist(), d.tolist())
+print(ts.zeros_like(b).shape, ts.randn_like(b, seed=11).dtype)
 ```
 
 ## Autograd
@@ -128,6 +129,7 @@ ts.manual_seed(0)
 
 model = nn.Sequential(nn.Linear(1, 8), nn.Tanh(), nn.Linear(8, 1))
 optimizer = optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
+scheduler = optim.StepLR(optimizer, step_size=50, gamma=0.5)
 criterion = nn.MSELoss()
 
 x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
@@ -137,10 +139,13 @@ for _ in range(100):
     optimizer.zero_grad()
     loss = criterion(model(x), y)
     loss.backward()
+    optim.clip_grad_norm_(model.parameters(), max_norm=10.0)
     optimizer.step()
+    scheduler.step()
 
 print(loss.item())
 print(model.state_dict().keys())
+print(model.parameter_count())
 ```
 
 ## DataLoader
@@ -169,8 +174,8 @@ run locally:
 python benchmarks/benchmark_report.py
 ```
 
-On one Windows CPython 3.10 run for `1.0.0rc1`, TensorStudio beat NumPy on 14
-small activation/reduction benchmark cases and lost on 75 NumPy-comparable
+On one Windows CPython 3.10 run for `1.0.0rc2`, TensorStudio beat NumPy on 10
+small activation/reduction benchmark cases and lost on 79 NumPy-comparable
 cases. The strongest local wins were small `sigmoid`, `sum`, and `mean` cases;
 medium elementwise operations and matrix multiplication were much slower than
 NumPy. See `benchmarks/results.md` for the full table, platform details, and

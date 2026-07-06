@@ -74,3 +74,43 @@ def test_zero_grad() -> None:
     opt.zero_grad()
 
     assert p.grad is None
+
+
+def test_gradient_clipping_helpers() -> None:
+    p = ts.tensor([3.0, 4.0], requires_grad=True)
+    (p * p).sum().backward()
+
+    total_norm = optim.clip_grad_norm_([p], max_norm=5.0)
+
+    assert total_norm == np.sqrt(100.0)
+    assert p.grad is not None
+    np.testing.assert_allclose(np.linalg.norm(p.grad.numpy()), 5.0, rtol=1e-6)
+
+    optim.clip_grad_value_([p], clip_value=1.0)
+    np.testing.assert_allclose(p.grad.numpy(), np.array([1.0, 1.0]), rtol=1e-6)
+
+
+def test_learning_rate_schedulers_and_state_roundtrip() -> None:
+    p = ts.tensor([1.0], requires_grad=True)
+    opt = optim.SGD([p], lr=0.2)
+
+    step = optim.StepLR(opt, step_size=2, gamma=0.5)
+    step.step()
+    assert opt.lr == 0.2
+    step.step()
+    assert opt.lr == 0.1
+
+    clone = optim.StepLR(opt, step_size=1, gamma=0.1)
+    clone.load_state_dict(step.state_dict())
+    assert clone.step_size == 2
+    assert clone.gamma == 0.5
+    assert clone.last_epoch == 2
+
+    exp = optim.ExponentialLR(opt, gamma=0.1)
+    exp.step()
+    np.testing.assert_allclose(opt.lr, 0.01)
+
+    exp_clone = optim.ExponentialLR(opt, gamma=0.5)
+    exp_clone.load_state_dict(exp.state_dict())
+    assert exp_clone.gamma == 0.1
+    assert exp_clone.last_epoch == 1

@@ -41,10 +41,34 @@ dictionaries.
 ```python
 model.parameters()
 model.named_parameters()
+model.trainable_parameters()
 ```
 
 `named_parameters()` returns stable dotted names such as `0.weight` for
 `Sequential` children.
+
+`parameters()` returns all discovered parameters, including frozen parameters.
+Use `trainable_parameters()` when you specifically want tensors with
+`requires_grad=True`.
+
+## Module Introspection
+
+Modules include small PyTorch-style helpers for inspection and bulk updates:
+
+```python
+model.children()
+model.named_children()
+model.modules()
+model.named_modules()
+model.parameter_count()
+model.parameter_count(trainable_only=True)
+model.freeze()
+model.unfreeze()
+model.apply(lambda module: print(type(module).__name__))
+```
+
+`freeze()` and `unfreeze()` flip `requires_grad` on discovered parameters and
+return the module for chaining.
 
 ## State Dictionaries
 
@@ -64,9 +88,12 @@ Available modules:
 
 - `nn.Linear`
 - `nn.Sequential`
+- `nn.Identity`
 - `nn.ReLU`
+- `nn.LeakyReLU`
 - `nn.Sigmoid`
 - `nn.Tanh`
+- `nn.Softplus`
 - `nn.Dropout`
 - `nn.Flatten`
 
@@ -93,18 +120,29 @@ Available loss modules:
 - `nn.MSELoss`
 - `nn.L1Loss`
 - `nn.BCELoss`
+- `nn.BCEWithLogitsLoss`
+- `nn.HuberLoss`
 
 Functional equivalents live in `tensorstudio.nn.functional`:
 
+- `linear`
 - `relu`
+- `leaky_relu`
 - `sigmoid`
 - `tanh`
+- `softplus`
 - `mse_loss`
 - `l1_loss`
 - `binary_cross_entropy`
+- `binary_cross_entropy_with_logits`
+- `huber_loss`
 
 `BCELoss` expects probabilities, not logits. Inputs are clamped with a small
 epsilon for numerical stability.
+
+`BCEWithLogitsLoss` applies sigmoid before binary cross entropy. `HuberLoss` is
+useful for regression tasks where large residuals should be less aggressive
+than mean squared error.
 
 ## Training Loop
 

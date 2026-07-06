@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.0.0rc1` is a release candidate for a CPU-only stable API foundation. It is
+`1.0.0rc2` is a release candidate for a CPU-only stable API foundation. It is
 intended to prove the tensor, autograd, neural-network, optimizer, data, docs,
 packaging, and wheel workflows before the project is marked final `1.0.0`.
 
@@ -26,14 +26,16 @@ wheel builds, clean installs, tests, examples, and release checks all pass.
   device, and autograd metadata.
 - Dtypes: `float32`, `float64`, `int32`, `int64`, and `bool`.
 - Tensor creation helpers: `tensor`, `from_numpy`, `zeros`, `ones`, `full`,
-  `empty`, `rand`, `randn`, `arange`, `eye`, and `linspace`.
+  `empty`, `rand`, `randn`, `arange`, `eye`, `linspace`, and matching
+  `*_like` helpers.
 - NumPy-style broadcasting for binary elementwise operations.
 - Arithmetic, comparisons, matrix multiplication, all-element reductions, common
   activations, `sqrt`, `abs`, `clamp`, reshape, flatten, and 2D transpose.
 - Reverse-mode autograd for the release-candidate operation set.
 - Python `nn.Module`, parameters, linear layers, sequential models, activation
-  modules, dropout, flatten, and basic losses.
-- Python `optim.SGD`, `optim.Adam`, and `optim.AdamW`.
+  modules, dropout, flatten, module introspection, and common losses.
+- Python `optim.SGD`, `optim.Adam`, `optim.AdamW`, gradient clipping helpers,
+  and small learning-rate schedulers.
 - Minimal Windows-friendly `Dataset`, `TensorDataset`, and `DataLoader`.
 - NumPy copy interop, pickle-based internal serialization, examples, tests,
   benchmarks, and GitHub Actions release workflows.

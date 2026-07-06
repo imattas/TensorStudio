@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.0rc2
+
+- Added `*_like` tensor creation helpers for zero, one, full, empty, uniform
+  random, and normal random tensors.
+- Added `nn.Identity`, `nn.LeakyReLU`, `nn.Softplus`,
+  `nn.BCEWithLogitsLoss`, `nn.HuberLoss`, and matching functional helpers.
+- Expanded `nn.Module` with child/module introspection, trainable parameter
+  filtering, freeze/unfreeze helpers, parameter counting, recursive `apply`,
+  and richer `repr` details.
+- Added optimizer utilities for gradient clipping and lightweight
+  `StepLR`/`ExponentialLR` learning-rate schedulers.
+- Added `len(DataLoader)` batch counting with `drop_last` support.
+- Bumped the next release candidate after public `1.0.0rc1` artifacts.
+
 ## 1.0.0rc1
 
 - Release-candidate hardening toward a CPU-only v1.0.0 API foundation.

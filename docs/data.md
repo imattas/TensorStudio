@@ -54,6 +54,7 @@ for batch_features, batch_targets in loader:
 Features:
 
 - Batching.
+- `len(loader)` returns the number of batches.
 - Deterministic shuffle with `seed`.
 - Optional `drop_last`.
 - Simple collation for TensorStudio tensors, numbers, booleans, lists, and

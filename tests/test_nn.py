@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import tensorstudio as ts
 from tensorstudio import nn, optim
 
@@ -59,6 +60,52 @@ def test_named_parameters_state_dict_and_repr() -> None:
     model.load_state_dict(state)
 
     assert model[0].weight.tolist() == state["0.weight"].tolist()
+
+
+def test_module_introspection_freeze_apply_and_functional_linear() -> None:
+    ts.manual_seed(0)
+    model = nn.Sequential(nn.Linear(2, 3), nn.LeakyReLU(0.2), nn.Linear(3, 1))
+
+    assert [name for name, _ in model.named_children()] == ["0", "1", "2"]
+    assert [name for name, _ in model.named_modules()] == ["", "0", "1", "2"]
+    assert model.parameter_count() == sum(parameter.size for parameter in model.parameters())
+    assert model.parameter_count(trainable_only=True) == model.parameter_count()
+
+    visited: list[str] = []
+    model.apply(lambda module: visited.append(module.__class__.__name__))
+    assert visited == ["Sequential", "Linear", "LeakyReLU", "Linear"]
+
+    model.freeze()
+    assert model.parameter_count(trainable_only=True) == 0
+    assert all(not parameter.requires_grad for parameter in model.parameters())
+    model.unfreeze()
+    assert all(parameter.requires_grad for parameter in model.parameters())
+
+    x = ts.ones((2, 2))
+    direct = nn.functional.linear(x, model[0].weight, model[0].bias)
+    layered = model[0](x)
+    np.testing.assert_allclose(direct.numpy(), layered.numpy())
+    assert "negative_slope=0.2" in repr(model[1])
+
+
+def test_identity_leaky_relu_softplus_and_new_losses() -> None:
+    x = ts.tensor([-2.0, 0.0, 2.0])
+
+    assert nn.Identity()(x) is x
+    np.testing.assert_allclose(nn.LeakyReLU(0.1)(x).numpy(), np.array([-0.2, 0.0, 2.0]))
+    np.testing.assert_allclose(
+        nn.Softplus()(x).numpy(),
+        np.log1p(np.exp(x.numpy())),
+        rtol=1e-6,
+    )
+
+    logits = ts.tensor([0.0, 2.0, -2.0])
+    target = ts.tensor([0.0, 1.0, 0.0])
+    assert nn.BCEWithLogitsLoss()(logits, target).item() > 0.0
+
+    prediction = ts.tensor([0.0, 2.0, 4.0])
+    expected = ts.tensor([0.0, 0.0, 1.0])
+    assert nn.HuberLoss(delta=1.0)(prediction, expected).item() > 0.0
 
 
 def test_dropout_flatten_and_losses() -> None:

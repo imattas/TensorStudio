@@ -1,6 +1,8 @@
 build/
+build-local-check-dist/
 dist/
 wheel_artifacts/
+downloaded-artifacts/
 *.egg-info/
 __pycache__/
 *.py[cod]

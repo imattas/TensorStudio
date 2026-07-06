@@ -36,9 +36,18 @@ class Module:
     def parameters(self) -> list[Tensor]:
         return [parameter for _, parameter in self.named_parameters()]
 
+    def trainable_parameters(self) -> list[Tensor]:
+        return [parameter for parameter in self.parameters() if parameter.requires_grad]
+
     def named_parameters(self, prefix: str = "") -> list[tuple[str, Tensor]]:
         seen: set[int] = set()
         return list(self._iter_named_parameters(prefix, seen))
+
+    def children(self) -> list[Module]:
+        return list(self._children())
+
+    def named_children(self, prefix: str = "") -> list[tuple[str, Module]]:
+        return list(self._named_children(prefix))
 
     def modules(self) -> list[Module]:
         result = [self]
@@ -46,9 +55,36 @@ class Module:
             result.extend(child.modules())
         return result
 
+    def named_modules(self, prefix: str = "") -> list[tuple[str, Module]]:
+        result = [(prefix, self)]
+        for name, child in self._named_children(prefix):
+            result.extend(child.named_modules(name))
+        return result
+
     def zero_grad(self) -> None:
         for parameter in self.parameters():
             parameter.zero_grad()
+
+    def requires_grad_(self, requires_grad: bool = True) -> Module:
+        for parameter in self.parameters():
+            parameter.requires_grad = requires_grad
+        return self
+
+    def freeze(self) -> Module:
+        return self.requires_grad_(False)
+
+    def unfreeze(self) -> Module:
+        return self.requires_grad_(True)
+
+    def parameter_count(self, trainable_only: bool = False) -> int:
+        parameters = self.trainable_parameters() if trainable_only else self.parameters()
+        return sum(parameter.size for parameter in parameters)
+
+    def apply(self, fn: Any) -> Module:
+        fn(self)
+        for module in self._children():
+            module.apply(fn)
+        return self
 
     def train(self) -> Module:
         self.training = True
@@ -75,11 +111,19 @@ class Module:
             if name in current:
                 current[name]._assign(value)
 
+    def extra_repr(self) -> str:
+        return ""
+
     def __repr__(self) -> str:
         children = list(self._named_children())
+        extra = self.extra_repr()
         if not children:
+            if extra:
+                return f"{self.__class__.__name__}({extra})"
             return f"{self.__class__.__name__}()"
         body = ", ".join(f"{name}={module!r}" for name, module in children)
+        if extra:
+            body = f"{extra}, {body}"
         return f"{self.__class__.__name__}({body})"
 
     def _children(self) -> Iterator[Module]:
@@ -119,7 +163,7 @@ class Module:
         full_name = cls._join_name(prefix, name)
         if isinstance(value, Tensor):
             marker = id(value)
-            if value.requires_grad and marker not in seen:
+            if marker not in seen:
                 seen.add(marker)
                 yield full_name, value
         elif isinstance(value, Module):
@@ -163,10 +207,15 @@ class Linear(Module):
         self.bias = cast(Tensor, Parameter(zeros((out_features,)))) if bias else None
 
     def forward(self, input: Tensor) -> Tensor:
-        output = input @ self.weight.T
-        if self.bias is not None:
-            output = output + self.bias
-        return output
+        from .functional import linear
+
+        return linear(input, self.weight, self.bias)
+
+    def extra_repr(self) -> str:
+        return (
+            f"in_features={self.in_features}, out_features={self.out_features}, "
+            f"bias={self.bias is not None}"
+        )
 
 
 class Sequential(Module):
@@ -200,9 +249,28 @@ class Sequential(Module):
             yield from module._iter_named_parameters(self._join_name(prefix, str(index)), seen)
 
 
+class Identity(Module):
+    def forward(self, input: Tensor) -> Tensor:
+        return input
+
+
 class ReLU(Module):
     def forward(self, input: Tensor) -> Tensor:
         return input.relu()
+
+
+class LeakyReLU(Module):
+    def __init__(self, negative_slope: float = 0.01) -> None:
+        super().__init__()
+        self.negative_slope = negative_slope
+
+    def forward(self, input: Tensor) -> Tensor:
+        from .functional import leaky_relu
+
+        return leaky_relu(input, negative_slope=self.negative_slope)
+
+    def extra_repr(self) -> str:
+        return f"negative_slope={self.negative_slope}"
 
 
 class Sigmoid(Module):
@@ -213,6 +281,13 @@ class Sigmoid(Module):
 class Tanh(Module):
     def forward(self, input: Tensor) -> Tensor:
         return input.tanh()
+
+
+class Softplus(Module):
+    def forward(self, input: Tensor) -> Tensor:
+        from .functional import softplus
+
+        return softplus(input)
 
 
 class Dropout(Module):
@@ -231,6 +306,9 @@ class Dropout(Module):
         mask = rand(input.shape, dtype=input.dtype, seed=self.seed) > self.p
         return input * mask / (1.0 - self.p)
 
+    def extra_repr(self) -> str:
+        return f"p={self.p}"
+
 
 class Flatten(Module):
     """Flatten a tensor from ``start_dim`` through the last dimension."""
@@ -248,15 +326,21 @@ class Flatten(Module):
         flattened = math.prod(input.shape[start:]) if start < ndim else 1
         return input.reshape((*prefix, flattened))
 
+    def extra_repr(self) -> str:
+        return f"start_dim={self.start_dim}"
+
 
 __all__ = [
     "Dropout",
     "Flatten",
+    "Identity",
+    "LeakyReLU",
     "Linear",
     "Module",
     "Parameter",
     "ReLU",
     "Sequential",
     "Sigmoid",
+    "Softplus",
     "Tanh",
 ]

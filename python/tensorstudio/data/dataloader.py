@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import random
 from collections.abc import Iterator
+from math import ceil
 from typing import Any
 
 from tensorstudio.tensor import Tensor, tensor
@@ -29,6 +30,12 @@ class DataLoader:
         self.shuffle = shuffle
         self.drop_last = drop_last
         self.seed = seed
+
+    def __len__(self) -> int:
+        size = len(self.dataset)
+        if self.drop_last:
+            return size // self.batch_size
+        return ceil(size / self.batch_size)
 
     def __iter__(self) -> Iterator[Any]:
         indices = list(range(len(self.dataset)))

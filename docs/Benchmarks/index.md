@@ -33,7 +33,7 @@ multiplication on the same shapes.
 ## Interpreting Results
 
 Expect NumPy to be faster for many operations because it uses highly optimized
-native kernels. TensorStudio `1.0.0rc1` still favors clarity and correctness
+native kernels. TensorStudio `1.0.0rc2` still favors clarity and correctness
 over kernel performance.
 
 Useful benchmark notes:

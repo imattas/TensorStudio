@@ -47,6 +47,43 @@ def test_creation_helpers_accept_requires_grad() -> None:
     np.testing.assert_allclose(x.grad.numpy(), np.full((2, 2), 2.0, dtype=np.float32))
 
 
+def test_like_creation_helpers_copy_shape_dtype_and_grad_flag() -> None:
+    base = ts.tensor([[1.0, 2.0], [3.0, 4.0]], dtype="float64", requires_grad=True)
+
+    assert ts.empty_like(base).shape == base.shape
+    np.testing.assert_allclose(ts.zeros_like(base).numpy(), np.zeros(base.shape, dtype=np.float64))
+    np.testing.assert_allclose(ts.ones_like(base).numpy(), np.ones(base.shape, dtype=np.float64))
+    np.testing.assert_allclose(ts.full_like(base, 3.5).numpy(), np.full(base.shape, 3.5))
+
+    for created in (
+        ts.empty_like(base),
+        ts.zeros_like(base),
+        ts.ones_like(base),
+        ts.full_like(base, 1.0),
+    ):
+        assert created.dtype == "float64"
+        assert created.requires_grad is True
+
+    override = ts.zeros_like(base, dtype="float32", requires_grad=False)
+    assert override.dtype == "float32"
+    assert override.requires_grad is False
+
+
+def test_random_like_helpers_are_seeded() -> None:
+    base = ts.ones((2, 3), dtype="float64", requires_grad=True)
+
+    a = ts.rand_like(base, seed=42)
+    b = ts.rand_like(base, seed=42)
+    c = ts.randn_like(base, seed=123)
+    d = ts.randn_like(base, seed=123)
+
+    assert a.shape == base.shape
+    assert a.dtype == "float64"
+    assert a.requires_grad is True
+    np.testing.assert_allclose(a.numpy(), b.numpy())
+    np.testing.assert_allclose(c.numpy(), d.numpy())
+
+
 def test_rand_and_manual_seed_are_deterministic() -> None:
     ts.manual_seed(123)
     a = ts.rand((2, 2))

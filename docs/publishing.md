@@ -9,8 +9,8 @@ files.
 Use release-candidate versions while hardening:
 
 ```bash
-git tag v1.0.0rc1
-git push origin v1.0.0rc1
+git tag v1.0.0rc2
+git push origin v1.0.0rc2
 ```
 
 The final `v1.0.0` tag should only be created after the release checklist passes
@@ -40,13 +40,13 @@ not print secrets.
 ## TestPyPI First
 
 Configure a PyPI trusted publisher for TestPyPI before rehearsing a release.
-Then publish `v1.0.0rc1` to TestPyPI and install it in a clean environment:
+Then publish `v1.0.0rc2` to TestPyPI and install it in a clean environment:
 
 ```bash
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc1
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc2
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -57,7 +57,7 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc1
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc2
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```

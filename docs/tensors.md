@@ -56,11 +56,16 @@ ts.tensor([1.0], dtype="float64").dtype
 ts.tensor([[1.0, 2.0], [3.0, 4.0]])
 ts.from_numpy(array)
 ts.zeros((2, 3))
+ts.zeros_like(x)
 ts.empty((2, 3))
 ts.ones((2, 3))
+ts.ones_like(x)
 ts.full((2, 3), 5.0)
+ts.full_like(x, 5.0)
 ts.rand((2, 3), seed=123)
+ts.rand_like(x, seed=123)
 ts.randn((2, 3), seed=123)
+ts.randn_like(x, seed=123)
 ts.arange(0, 10, 2)
 ts.eye(3)
 ts.linspace(0.0, 1.0, 5)
@@ -68,6 +73,15 @@ ts.linspace(0.0, 1.0, 5)
 
 `empty` does not guarantee any particular values. Current storage may appear
 zeroed on some platforms, but code should fill it before use.
+
+The `*_like` helpers copy shape, dtype, and the default `requires_grad` flag
+from an existing tensor unless an override is provided:
+
+```python
+base = ts.ones((2, 3), dtype="float64", requires_grad=True)
+ts.zeros_like(base)
+ts.full_like(base, 5.0, requires_grad=False)
+```
 
 ## Broadcasting
 
