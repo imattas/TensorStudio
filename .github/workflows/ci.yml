@@ -27,7 +27,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Mypy
-        run: mypy python/tensorstudio
+        run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
       - name: Example
@@ -56,7 +56,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Mypy
-        run: mypy python/tensorstudio
+        run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
       - name: Example
@@ -85,7 +85,7 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: Mypy
-        run: mypy python/tensorstudio
+        run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
       - name: Example
