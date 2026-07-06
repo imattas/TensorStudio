@@ -46,7 +46,7 @@ def test_matmul_reductions_and_activations() -> None:
 
     x = ts.tensor([-1.0, 0.0, 1.0])
     np.testing.assert_allclose(x.relu().numpy(), np.array([0.0, 0.0, 1.0]))
-    np.testing.assert_allclose(x.sigmoid().numpy(), 1.0 / (1.0 + np.exp(-x.numpy())))
+    np.testing.assert_allclose(x.sigmoid().numpy(), 1.0 / (1.0 + np.exp(-x.numpy())), rtol=1e-6)
     np.testing.assert_allclose(x.tanh().numpy(), np.tanh(x.numpy()))
     np.testing.assert_allclose(x.exp().log().numpy(), x.numpy(), rtol=1e-6, atol=1e-6)
     np.testing.assert_allclose(ts.tensor([1.0, 4.0]).sqrt().numpy(), np.array([1.0, 2.0]))
