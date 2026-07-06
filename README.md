@@ -159,6 +159,26 @@ for features, targets in loader:
 The v1 release candidate DataLoader is intentionally single-process so it works
 cleanly on Windows without multiprocessing setup.
 
+## Performance
+
+TensorStudio is optimized for small-to-medium CPU eager workloads, but
+performance is still experimental. Benchmarks live in `benchmarks/` and can be
+run locally:
+
+```bash
+python benchmarks/benchmark_report.py
+```
+
+On one Windows CPython 3.10 run for `1.0.0rc1`, TensorStudio beat NumPy on 14
+small activation/reduction benchmark cases and lost on 75 NumPy-comparable
+cases. The strongest local wins were small `sigmoid`, `sum`, and `mean` cases;
+medium elementwise operations and matrix multiplication were much slower than
+NumPy. See `benchmarks/results.md` for the full table, platform details, and
+exact timings.
+
+Do not treat these results as universal. TensorStudio does not currently claim
+to be faster than NumPy, TensorFlow, PyTorch, or JAX overall.
+
 ## Save And Load
 
 ```python
@@ -194,6 +214,7 @@ scikit-build-core, and C++20.
 - `pytest -q` passes on Windows, Linux, and macOS.
 - `python -m build` passes.
 - `python -m twine check dist/*` passes.
+- Benchmarks are generated and performance claims match the data.
 - Clean wheel installs pass on Windows, Linux, and macOS.
 - Clean sdist installs pass on Windows, Linux, and macOS.
 - Examples run on all platforms.
