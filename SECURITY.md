@@ -1,6 +1,6 @@
 # Security Policy
 
-TensorStudio is experimental v0.1.0 software.
+TensorStudio is experimental v0.1.x software.
 
 ## Reporting a Vulnerability
 
@@ -16,6 +16,6 @@ Include:
 
 ## Serialization Warning
 
-`tensorstudio.load()` uses Python pickle for v0.1.0 internal object roundtrips.
+`tensorstudio.load()` uses Python pickle for v0.1.x internal object roundtrips.
 Loading pickle files from untrusted sources is unsafe because pickle can execute
 arbitrary code during deserialization.

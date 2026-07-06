@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio is experimental v0.1.0 software. It is CPU-only, eager-only, and
+TensorStudio is experimental v0.1.1 software. It is CPU-only, eager-only, and
 intentionally small enough to read and modify.
 
 ## Install

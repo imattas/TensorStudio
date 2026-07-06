@@ -27,6 +27,9 @@ jobs:
         env:
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
           CIBW_SKIP: "*-musllinux*"
+          CIBW_ARCHS_WINDOWS: "AMD64"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
           CIBW_TEST_COMMAND: "python -c \"import tensorstudio as ts; x = ts.tensor([1.0, 2.0], requires_grad=True); y = (x * x).sum(); y.backward(); print(ts.__version__, x.grad.tolist())\""
       - uses: actions/upload-artifact@v4
         with:

@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio v0.1.0 is a foundation. This roadmap describes likely directions
+TensorStudio v0.1.x is a foundation. This roadmap describes likely directions
 without promising dates.
 
 ## Backend And Performance

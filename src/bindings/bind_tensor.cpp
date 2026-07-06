@@ -111,11 +111,11 @@ py::list nested_list_from_tensor(const Tensor& tensor, std::size_t dim, int64_t&
   return result;
 }
 
-std::vector<ssize_t> ssize_shape(const Shape& shape) {
-  std::vector<ssize_t> result;
+std::vector<py::ssize_t> ssize_shape(const Shape& shape) {
+  std::vector<py::ssize_t> result;
   result.reserve(shape.size());
   for (const auto dim : shape) {
-    result.push_back(static_cast<ssize_t>(dim));
+    result.push_back(static_cast<py::ssize_t>(dim));
   }
   return result;
 }
@@ -201,7 +201,7 @@ Tensor tensor_from_numpy(py::array array, bool requires_grad) {
   py::array flat = py::reinterpret_borrow<py::array>(contiguous.attr("ravel")());
   std::vector<double> values;
   values.reserve(static_cast<std::size_t>(flat.size()));
-  for (ssize_t i = 0; i < flat.size(); ++i) {
+  for (py::ssize_t i = 0; i < flat.size(); ++i) {
     values.push_back(py::cast<double>(flat.attr("__getitem__")(i)));
   }
   return Tensor::from_flat_values(values, shape, dtype, requires_grad);

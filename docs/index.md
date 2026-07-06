@@ -11,7 +11,7 @@ examples, benchmarks, and release tooling.
 
 ## Project Status
 
-TensorStudio v0.1.0 is experimental. It is useful for learning how tensor
+TensorStudio v0.1.1 is experimental. It is useful for learning how tensor
 frameworks are assembled, for small experiments, and for lightweight workloads.
 It is not a replacement for mature production ML frameworks.
 
@@ -23,7 +23,7 @@ It is not a replacement for mature production ML frameworks.
 - NumPy-style broadcasting for binary elementwise operations.
 - Matrix multiplication for 2D tensors.
 - Scalar reductions, common activations, reshape, flatten, and 2D transpose.
-- Reverse-mode autograd for the v0.1.0 operation set.
+- Reverse-mode autograd for the v0.1.x operation set.
 - Python `nn.Module`, `Parameter`, `Linear`, `Sequential`, activations, and
   `MSELoss`.
 - Python `optim.SGD` and `optim.Adam`.
@@ -42,7 +42,7 @@ TensorStudio prioritizes:
 
 ## Current Boundaries
 
-TensorStudio v0.1.0 is CPU-only. It has no CUDA backend, no graph compiler, no
+TensorStudio v0.1.1 is CPU-only. It has no CUDA backend, no graph compiler, no
 distributed runtime, no advanced indexing, no sparse tensors, and limited dtype
 casting. Serialization uses pickle, so loading untrusted files is unsafe.
 

@@ -22,7 +22,7 @@ TensorStudio builds a C++20 extension module named `tensorstudio._C`.
 Windows:
 
 ```powershell
-# Use a Visual Studio Developer PowerShell, or make sure cl/nmake are on PATH.
+# Use a Visual Studio Developer PowerShell, or install wheels from PyPI.
 python -m pip install -e ".[dev]"
 ```
 
@@ -39,6 +39,9 @@ Linux:
 sudo apt-get install build-essential cmake
 python -m pip install -e ".[dev]"
 ```
+
+End users should normally install prebuilt wheels from PyPI and should not need
+CMake or a compiler.
 
 ## Development Install
 
@@ -93,14 +96,8 @@ as superior to mature ML frameworks.
 
 ## Testing Strategy
 
-Add tests for:
-
-- Tensor creation and dtype behavior
-- Broadcasting and shape errors
-- NumPy numerical comparisons
-- Autograd gradients for new differentiable ops
-- Python module or optimizer behavior
-- Serialization roundtrips
+Add tests for tensor creation, dtype handling, broadcasting, shape errors, NumPy
+comparisons, autograd gradients, modules, optimizers, and serialization.
 
 For numerical tests, prefer `np.testing.assert_allclose`.
 
@@ -116,5 +113,5 @@ python -m build
 twine check dist/*
 ```
 
-The wheel build requires a working native compiler. If the local machine cannot
-compile the extension, use CI wheel builds.
+Wheels are built in CI with cibuildwheel so users can install without a local
+C++ toolchain.

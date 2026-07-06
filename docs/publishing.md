@@ -13,8 +13,8 @@ long-lived PyPI tokens in developer environments.
 4. Create and push a version tag:
 
    ```bash
-   git tag v0.1.0
-   git push origin v0.1.0
+   git tag v0.1.1
+   git push origin v0.1.1
    ```
 
 5. Publish a GitHub release, or manually run the publish workflow.

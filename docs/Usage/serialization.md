@@ -1,6 +1,6 @@
 # Serialization
 
-TensorStudio v0.1.0 provides simple Python-level serialization:
+TensorStudio v0.1.x provides simple Python-level serialization:
 
 ```python
 import tensorstudio as ts
@@ -34,7 +34,7 @@ loaded = ts.load("model.tsmodel")
 
 ## Version Compatibility
 
-The v0.1.0 format is not guaranteed to be stable across future releases. For
+The v0.1.x format is not guaranteed to be stable across future releases. For
 long-term model exchange, ONNX import/export is planned as future work.
 
 ## Recommended File Extension

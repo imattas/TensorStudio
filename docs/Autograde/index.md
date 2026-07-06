@@ -40,7 +40,7 @@ Calling `backward()`:
 
 ## Supported Gradient Operations
 
-v0.1.0 supports gradients for:
+v0.1.x supports gradients for:
 
 - `add`
 - `sub`
