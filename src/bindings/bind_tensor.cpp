@@ -275,13 +275,18 @@ void bind_tensor(py::module_& module) {
           "Whether this tensor participates in reverse-mode autodiff.")
       .def_property_readonly("grad", [](const Tensor& self) { return none_if_undefined(self.grad()); })
       .def_property_readonly("shape", [](const Tensor& self) { return shape_tuple(self.shape()); })
+      .def_property_readonly("strides", [](const Tensor& self) { return shape_tuple(self.strides()); })
       .def_property_readonly("dtype", [](const Tensor& self) { return dtype_name(self.dtype()); })
+      .def_property_readonly("device", [](const Tensor& self) { return self.device().str(); })
       .def_property_readonly("ndim", &Tensor::ndim)
       .def_property_readonly("size", &Tensor::size)
+      .def_property_readonly("is_contiguous", &Tensor::is_contiguous)
       .def_property_readonly("T", [](const Tensor& self) { return transpose(self); })
       .def("numpy", &tensor_to_numpy)
       .def("tolist", &tensor_to_py_list)
       .def("item", &tensor_to_py_scalar)
+      .def("clone", &Tensor::clone)
+      .def("detach", &Tensor::detach)
       .def("reshape", [](const Tensor& self, py::args args) {
         if (args.size() == 1 && !py::isinstance<py::int_>(args[0])) {
           return reshape(self, shape_from_py(py::reinterpret_borrow<py::object>(args[0])));
@@ -296,11 +301,17 @@ void bind_tensor(py::module_& module) {
       .def("transpose", &transpose)
       .def("sum", &sum)
       .def("mean", &mean)
+      .def("max", &max)
+      .def("min", &min)
       .def("relu", &relu)
       .def("sigmoid", &sigmoid)
       .def("tanh", &tanh)
       .def("exp", &exp)
       .def("log", &log)
+      .def("sqrt", &sqrt)
+      .def("abs", &abs)
+      .def("clamp", &clamp, py::arg("min_value"), py::arg("max_value"))
+      .def("clip", &clamp, py::arg("min_value"), py::arg("max_value"))
       .def("backward", [](Tensor& self, py::object gradient) {
         if (gradient.is_none()) {
           backward(self);
@@ -319,6 +330,15 @@ void bind_tensor(py::module_& module) {
       .def("__rmul__", [](const Tensor& self, py::object other) { return reverse_binary_tensor_op(other, self, mul); }, py::is_operator())
       .def("__truediv__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, div); }, py::is_operator())
       .def("__rtruediv__", [](const Tensor& self, py::object other) { return reverse_binary_tensor_op(other, self, div); }, py::is_operator())
+      .def("__eq__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, equal); }, py::is_operator())
+      .def("__ne__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, not_equal); }, py::is_operator())
+      .def("__lt__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, less); }, py::is_operator())
+      .def("__le__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, less_equal); }, py::is_operator())
+      .def("__gt__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, greater); }, py::is_operator())
+      .def("__ge__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, greater_equal); }, py::is_operator())
+      .def("__iadd__", [](Tensor&, py::object) -> Tensor {
+        throw TensorStudioError("in-place += is not supported in TensorStudio 1.0.0rc1; use x = x + y");
+      }, py::is_operator())
       .def("__neg__", &neg, py::is_operator())
       .def("__pow__", [](const Tensor& self, double exponent) { return pow(self, exponent); }, py::is_operator())
       .def("__matmul__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, matmul); }, py::is_operator())
@@ -353,7 +373,20 @@ void bind_tensor(py::module_& module) {
       py::arg("requires_grad") = false);
   module.def("zeros", [](py::object shape, py::object dtype) { return zeros(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
   module.def("ones", [](py::object shape, py::object dtype) { return ones(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
+  module.def("empty", [](py::object shape, py::object dtype) { return empty(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
   module.def("full", [](py::object shape, double fill_value, py::object dtype) { return full(shape_from_py(shape), fill_value, dtype_from_py(dtype)); }, py::arg("shape"), py::arg("fill_value"), py::arg("dtype") = "float32");
+  module.def(
+      "rand",
+      [](py::object shape, py::object dtype, py::object seed) {
+        std::optional<uint64_t> cpp_seed;
+        if (!seed.is_none()) {
+          cpp_seed = py::cast<uint64_t>(seed);
+        }
+        return rand(shape_from_py(shape), dtype_from_py(dtype), cpp_seed);
+      },
+      py::arg("shape"),
+      py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
   module.def(
       "randn",
       [](py::object shape, py::object dtype, py::object seed) {
@@ -378,6 +411,13 @@ void bind_tensor(py::module_& module) {
       py::arg("stop") = py::none(),
       py::arg("step") = 1.0,
       py::arg("dtype") = "float32");
+  module.def("eye", [](int64_t n, py::object m, py::object dtype) {
+    return eye(n, m.is_none() ? -1 : py::cast<int64_t>(m), dtype_from_py(dtype));
+  }, py::arg("n"), py::arg("m") = py::none(), py::arg("dtype") = "float32");
+  module.def("linspace", [](double start, double stop, int64_t steps, py::object dtype) {
+    return linspace(start, stop, steps, dtype_from_py(dtype));
+  }, py::arg("start"), py::arg("stop"), py::arg("steps"), py::arg("dtype") = "float32");
+  module.def("manual_seed", &manual_seed, py::arg("seed"));
 }
 
 }  // namespace tensorstudio::bindings

@@ -8,6 +8,8 @@
 namespace tensorstudio {
 
 bool any_requires_grad(const std::vector<Tensor>& tensors);
+bool grad_enabled();
+void set_grad_enabled(bool enabled);
 void set_history(Tensor& output, std::vector<Tensor> parents, BackwardFn backward);
 void backward(Tensor& output, const std::optional<Tensor>& gradient = std::nullopt);
 void accumulate_grad(Tensor& tensor, const Tensor& gradient);

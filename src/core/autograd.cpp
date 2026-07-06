@@ -7,6 +7,11 @@
 #include "tensorstudio/ops.hpp"
 
 namespace tensorstudio {
+namespace {
+
+thread_local bool grad_enabled_state = true;
+
+}  // namespace
 
 bool any_requires_grad(const std::vector<Tensor>& tensors) {
   return std::any_of(tensors.begin(), tensors.end(), [](const Tensor& tensor) {
@@ -14,9 +19,20 @@ bool any_requires_grad(const std::vector<Tensor>& tensors) {
   });
 }
 
+bool grad_enabled() {
+  return grad_enabled_state;
+}
+
+void set_grad_enabled(bool enabled) {
+  grad_enabled_state = enabled;
+}
+
 void set_history(Tensor& output, std::vector<Tensor> parents, BackwardFn backward_fn) {
   if (!output.defined()) {
     throw TensorStudioError("cannot set autograd history on an undefined tensor");
+  }
+  if (!grad_enabled()) {
+    return;
   }
   if (!dtype_is_floating(output.dtype())) {
     return;

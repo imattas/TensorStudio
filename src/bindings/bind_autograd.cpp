@@ -7,6 +7,8 @@
 namespace tensorstudio::bindings {
 
 void bind_autograd(py::module_& module) {
+  module.def("_grad_enabled", &grad_enabled);
+  module.def("_set_grad_enabled", &set_grad_enabled, py::arg("enabled"));
   module.def(
       "backward",
       [](Tensor& output, py::object gradient) {

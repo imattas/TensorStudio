@@ -26,6 +26,39 @@ Tensor elementwise_binary_impl(
     bool track_grad) {
   const Shape out_shape = broadcast_shapes(left.shape(), right.shape());
   Tensor out(out_shape, dtype, false);
+  const bool left_direct = left.shape() == out_shape && left.is_contiguous();
+  const bool right_direct = right.shape() == out_shape && right.is_contiguous();
+  const bool left_scalar = left.numel() == 1;
+  const bool right_scalar = right.numel() == 1;
+
+  if (left_direct && right_direct) {
+    for (int64_t i = 0; i < out.numel(); ++i) {
+      out.set_value_at_storage(
+          i,
+          op(left.value_at_storage(left.offset() + i), right.value_at_storage(right.offset() + i)));
+    }
+    (void)track_grad;
+    return out;
+  }
+
+  if (left_scalar && right_direct) {
+    const double left_value = left.value_at_logical(0);
+    for (int64_t i = 0; i < out.numel(); ++i) {
+      out.set_value_at_storage(i, op(left_value, right.value_at_storage(right.offset() + i)));
+    }
+    (void)track_grad;
+    return out;
+  }
+
+  if (right_scalar && left_direct) {
+    const double right_value = right.value_at_logical(0);
+    for (int64_t i = 0; i < out.numel(); ++i) {
+      out.set_value_at_storage(i, op(left.value_at_storage(left.offset() + i), right_value));
+    }
+    (void)track_grad;
+    return out;
+  }
+
   for (int64_t i = 0; i < out.numel(); ++i) {
     const auto left_storage =
         logical_to_storage_offset(i, out_shape, left.shape(), left.strides(), left.offset());
@@ -39,6 +72,12 @@ Tensor elementwise_binary_impl(
 
 Tensor elementwise_unary_impl(const Tensor& input, DType dtype, const UnaryOp& op) {
   Tensor out(input.shape(), dtype, false);
+  if (input.is_contiguous()) {
+    for (int64_t i = 0; i < out.numel(); ++i) {
+      out.set_value_at_storage(i, op(input.value_at_storage(input.offset() + i)));
+    }
+    return out;
+  }
   for (int64_t i = 0; i < out.numel(); ++i) {
     out.set_value_at_logical(i, op(input.value_at_logical(i)));
   }
@@ -54,11 +93,16 @@ Tensor pow_impl(const Tensor& input, double exponent, bool track_grad);
 Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor sum_impl(const Tensor& input, bool track_grad);
 Tensor mean_impl(const Tensor& input, bool track_grad);
+Tensor max_impl(const Tensor& input, bool track_grad);
+Tensor min_impl(const Tensor& input, bool track_grad);
 Tensor relu_impl(const Tensor& input, bool track_grad);
 Tensor sigmoid_impl(const Tensor& input, bool track_grad);
 Tensor tanh_impl(const Tensor& input, bool track_grad);
 Tensor exp_impl(const Tensor& input, bool track_grad);
 Tensor log_impl(const Tensor& input, bool track_grad);
+Tensor sqrt_impl(const Tensor& input, bool track_grad);
+Tensor abs_impl(const Tensor& input, bool track_grad);
+Tensor clamp_impl(const Tensor& input, double min_value, double max_value, bool track_grad);
 Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad);
 Tensor transpose_impl(const Tensor& input, bool track_grad);
 
@@ -173,8 +217,14 @@ Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
 Tensor sum_impl(const Tensor& input, bool track_grad) {
   Tensor out({}, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float64, false);
   double acc = 0.0;
-  for (int64_t i = 0; i < input.numel(); ++i) {
-    acc += input.value_at_logical(i);
+  if (input.is_contiguous()) {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      acc += input.value_at_storage(input.offset() + i);
+    }
+  } else {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      acc += input.value_at_logical(i);
+    }
   }
   out.set_value_at_logical(0, acc);
   if (track_grad) {
@@ -191,13 +241,70 @@ Tensor mean_impl(const Tensor& input, bool track_grad) {
   }
   Tensor out({}, DType::Float64, false);
   double acc = 0.0;
-  for (int64_t i = 0; i < input.numel(); ++i) {
-    acc += input.value_at_logical(i);
+  if (input.is_contiguous()) {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      acc += input.value_at_storage(input.offset() + i);
+    }
+  } else {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      acc += input.value_at_logical(i);
+    }
   }
   out.set_value_at_logical(0, acc / static_cast<double>(input.numel()));
   if (track_grad) {
     set_history(out, {input}, [shape = input.shape(), n = input.numel()](const Tensor& grad) {
       return std::vector<Tensor>{full_like(shape, grad.value_at_logical(0) / static_cast<double>(n), grad.dtype())};
+    });
+  }
+  return out;
+}
+
+Tensor extreme_grad(const Tensor& input, const Tensor& grad, double extreme_value) {
+  int64_t count = 0;
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    if (input.value_at_logical(i) == extreme_value) {
+      ++count;
+    }
+  }
+  Tensor out(input.shape(), grad.dtype(), false);
+  const double scale = count == 0 ? 0.0 : grad.value_at_logical(0) / static_cast<double>(count);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    out.set_value_at_logical(i, input.value_at_logical(i) == extreme_value ? scale : 0.0);
+  }
+  return out;
+}
+
+Tensor max_impl(const Tensor& input, bool track_grad) {
+  if (input.numel() == 0) {
+    throw ShapeError("max is undefined for empty tensors");
+  }
+  Tensor out({}, input.dtype(), false);
+  double value = input.value_at_logical(0);
+  for (int64_t i = 1; i < input.numel(); ++i) {
+    value = std::max(value, input.value_at_logical(i));
+  }
+  out.set_value_at_logical(0, value);
+  if (track_grad) {
+    set_history(out, {input}, [input, value](const Tensor& grad) {
+      return std::vector<Tensor>{extreme_grad(input, grad, value)};
+    });
+  }
+  return out;
+}
+
+Tensor min_impl(const Tensor& input, bool track_grad) {
+  if (input.numel() == 0) {
+    throw ShapeError("min is undefined for empty tensors");
+  }
+  Tensor out({}, input.dtype(), false);
+  double value = input.value_at_logical(0);
+  for (int64_t i = 1; i < input.numel(); ++i) {
+    value = std::min(value, input.value_at_logical(i));
+  }
+  out.set_value_at_logical(0, value);
+  if (track_grad) {
+    set_history(out, {input}, [input, value](const Tensor& grad) {
+      return std::vector<Tensor>{extreme_grad(input, grad, value)};
     });
   }
   return out;
@@ -269,6 +376,55 @@ Tensor log_impl(const Tensor& input, bool track_grad) {
   return out;
 }
 
+Tensor sqrt_impl(const Tensor& input, bool track_grad) {
+  Tensor out = elementwise_unary_impl(
+      input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::sqrt(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor denom = mul_impl(scalar_tensor(2.0, grad.dtype()), sqrt_impl(input, false), false);
+      return std::vector<Tensor>{div_impl(grad, denom, false)};
+    });
+  }
+  return out;
+}
+
+Tensor abs_impl(const Tensor& input, bool track_grad) {
+  Tensor out = elementwise_unary_impl(input, input.dtype(), [](double value) { return std::abs(value); });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor sign(input.shape(), grad.dtype(), false);
+      for (int64_t i = 0; i < input.numel(); ++i) {
+        const double value = input.value_at_logical(i);
+        sign.set_value_at_logical(i, value > 0.0 ? 1.0 : (value < 0.0 ? -1.0 : 0.0));
+      }
+      return std::vector<Tensor>{mul_impl(grad, sign, false)};
+    });
+  }
+  return out;
+}
+
+Tensor clamp_impl(const Tensor& input, double min_value, double max_value, bool track_grad) {
+  if (min_value > max_value) {
+    throw ShapeError("clamp min_value must be <= max_value");
+  }
+  Tensor out = elementwise_unary_impl(input, input.dtype(), [min_value, max_value](double value) {
+    return std::clamp(value, min_value, max_value);
+  });
+  if (track_grad) {
+    set_history(out, {input}, [input, min_value, max_value](const Tensor& grad) {
+      Tensor mask(input.shape(), grad.dtype(), false);
+      for (int64_t i = 0; i < input.numel(); ++i) {
+        const double value = input.value_at_logical(i);
+        mask.set_value_at_logical(i, value >= min_value && value <= max_value ? 1.0 : 0.0);
+      }
+      return std::vector<Tensor>{mul_impl(grad, mask, false)};
+    });
+  }
+  return out;
+}
+
 Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad) {
   if (!input.is_contiguous()) {
     throw ShapeError("reshape currently requires a contiguous tensor");
@@ -313,9 +469,13 @@ Tensor ones(const Shape& shape, DType dtype) {
 Tensor full(const Shape& shape, double fill_value, DType dtype) {
   Tensor out(shape, dtype, false);
   for (int64_t i = 0; i < out.numel(); ++i) {
-    out.set_value_at_logical(i, fill_value);
+    out.set_value_at_storage(i, fill_value);
   }
   return out;
+}
+
+Tensor empty(const Shape& shape, DType dtype) {
+  return Tensor::empty(shape, dtype, false);
 }
 
 Tensor arange(double start, double stop, double step, DType dtype) {
@@ -329,6 +489,41 @@ Tensor arange(double start, double stop, double step, DType dtype) {
   for (int64_t i = 0; i < count; ++i) {
     out.set_value_at_logical(i, value);
     value += step;
+  }
+  return out;
+}
+
+Tensor eye(int64_t n, int64_t m, DType dtype) {
+  if (n < 0 || m < -1) {
+    throw ShapeError("eye dimensions must be non-negative");
+  }
+  const int64_t cols = m == -1 ? n : m;
+  Tensor out({n, cols}, dtype, false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    out.set_value_at_storage(i, 0.0);
+  }
+  const int64_t diagonal = std::min(n, cols);
+  for (int64_t i = 0; i < diagonal; ++i) {
+    out.set_value_at_logical(i * cols + i, 1.0);
+  }
+  return out;
+}
+
+Tensor linspace(double start, double stop, int64_t steps, DType dtype) {
+  if (steps < 0) {
+    throw ShapeError("linspace steps must be non-negative");
+  }
+  Tensor out({steps}, dtype, false);
+  if (steps == 0) {
+    return out;
+  }
+  if (steps == 1) {
+    out.set_value_at_logical(0, start);
+    return out;
+  }
+  const double step = (stop - start) / static_cast<double>(steps - 1);
+  for (int64_t i = 0; i < steps; ++i) {
+    out.set_value_at_logical(i, start + static_cast<double>(i) * step);
   }
   return out;
 }
@@ -347,6 +542,30 @@ Tensor mul(const Tensor& left, const Tensor& right) {
 
 Tensor div(const Tensor& left, const Tensor& right) {
   return div_impl(left, right, true);
+}
+
+Tensor equal(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a == b ? 1.0 : 0.0; }, false);
+}
+
+Tensor not_equal(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a != b ? 1.0 : 0.0; }, false);
+}
+
+Tensor less(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a < b ? 1.0 : 0.0; }, false);
+}
+
+Tensor less_equal(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a <= b ? 1.0 : 0.0; }, false);
+}
+
+Tensor greater(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a > b ? 1.0 : 0.0; }, false);
+}
+
+Tensor greater_equal(const Tensor& left, const Tensor& right) {
+  return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a >= b ? 1.0 : 0.0; }, false);
 }
 
 Tensor neg(const Tensor& input) {
@@ -369,6 +588,14 @@ Tensor mean(const Tensor& input) {
   return mean_impl(input, true);
 }
 
+Tensor max(const Tensor& input) {
+  return max_impl(input, true);
+}
+
+Tensor min(const Tensor& input) {
+  return min_impl(input, true);
+}
+
 Tensor relu(const Tensor& input) {
   return relu_impl(input, true);
 }
@@ -387,6 +614,18 @@ Tensor exp(const Tensor& input) {
 
 Tensor log(const Tensor& input) {
   return log_impl(input, true);
+}
+
+Tensor sqrt(const Tensor& input) {
+  return sqrt_impl(input, true);
+}
+
+Tensor abs(const Tensor& input) {
+  return abs_impl(input, true);
+}
+
+Tensor clamp(const Tensor& input, double min_value, double max_value) {
+  return clamp_impl(input, min_value, max_value, true);
 }
 
 Tensor reshape(const Tensor& input, const Shape& shape) {

@@ -45,6 +45,8 @@ class Tensor {
   int64_t numel() const;
   bool is_contiguous() const;
   Device device() const;
+  Tensor clone() const;
+  Tensor detach() const;
 
   bool requires_grad() const;
   void set_requires_grad(bool value);

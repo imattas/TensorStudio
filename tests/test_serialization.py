@@ -24,3 +24,15 @@ def test_model_save_load_roundtrip(tmp_path) -> None:
     loaded = ts.load(path)
 
     assert loaded(ts.ones((3, 1))).shape == (3, 1)
+
+
+def test_state_dict_and_optimizer_state_save_load_roundtrip(tmp_path) -> None:
+    path = tmp_path / "state.tsmodel"
+    model = nn.Linear(1, 1)
+    optimizer = ts.optim.Adam(model.parameters(), lr=0.01)
+
+    ts.save({"model": model.state_dict(), "optimizer": optimizer.state_dict()}, path)
+    loaded = ts.load(path)
+
+    assert sorted(loaded["model"]) == ["bias", "weight"]
+    assert loaded["optimizer"]["lr"] == 0.01

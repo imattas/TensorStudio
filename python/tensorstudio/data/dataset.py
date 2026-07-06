@@ -2,18 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Protocol
-
 from tensorstudio.tensor import Tensor
 
 
-class Dataset(Protocol):
-    def __len__(self) -> int: ...
+class Dataset:
+    """Base class for map-style datasets."""
 
-    def __getitem__(self, index: int) -> object: ...
+    def __len__(self) -> int:
+        raise NotImplementedError
+
+    def __getitem__(self, index: int) -> object:
+        raise NotImplementedError
 
 
-class TensorDataset:
+class TensorDataset(Dataset):
     """Dataset wrapping tensors with matching leading dimension."""
 
     def __init__(self, *tensors: Tensor) -> None:

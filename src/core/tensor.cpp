@@ -171,6 +171,18 @@ Device Tensor::device() const {
   return impl_->device;
 }
 
+Tensor Tensor::clone() const {
+  ensure_defined();
+  Tensor out(shape(), dtype(), requires_grad());
+  out.copy_from(*this);
+  return out;
+}
+
+Tensor Tensor::detach() const {
+  ensure_defined();
+  return Tensor(impl_->storage, impl_->dtype, impl_->shape, impl_->strides, impl_->offset, false);
+}
+
 bool Tensor::requires_grad() const {
   ensure_defined();
   return impl_->autograd && impl_->autograd->requires_grad;
@@ -256,8 +268,14 @@ void Tensor::set_value_at_storage(int64_t storage_index, double value) {
 std::vector<double> Tensor::to_flat_vector() const {
   ensure_defined();
   std::vector<double> values(static_cast<std::size_t>(numel()));
-  for (int64_t i = 0; i < numel(); ++i) {
-    values[static_cast<std::size_t>(i)] = value_at_logical(i);
+  if (is_contiguous()) {
+    for (int64_t i = 0; i < numel(); ++i) {
+      values[static_cast<std::size_t>(i)] = value_at_storage(offset() + i);
+    }
+  } else {
+    for (int64_t i = 0; i < numel(); ++i) {
+      values[static_cast<std::size_t>(i)] = value_at_logical(i);
+    }
   }
   return values;
 }
@@ -269,8 +287,14 @@ void Tensor::copy_from(const Tensor& other) {
         "cannot assign tensor with shape " + shape_to_string(other.shape()) + " into tensor with shape " +
         shape_to_string(shape()));
   }
-  for (int64_t i = 0; i < numel(); ++i) {
-    set_value_at_logical(i, other.value_at_logical(i));
+  if (is_contiguous() && other.is_contiguous()) {
+    for (int64_t i = 0; i < numel(); ++i) {
+      set_value_at_storage(offset() + i, other.value_at_storage(other.offset() + i));
+    }
+  } else {
+    for (int64_t i = 0; i < numel(); ++i) {
+      set_value_at_logical(i, other.value_at_logical(i));
+    }
   }
 }
 
@@ -281,8 +305,16 @@ void Tensor::add_scaled_(const Tensor& other, double scale) {
         "cannot add tensor with shape " + shape_to_string(other.shape()) + " into tensor with shape " +
         shape_to_string(shape()));
   }
-  for (int64_t i = 0; i < numel(); ++i) {
-    set_value_at_logical(i, value_at_logical(i) + other.value_at_logical(i) * scale);
+  if (is_contiguous() && other.is_contiguous()) {
+    for (int64_t i = 0; i < numel(); ++i) {
+      set_value_at_storage(
+          offset() + i,
+          value_at_storage(offset() + i) + other.value_at_storage(other.offset() + i) * scale);
+    }
+  } else {
+    for (int64_t i = 0; i < numel(); ++i) {
+      set_value_at_logical(i, value_at_logical(i) + other.value_at_logical(i) * scale);
+    }
   }
 }
 

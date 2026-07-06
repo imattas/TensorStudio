@@ -1,25 +1,26 @@
 # Quickstart
 
-This guide takes you from installation to tensors, autograd, and a tiny neural
-network.
+This guide covers installation, tensor creation, operations, autograd, a tiny
+neural network, data loading, and serialization.
 
 ## Requirements
 
-- Python 3.10 or newer
-- A C++20 compiler when building from source
-- CMake and a supported Python packaging frontend
+- Python 3.10 or newer.
+- A C++20 compiler only when building from source.
+- NumPy, installed automatically as a runtime dependency.
 
-On Windows, install Microsoft C++ Build Tools or use a developer shell where
-`cl` and `nmake` are available. On macOS, install Xcode Command Line Tools. On
-Linux, install GCC or Clang plus CMake.
+Prebuilt wheels are the preferred installation path. Source builds use CMake,
+pybind11, and scikit-build-core.
 
-## Install From PyPI
+## Install
+
+From PyPI, after release-candidate wheels are published:
 
 ```bash
 python -m pip install tensorstudio
 ```
 
-## Install From Source
+From a source checkout:
 
 ```bash
 python -m pip install -U pip
@@ -29,8 +30,8 @@ python -m pip install -e ".[dev]"
 Validate the install:
 
 ```bash
-python -c "import tensorstudio as ts; print(ts.__version__)"
-pytest
+python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
+pytest -q
 ```
 
 ## Create Tensors
@@ -38,41 +39,63 @@ pytest
 ```python
 import tensorstudio as ts
 
-x = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+x = ts.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
 y = ts.ones((2, 2))
-noise = ts.randn((2, 2), seed=123)
+z = ts.linspace(0.0, 1.0, 5)
 
-print(x.shape)       # (2, 2)
-print(x.dtype)       # float32
-print(noise.numpy()) # NumPy copy
+print(x.shape)          # (2, 2)
+print(x.strides)        # (2, 1)
+print(x.dtype)          # float32
+print(x.device)         # cpu
+print(x.is_contiguous)  # True
+print(z.tolist())
 ```
 
-## Run Operations
-
-TensorStudio supports Python operators for arithmetic and matrix multiplication.
+## Creation Helpers
 
 ```python
-z = (x + y) * 0.5
-product = x @ y
-
-print(z.tolist())
-print(product.tolist())
-print(x.reshape((4,)).tolist())
+ts.zeros((2, 3))
+ts.empty((2, 3))
+ts.ones((2, 3), dtype="float64")
+ts.full((2, 3), 7.0)
+ts.rand((2, 3), seed=123)
+ts.randn((2, 3), seed=123)
+ts.arange(0, 10, 2)
+ts.eye(3)
+ts.linspace(-1.0, 1.0, 5)
 ```
 
-Broadcasting follows NumPy-style trailing dimension rules:
+`manual_seed(seed)` seeds TensorStudio's process-local C++ random generator:
+
+```python
+ts.manual_seed(42)
+sample = ts.randn((2, 2))
+```
+
+## Operations
+
+TensorStudio supports Python operators for arithmetic and matrix multiplication:
 
 ```python
 a = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
 b = ts.tensor([10.0, 20.0])
 
 print((a + b).tolist())
+print((a * 2 - 1).tolist())
+print((a @ ts.eye(2)).tolist())
+print(a.T.tolist())
 ```
 
-## Use Autograd
+Supported math includes `sum`, `mean`, `max`, `min`, `relu`, `sigmoid`, `tanh`,
+`exp`, `log`, `sqrt`, `abs`, and `clamp`.
 
-Set `requires_grad=True` on floating point tensors that should receive
-gradients.
+```python
+x = ts.tensor([-2.0, -1.0, 0.0, 4.0])
+print(x.abs().tolist())
+print(x.clamp(-1.0, 2.0).tolist())
+```
+
+## Autograd
 
 ```python
 x = ts.tensor([1.0, 2.0, 3.0], requires_grad=True)
@@ -83,22 +106,35 @@ print(loss.item())
 print(x.grad.tolist())
 ```
 
-`backward()` can be called without an explicit gradient only for scalar outputs.
-
-## Train A Tiny Model
+For non-scalar outputs, pass an explicit gradient:
 
 ```python
-import tensorstudio as ts
+y = x * 2.0
+y.backward(ts.ones(y.shape))
+```
+
+Disable graph recording with `no_grad()`:
+
+```python
+with ts.no_grad():
+    doubled = x * 2.0
+```
+
+## Neural Network
+
+```python
 from tensorstudio import nn, optim
+
+ts.manual_seed(0)
 
 x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
 y = ts.tensor([[1.0], [3.0], [5.0], [7.0]])
 
 model = nn.Sequential(nn.Linear(1, 8), nn.Tanh(), nn.Linear(8, 1))
 loss_fn = nn.MSELoss()
-optimizer = optim.SGD(model.parameters(), lr=0.05)
+optimizer = optim.SGD(model.parameters(), lr=0.05, momentum=0.9)
 
-for step in range(100):
+for _ in range(100):
     optimizer.zero_grad()
     prediction = model(x)
     loss = loss_fn(prediction, y)
@@ -108,8 +144,26 @@ for step in range(100):
 print(loss.item())
 ```
 
-## Next Steps
+## DataLoader
 
-- Read [Tensor Basics](Usage/tensors.md) for shape and dtype details.
-- Read [Autograd](Autograde/index.md) for graph and gradient behavior.
-- Read [Development](development.md) before changing C++ or bindings.
+```python
+from tensorstudio.data import DataLoader, TensorDataset
+
+dataset = TensorDataset(ts.arange(6).reshape((6, 1)), ts.arange(6))
+loader = DataLoader(dataset, batch_size=2, shuffle=True, seed=7)
+
+for features, targets in loader:
+    print(features.tolist(), targets.tolist())
+```
+
+The DataLoader is single-process by design for the v1 release candidate.
+
+## Save And Load
+
+```python
+checkpoint = {"model": model.state_dict(), "optimizer": optimizer.state_dict()}
+ts.save(checkpoint, "checkpoint.tsmodel")
+loaded = ts.load("checkpoint.tsmodel")
+```
+
+Only load TensorStudio pickle files from trusted sources.

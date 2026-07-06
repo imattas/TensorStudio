@@ -17,6 +17,18 @@ def test_elementwise_ops_match_numpy() -> None:
     np.testing.assert_allclose((a**2).numpy(), a.numpy() ** 2)
 
 
+def test_comparison_ops_match_numpy() -> None:
+    a = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+    b = ts.tensor([2.0, 2.0])
+
+    np.testing.assert_array_equal((a == b).numpy(), a.numpy() == b.numpy())
+    np.testing.assert_array_equal((a != b).numpy(), a.numpy() != b.numpy())
+    np.testing.assert_array_equal((a < b).numpy(), a.numpy() < b.numpy())
+    np.testing.assert_array_equal((a <= b).numpy(), a.numpy() <= b.numpy())
+    np.testing.assert_array_equal((a > b).numpy(), a.numpy() > b.numpy())
+    np.testing.assert_array_equal((a >= b).numpy(), a.numpy() >= b.numpy())
+
+
 def test_broadcast_error() -> None:
     with pytest.raises(Exception, match="broadcast"):
         _ = ts.ones((2, 3)) + ts.ones((4,))
@@ -29,12 +41,18 @@ def test_matmul_reductions_and_activations() -> None:
     np.testing.assert_allclose((a @ b).numpy(), a.numpy() @ b.numpy())
     assert a.sum().item() == pytest.approx(21.0)
     assert a.mean().item() == pytest.approx(3.5)
+    assert a.max().item() == pytest.approx(6.0)
+    assert a.min().item() == pytest.approx(1.0)
 
     x = ts.tensor([-1.0, 0.0, 1.0])
     np.testing.assert_allclose(x.relu().numpy(), np.array([0.0, 0.0, 1.0]))
     np.testing.assert_allclose(x.sigmoid().numpy(), 1.0 / (1.0 + np.exp(-x.numpy())))
     np.testing.assert_allclose(x.tanh().numpy(), np.tanh(x.numpy()))
     np.testing.assert_allclose(x.exp().log().numpy(), x.numpy(), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(ts.tensor([1.0, 4.0]).sqrt().numpy(), np.array([1.0, 2.0]))
+    np.testing.assert_allclose(x.abs().numpy(), np.abs(x.numpy()))
+    np.testing.assert_allclose(x.clamp(-0.5, 0.5).numpy(), np.clip(x.numpy(), -0.5, 0.5))
+    np.testing.assert_allclose(x.clip(-0.5, 0.5).numpy(), np.clip(x.numpy(), -0.5, 0.5))
 
 
 def test_views() -> None:

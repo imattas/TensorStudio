@@ -1,7 +1,7 @@
 # Roadmap
 
-TensorStudio v0.1.x is a foundation. This roadmap describes likely directions
-without promising dates.
+TensorStudio `1.0.0rc1` is a CPU-first foundation. This roadmap describes likely
+directions without promising dates.
 
 ## Backend And Performance
 
@@ -32,10 +32,8 @@ without promising dates.
 ## Neural Networks
 
 - Convolution ops
-- Dropout
 - Batch normalization
 - Cross entropy loss
-- Dataset utilities
 - Model zoo examples
 
 ## Interchange And Tooling
@@ -46,7 +44,7 @@ without promising dates.
 - More cibuildwheel targets
 - Better error diagnostics
 
-## Non-Goals For v0.1.x
+## Non-Goals For The v1 Release Candidate
 
 - Distributed training
 - Graph compiler

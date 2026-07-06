@@ -1,62 +1,70 @@
 # API Overview
 
-This page summarizes the public Python API. The native extension module is
-`tensorstudio._C`; most users should import from `tensorstudio`.
-
-## Top-Level Package
+The public package is imported as:
 
 ```python
 import tensorstudio as ts
 ```
 
-Exports:
+The native extension module is `tensorstudio._C`. Most users should use the
+Python API, which is a thin layer over the C++ tensor core plus Python-level
+modules, optimizers, data utilities, and serialization helpers.
+
+## Top-Level Exports
 
 - `Tensor`
 - `tensor`
 - `from_numpy`
 - `zeros`
 - `ones`
+- `empty`
 - `full`
+- `rand`
 - `randn`
 - `arange`
+- `eye`
+- `linspace`
+- `manual_seed`
 - `save`
 - `load`
+- `no_grad`
+- `is_grad_enabled`
+- `set_grad_enabled`
+- `data`
 - `nn`
 - `optim`
 - `__version__`
 
 ## Tensor Creation
 
-### `tensor(data, dtype=None, requires_grad=False)`
-
-Creates a tensor from Python numeric scalars, nested sequences, another
-TensorStudio tensor, or a NumPy array.
-
-Nested lists must be rectangular. Ragged lists raise a shape error.
-
-### `from_numpy(array, requires_grad=False)`
-
-Creates a TensorStudio tensor copy from a NumPy array.
-
-### Fill And Range Helpers
-
 ```python
-ts.zeros((2, 3))
-ts.ones((2, 3), dtype="float64")
-ts.full((2,), 7.0)
-ts.randn((4, 4), seed=123)
-ts.arange(0, 10, 2)
+ts.tensor(data, dtype=None, requires_grad=False)
+ts.from_numpy(array, requires_grad=False)
+ts.zeros(shape, dtype="float32")
+ts.ones(shape, dtype="float32")
+ts.empty(shape, dtype="float32")
+ts.full(shape, fill_value, dtype="float32")
+ts.rand(shape, dtype="float32", seed=None)
+ts.randn(shape, dtype="float32", seed=None)
+ts.arange(start, stop=None, step=1, dtype="float32")
+ts.eye(n, m=None, dtype="float32")
+ts.linspace(start, stop, steps, dtype="float32")
 ```
+
+Nested Python data must be rectangular. Ragged lists raise `ShapeError`.
 
 ## Tensor Properties
 
-- `Tensor.shape`: tuple of dimensions
-- `Tensor.dtype`: dtype string
-- `Tensor.ndim`: number of dimensions
-- `Tensor.size`: total number of elements
-- `Tensor.requires_grad`: whether gradients are tracked
-- `Tensor.grad`: accumulated gradient tensor or `None`
-- `Tensor.T`: 2D transpose view
+- `shape`
+- `strides`
+- `dtype`
+- `device`
+- `ndim`
+- `size`
+- `requires_grad`
+- `grad`
+- `is_contiguous`
+- `T`
 
 ## Tensor Methods
 
@@ -66,45 +74,52 @@ Conversion:
 - `tolist()`
 - `item()`
 
+Autograd and copying:
+
+- `backward(gradient=None)`
+- `zero_grad()`
+- `clone()`
+- `detach()`
+
 Views:
 
 - `reshape(*shape)` or `reshape(shape)`
 - `flatten()`
 - `transpose()`
-- `T`
 
-Reductions:
+Math:
 
 - `sum()`
 - `mean()`
-
-Activations and math:
-
+- `max()`
+- `min()`
 - `relu()`
 - `sigmoid()`
 - `tanh()`
 - `exp()`
 - `log()`
-
-Autograd:
-
-- `backward(gradient=None)`
-- `zero_grad()`
+- `sqrt()`
+- `abs()`
+- `clamp(min_value, max_value)`
+- `clip(min_value, max_value)`
 
 ## Operators
-
-TensorStudio overloads common Python operators:
 
 - `x + y`
 - `x - y`
 - `x * y`
 - `x / y`
 - `-x`
-- `x ** 2`
+- `x ** exponent`
 - `x @ y`
+- `x == y`
+- `x != y`
+- `x < y`
+- `x <= y`
+- `x > y`
+- `x >= y`
 
-Python scalars and compatible tensor shapes are accepted for elementwise
-operations.
+`+=` is intentionally unsupported and raises a clear error.
 
 ## `tensorstudio.nn`
 
@@ -115,17 +130,39 @@ operations.
 - `ReLU`
 - `Sigmoid`
 - `Tanh`
+- `Dropout`
+- `Flatten`
 - `MSELoss`
+- `L1Loss`
+- `BCELoss`
+- Functional equivalents for activations and losses.
 
-Modules implement `parameters()`, `zero_grad()`, `train()`, `eval()`, and
-`__call__`.
+Module methods:
+
+- `parameters()`
+- `named_parameters()`
+- `modules()`
+- `train()`
+- `eval()`
+- `zero_grad()`
+- `state_dict()`
+- `load_state_dict()`
 
 ## `tensorstudio.optim`
 
-- `SGD(params, lr=0.01)`
-- `Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8)`
+- `SGD(params, lr=0.01, momentum=0.0, weight_decay=0.0)`
+- `Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0)`
+- `AdamW(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0)`
 
-Optimizers implement `zero_grad()` and `step()`.
+Optimizers implement `zero_grad`, `step`, `state_dict`, and `load_state_dict`.
+
+## `tensorstudio.data`
+
+- `Dataset`
+- `TensorDataset`
+- `DataLoader`
+
+`DataLoader` supports batching, shuffle, `drop_last`, and deterministic seed.
 
 ## Error Types
 
@@ -144,4 +181,4 @@ ts.save(obj, "object.tsmodel")
 loaded = ts.load("object.tsmodel")
 ```
 
-Serialization uses pickle in v0.1.x. Only load files from trusted sources.
+Serialization uses pickle. Only load files from trusted sources.

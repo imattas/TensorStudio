@@ -29,6 +29,16 @@ def zeros(shape: int | tuple[int, ...] | list[int], dtype: str = "float32") -> T
     return _C.zeros(shape, dtype)
 
 
+def empty(shape: int | tuple[int, ...] | list[int], dtype: str = "float32") -> Tensor:
+    """Create an uninitialized tensor.
+
+    The current CPU storage implementation may contain zeroed memory; callers
+    should not rely on any particular initial value.
+    """
+
+    return _C.empty(shape, dtype)
+
+
 def ones(shape: int | tuple[int, ...] | list[int], dtype: str = "float32") -> Tensor:
     """Create a tensor filled with ones."""
 
@@ -43,6 +53,16 @@ def full(
     """Create a tensor filled with a scalar value."""
 
     return _C.full(shape, fill_value, dtype)
+
+
+def rand(
+    shape: int | tuple[int, ...] | list[int],
+    dtype: str = "float32",
+    seed: int | None = None,
+) -> Tensor:
+    """Create a tensor with uniform random values in [0, 1)."""
+
+    return _C.rand(shape, dtype, seed)
 
 
 def randn(
@@ -66,4 +86,36 @@ def arange(
     return _C.arange(start, stop, step, dtype)
 
 
-__all__ = ["Tensor", "arange", "from_numpy", "full", "ones", "randn", "tensor", "zeros"]
+def eye(n: int, m: int | None = None, dtype: str = "float32") -> Tensor:
+    """Create a 2D identity matrix."""
+
+    return _C.eye(n, m, dtype)
+
+
+def linspace(start: float, stop: float, steps: int, dtype: str = "float32") -> Tensor:
+    """Create a 1D tensor with evenly spaced values including both endpoints."""
+
+    return _C.linspace(start, stop, steps, dtype)
+
+
+def manual_seed(seed: int) -> None:
+    """Seed TensorStudio's process-local random generator."""
+
+    _C.manual_seed(seed)
+
+
+__all__ = [
+    "Tensor",
+    "arange",
+    "empty",
+    "eye",
+    "from_numpy",
+    "full",
+    "linspace",
+    "manual_seed",
+    "ones",
+    "rand",
+    "randn",
+    "tensor",
+    "zeros",
+]

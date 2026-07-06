@@ -1,47 +1,31 @@
 # Development
 
-This guide is for contributors changing C++ core code, Python wrappers, tests,
-docs, or packaging.
+This guide is for contributors changing the C++ core, Python API, tests, docs,
+examples, benchmarks, packaging, or CI.
 
 ## Repository Layout
 
-- `include/tensorstudio`: public C++ headers
-- `src/core`: C++ tensor, storage, ops, autograd, dtype, shape, and utilities
-- `src/bindings`: pybind11 extension bindings
-- `python/tensorstudio`: Python API, modules, optimizers, data helpers, typing
-- `tests`: pytest suite
-- `examples`: runnable examples
-- `benchmarks`: local timing scripts
-- `docs`: MkDocs documentation
-- `.github/workflows`: CI, wheel build, and publish automation
+- `include/tensorstudio`: public C++ headers.
+- `src/core`: tensor, storage, ops, autograd, dtype, shape, device, random, and
+  utility implementations.
+- `src/bindings`: pybind11 bindings for `tensorstudio._C`.
+- `python/tensorstudio`: Python public API, nn, optim, data, serialization, and
+  typing.
+- `tests`: pytest suite.
+- `examples`: runnable examples.
+- `benchmarks`: local timing scripts.
+- `docs`: MkDocs documentation.
+- `.github/workflows`: CI, wheels, and publish workflows.
 
-## Native Build Requirements
+## Build Requirements
 
 TensorStudio builds a C++20 extension module named `tensorstudio._C`.
 
-Windows:
+Windows source builds require MSVC. Linux source builds require GCC or Clang.
+macOS source builds require Apple Clang through Xcode Command Line Tools.
 
-```powershell
-# Use a Visual Studio Developer PowerShell, or install wheels from PyPI.
-python -m pip install -e ".[dev]"
-```
-
-macOS:
-
-```bash
-xcode-select --install
-python -m pip install -e ".[dev]"
-```
-
-Linux:
-
-```bash
-sudo apt-get install build-essential cmake
-python -m pip install -e ".[dev]"
-```
-
-End users should normally install prebuilt wheels from PyPI and should not need
-CMake or a compiler.
+End users should normally install wheels. Wheels should not require CMake or a
+compiler at install time.
 
 ## Development Install
 
@@ -55,63 +39,82 @@ python -m pip install -e ".[dev,docs]"
 ```bash
 ruff check .
 mypy python/tensorstudio
-pytest
+pytest -q
 python -m build
+python -m twine check dist/*
 ```
+
+Run examples:
+
+```bash
+python examples/basic_tensor_ops.py
+python examples/linear_regression.py
+python examples/tiny_mlp.py
+python examples/save_load_model.py
+```
+
+## Windows-First Checklist
+
+```powershell
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__); print(ts.ones((2, 2)) + 1)"
+pytest -q
+python -m build
+python -m twine check dist/*
+```
+
+Clean wheel and sdist tests are documented in [Windows](windows.md).
 
 ## Documentation
 
-Serve docs locally:
-
 ```bash
 mkdocs serve
-```
-
-Build static docs:
-
-```bash
 mkdocs build
 ```
 
-Docs should explain limitations and failure modes. Do not describe TensorStudio
-as superior to mature ML frameworks.
+Docs should describe implemented behavior and limitations. Do not claim
+TensorStudio is better or faster than mature ML frameworks.
 
 ## C++ Guidelines
 
-- Prefer clear loops and shape helpers over dense template metaprogramming.
+- Prefer readable loops and shape helpers over template-heavy kernels.
 - Use RAII and standard library containers.
 - Avoid raw owning pointers.
-- Keep dtype and shape errors explicit.
-- Add gradient formulas next to the forward op implementation when practical.
-- Keep the CPU backend portable across Linux, macOS, and Windows.
+- Keep dtype, shape, device, and autograd errors explicit.
+- Keep C++ portable across MSVC, GCC, Clang, and Apple Clang.
+- Avoid POSIX-only assumptions in core paths.
+- Add gradient formulas close to the forward op implementation where practical.
 
 ## Python Guidelines
 
-- Keep wrappers thin.
-- Keep public APIs typed.
-- Use `__all__` exports.
-- Avoid runtime network calls in library code.
+- Keep wrappers thin over the C++ core.
+- Type public functions.
+- Maintain accurate `__all__` exports.
+- Avoid circular imports.
 - Do not use `eval` or `exec`.
+- Do not make network calls from library code.
 - Treat pickle loading as trusted-input only.
 
 ## Testing Strategy
 
-Add tests for tensor creation, dtype handling, broadcasting, shape errors, NumPy
-comparisons, autograd gradients, modules, optimizers, and serialization.
+Tests should cover:
 
-For numerical tests, prefer `np.testing.assert_allclose`.
+- Import and version.
+- Tensor creation, dtype handling, shape metadata, and views.
+- Broadcasting and broadcasting gradients.
+- Forward results against NumPy.
+- Autograd analytical and finite-difference checks.
+- Neural network modules and losses.
+- Optimizer updates and state dictionaries.
+- Serialization roundtrips.
+- DataLoader batching and deterministic shuffle.
+- NumPy interop copies.
+
+Use `np.testing.assert_allclose` for numerical comparisons.
 
 ## Release Hygiene
 
-Before a release:
-
-```bash
-ruff check .
-mypy python/tensorstudio
-pytest
-python -m build
-twine check dist/*
-```
-
-Wheels are built in CI with cibuildwheel so users can install without a local
-C++ toolchain.
+Do not mark the project final `1.0.0` until the full release checklist passes on
+Windows, Linux, and macOS. Keep release-candidate work versioned as
+`1.0.0rcN`.

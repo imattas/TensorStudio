@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.0rc1
+
+- Release-candidate hardening toward a CPU-only v1.0.0 API foundation.
+- Added additional tensor creation helpers, math operations, comparisons,
+  no-grad mode, state APIs, data utilities, and Windows-first CI/release docs.
+- This is not final v1.0.0; remaining platform checklist items must pass before
+  a stable release.
+
 ## 0.1.1
 
 - Publishable wheel release for CPython 3.10-3.13.

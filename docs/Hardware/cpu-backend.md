@@ -1,13 +1,13 @@
 # CPU Backend
 
-TensorStudio v0.1.x supports CPU tensors only.
+TensorStudio `1.0.0rc1` supports CPU tensors only.
 
 ## Device Abstraction
 
 The C++ core includes a device abstraction so future backends can fit into the
 same public model. Today, every tensor lives on CPU.
 
-## What CPU Means In v0.1.x
+## What CPU Means In This Release Candidate
 
 - Storage is host memory.
 - Operations run synchronously.
@@ -36,4 +36,5 @@ CUDA and other accelerator backends are future work. Adding them would require:
 - kernel implementations
 - expanded testing infrastructure
 
-The current CPU implementation keeps those concerns out of v0.1.x.
+The current CPU implementation keeps those concerns out of the v1 release
+candidate.

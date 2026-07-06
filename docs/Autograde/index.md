@@ -40,7 +40,7 @@ Calling `backward()`:
 
 ## Supported Gradient Operations
 
-v0.1.x supports gradients for:
+`1.0.0rc1` supports gradients for:
 
 - `add`
 - `sub`
@@ -51,12 +51,17 @@ v0.1.x supports gradients for:
 - `matmul`
 - `sum`
 - `mean`
+- `max`
+- `min`
 - `relu`
 - `sigmoid`
 - `tanh`
 - `exp`
 - `log`
+- `sqrt`
+- `abs`
 - `reshape`
+- `flatten`
 - `transpose`
 
 ## Broadcasting Gradients

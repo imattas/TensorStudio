@@ -1,92 +1,107 @@
 # Publishing
 
-TensorStudio is configured for GitHub Actions, wheel builds, and PyPI uploads
-using the repository secret `PYPI_TOKEN`.
+TensorStudio release publishing should use GitHub Actions and PyPI trusted
+publishing. Do not hardcode PyPI tokens in workflows, docs examples, or source
+files.
 
-## Release Flow
+## Release Candidate Flow
 
-1. Store a project-scoped PyPI API token as the GitHub Actions repository secret
-   `PYPI_TOKEN`.
-2. Confirm CI is green.
-3. Create and push a version tag:
-
-   ```bash
-   git tag v0.1.1
-   git push origin v0.1.1
-   ```
-
-4. Publish a GitHub release, or manually run the publish workflow.
-5. Verify installation in a clean virtual environment.
-
-The workflow must not contain hardcoded PyPI tokens.
-
-## Local Token Upload
-
-Maintainers can upload locally with a PyPI token when necessary. Keep the token
-out of source control. If using `.env`, it should contain:
-
-```text
-PYPI_TOKEN=pypi-...
-```
-
-Then:
+Use release-candidate versions while hardening:
 
 ```bash
-python -m pip install -U build twine
-python -m build
-twine check dist/*
-twine upload -u __token__ -p "$PYPI_TOKEN" dist/*
+git tag v1.0.0rc1
+git push origin v1.0.0rc1
 ```
 
-On PowerShell, load the token without printing it:
+The final `v1.0.0` tag should only be created after the release checklist passes
+on Windows, Linux, and macOS.
+
+## GitHub Actions
+
+Workflows:
+
+- `ci.yml`: lint, type check, editable install, import test, pytest, and an
+  example on Windows, Linux, and macOS.
+- `wheels.yml`: cibuildwheel artifacts for Windows first, Linux second, macOS
+  third, plus sdist.
+- `publish.yml`: trusted publishing through `pypa/gh-action-pypi-publish`.
+
+The publish workflow must include:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+It should publish only from a GitHub release or an approved release tag. It must
+not print secrets.
+
+## TestPyPI First
+
+Configure a PyPI trusted publisher for TestPyPI before rehearsing a release.
+Then publish `v1.0.0rc1` to TestPyPI and install it in a clean environment:
+
+```bash
+python -m venv .venv-testpypi
+. .venv-testpypi/bin/activate
+python -m pip install -U pip
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc1
+python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
+deactivate
+```
+
+On Windows PowerShell:
 
 ```powershell
-$env:PYPI_TOKEN = (Get-Content .env | Where-Object { $_ -match '^PYPI_TOKEN=' }) -replace '^PYPI_TOKEN=', ''
-python -m twine upload -u __token__ -p $env:PYPI_TOKEN dist/*
+python -m venv .venv-testpypi
+.\.venv-testpypi\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc1
+python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
+deactivate
 ```
 
-Only upload artifacts you intend to publish. PyPI files are immutable for a
-given project version.
+Promote to real PyPI only after TestPyPI install and runtime checks pass.
 
-## TestPyPI Rehearsal
+## Version Checklist
 
-For rehearsal releases, configure a separate TestPyPI trusted publisher or use:
+- `pyproject.toml`
+- `python/tensorstudio/_version.py`
+- `include/tensorstudio/version.hpp`
+- `CHANGELOG.md`
+- `README.md`
+- Docs that mention version or status
 
-```bash
-twine upload --repository testpypi -u __token__ -p "$TEST_PYPI_TOKEN" dist/*
-```
+`CMakeLists.txt` uses a numeric project version, so release candidates keep the
+public Python/C++ version strings in the package metadata and version header.
 
-Install from TestPyPI:
+## Required Checks Before Final `1.0.0`
 
-```bash
-python -m pip install --index-url https://test.pypi.org/simple/ tensorstudio
-```
-
-## Version Bump Checklist
-
-- Update `pyproject.toml`
-- Update `python/tensorstudio/_version.py`
-- Update `include/tensorstudio/version.hpp`
-- Update `CHANGELOG.md`
-- Update docs that mention the version
-- Run lint, type checks, tests, and builds
-
-## Artifact Checklist
-
-- `dist/*.tar.gz` source distribution
-- Platform wheels from cibuildwheel
-- README renders correctly on PyPI
-- License file included
-- Native extension imports cleanly
-- Examples run against the built wheel
+- `ruff check .` passes.
+- `mypy python/tensorstudio` passes.
+- `pytest -q` passes on Windows.
+- `pytest -q` passes on Linux.
+- `pytest -q` passes on macOS.
+- `python -m build` passes.
+- `python -m twine check dist/*` passes.
+- Clean wheel install passes on Windows, Linux, and macOS.
+- Clean sdist install passes on Windows, Linux, and macOS.
+- Examples pass on all platforms.
+- Docs are accurate.
+- Changelog is updated.
+- No TODO-only files.
+- No hidden failing tests or ignored CI failures.
+- No publishing tokens are committed.
 
 ## Post-Release Verification
 
 ```bash
 python -m venv .release-check
 . .release-check/bin/activate
+python -m pip install -U pip
 python -m pip install tensorstudio
-python -c "import tensorstudio as ts; print(ts.__version__)"
+python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 python - <<'PY'
 import tensorstudio as ts
 x = ts.tensor([1.0, 2.0], requires_grad=True)
@@ -94,6 +109,7 @@ loss = (x * x).sum()
 loss.backward()
 print(x.grad.tolist())
 PY
+deactivate
 ```
 
-Remove the temporary environment after verification.
+Use the PowerShell activation path on Windows.

@@ -14,6 +14,8 @@ __pycache__/
 htmlcov/
 site/
 .venv/
+.venv*/
+.release-check/
 venv/
 .env
 .env.*

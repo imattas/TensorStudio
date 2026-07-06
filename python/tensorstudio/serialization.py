@@ -1,8 +1,8 @@
 """Serialization helpers.
 
-TensorStudio v0.1.x uses pickle for internal object roundtrips. Loading pickle
-data from untrusted sources is unsafe because pickle can execute arbitrary code
-during deserialization.
+TensorStudio uses pickle for internal object roundtrips. Loading pickle data
+from untrusted sources is unsafe because pickle can execute arbitrary code during
+deserialization.
 """
 
 from __future__ import annotations

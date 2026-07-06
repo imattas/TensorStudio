@@ -3,53 +3,66 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-The project is intentionally small, readable, and direct. The C++ core owns
-tensor storage, dtype handling, shape validation, broadcasting, eager operations,
-and reverse-mode automatic differentiation. The Python package provides a
-friendly API, neural network modules, optimizers, serialization helpers, tests,
-examples, benchmarks, and release tooling.
+`1.0.0rc1` is a release candidate for a CPU-only stable API foundation. It is
+intended to prove the tensor, autograd, neural-network, optimizer, data, docs,
+packaging, and wheel workflows before the project is marked final `1.0.0`.
 
-## Project Status
+## Status
 
-TensorStudio v0.1.1 is experimental. It is useful for learning how tensor
-frameworks are assembled, for small experiments, and for lightweight workloads.
-It is not a replacement for mature production ML frameworks.
+TensorStudio is:
+
+- CPU-only.
+- Eager-only.
+- Built around a native `tensorstudio._C` extension.
+- Suitable for learning, experimentation, and lightweight ML workloads.
+- Not intended to compete with mature production ML frameworks.
+
+The final `1.0.0` tag should wait until Windows, Linux, and macOS source builds,
+wheel builds, clean installs, tests, examples, and release checks all pass.
 
 ## What Is Included
 
-- CPU tensor storage with shared storage, shape, stride, offset, dtype, and
-  autograd metadata.
+- C++20 tensor storage with shared storage, shape, strides, offset, dtype,
+  device, and autograd metadata.
 - Dtypes: `float32`, `float64`, `int32`, `int64`, and `bool`.
+- Tensor creation helpers: `tensor`, `from_numpy`, `zeros`, `ones`, `full`,
+  `empty`, `rand`, `randn`, `arange`, `eye`, and `linspace`.
 - NumPy-style broadcasting for binary elementwise operations.
-- Matrix multiplication for 2D tensors.
-- Scalar reductions, common activations, reshape, flatten, and 2D transpose.
-- Reverse-mode autograd for the v0.1.x operation set.
-- Python `nn.Module`, `Parameter`, `Linear`, `Sequential`, activations, and
-  `MSELoss`.
-- Python `optim.SGD` and `optim.Adam`.
-- NumPy copy interop, pickle-based internal serialization, examples, tests, and
-  benchmark scripts.
+- Arithmetic, comparisons, matrix multiplication, all-element reductions, common
+  activations, `sqrt`, `abs`, `clamp`, reshape, flatten, and 2D transpose.
+- Reverse-mode autograd for the release-candidate operation set.
+- Python `nn.Module`, parameters, linear layers, sequential models, activation
+  modules, dropout, flatten, and basic losses.
+- Python `optim.SGD`, `optim.Adam`, and `optim.AdamW`.
+- Minimal Windows-friendly `Dataset`, `TensorDataset`, and `DataLoader`.
+- NumPy copy interop, pickle-based internal serialization, examples, tests,
+  benchmarks, and GitHub Actions release workflows.
 
 ## Design Goals
 
 TensorStudio prioritizes:
 
-- Clear C++ implementation over heavy template machinery.
-- Eager execution and readable control flow.
-- Small public API surface that feels familiar to PyTorch/TensorFlow users.
-- Honest documentation of limitations and edge cases.
-- Packaging that is realistic for PyPI, CI, and wheel builds.
+- Clear C++ loops and shape utilities over complex template metaprogramming.
+- Honest errors for shape, dtype, device, and autograd issues.
+- A Python API that feels familiar without pretending to be PyTorch-compatible.
+- Source builds that work with MSVC, GCC, Clang, and Apple Clang.
+- Wheels so end users can install without a compiler.
 
-## Current Boundaries
+## Boundaries
 
-TensorStudio v0.1.1 is CPU-only. It has no CUDA backend, no graph compiler, no
-distributed runtime, no advanced indexing, no sparse tensors, and limited dtype
-casting. Serialization uses pickle, so loading untrusted files is unsafe.
+TensorStudio does not currently include CUDA, Metal, distributed execution,
+graph compilation, convolution layers, advanced indexing, sparse tensors, mixed
+precision, or a high-performance kernel library. Benchmarks are rough local
+references only.
 
-## Where To Go Next
+Serialization uses pickle. Loading pickle files from untrusted sources is
+unsafe.
+
+## Next Steps
 
 - Start with [Quickstart](quickstart.md).
-- Learn tensor behavior in [Tensor Basics](Usage/tensors.md).
-- Understand gradients in [Autograd](Autograde/index.md).
-- Build small models with [Neural Network Modules](Neural%20Networks/modules.md).
-- Prepare releases with [Publishing](publishing.md).
+- Learn tensor semantics in [Tensors](tensors.md).
+- Understand gradients in [Autograd](autograd.md).
+- Build small models with [Neural Networks](nn.md).
+- Use small datasets with [Data](data.md).
+- Read [Publishing](publishing.md) before release work.

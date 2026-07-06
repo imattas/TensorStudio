@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "tensorstudio"
-version = "0.1.1"
+version = "1.0.0rc1"
 description = "TensorStudio is a compact C++ tensor and autograd engine with a Python API for learning, experimentation, and lightweight ML workloads."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,7 +17,7 @@ authors = [
 ]
 keywords = ["tensor", "autograd", "machine-learning", "cpp", "pybind11"]
 classifiers = [
-  "Development Status :: 3 - Alpha",
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Education",
   "License :: OSI Approved :: MIT License",
@@ -50,9 +50,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tensorstudio/tensorstudio"
-Repository = "https://github.com/tensorstudio/tensorstudio"
-Issues = "https://github.com/tensorstudio/tensorstudio/issues"
+Homepage = "https://github.com/imattas/TensorStudio"
+Repository = "https://github.com/imattas/TensorStudio"
+Issues = "https://github.com/imattas/TensorStudio/issues"
 
 [tool.scikit-build]
 cmake.version = ">=3.18"

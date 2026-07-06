@@ -97,6 +97,5 @@ model.train()
 model.eval()
 ```
 
-These currently toggle the `training` flag recursively. v0.1.x modules do not
-include dropout or batch normalization, so the flag is mostly scaffolding for
-future modules.
+These toggle the `training` flag recursively. `Dropout` changes behavior between
+training and eval mode; other current modules are deterministic in both modes.

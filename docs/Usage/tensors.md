@@ -94,7 +94,7 @@ Rules:
 
 ## Views
 
-TensorStudio v0.1.x supports:
+TensorStudio `1.0.0rc1` supports:
 
 - `reshape`
 - `flatten`

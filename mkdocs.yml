@@ -17,17 +17,16 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Quickstart: quickstart.md
-  - Usage:
-      - Tensor Basics: Usage/tensors.md
-      - NumPy Interop: Usage/numpy-interop.md
-      - Serialization: Usage/serialization.md
-  - Autograd: Autograde/index.md
-  - Neural Networks:
-      - Modules: Neural Networks/modules.md
-      - Training: Neural Networks/training.md
-  - Hardware: Hardware/cpu-backend.md
-  - Benchmarks: Benchmarks/index.md
+  - Tensors: tensors.md
+  - Autograd: autograd.md
+  - Neural Networks: nn.md
+  - Optimizers: optim.md
+  - Data: data.md
+  - Serialization: serialization.md
+  - Platform Guides:
+      - Windows: windows.md
+      - Linux: linux.md
+      - macOS: macos.md
   - API: api.md
   - Development: development.md
   - Publishing: publishing.md
-  - Roadmap: Roadmap/index.md
