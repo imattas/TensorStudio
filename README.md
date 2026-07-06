@@ -182,6 +182,21 @@ NumPy. The C++ contiguous matmul fast path is much faster than the original
 naive storage-access loop, but it is not a BLAS replacement. See
 `benchmarks/results.md` for the full table, platform details, and exact timings.
 
+Snapshot from that local run:
+
+| operation | shape | TensorStudio median | NumPy median | speedup | result |
+|---|---:|---:|---:|---:|---|
+| `sigmoid` | `(1,)` | 0.0016 ms | 0.0036 ms | 2.2170x | win |
+| `mean` | `(1,)` | 0.0014 ms | 0.0081 ms | 5.8562x | win |
+| `mean` | `(8,)` | 0.0016 ms | 0.0079 ms | 5.0005x | win |
+| `add` | `(16384,)` | 0.0100 ms | 0.0037 ms | 0.3682x | loss |
+| `matmul` | `(256, 256)` | 4.1393 ms | 0.4222 ms | 0.1020x | loss |
+
+Speedup is `NumPy median / TensorStudio median`, so values above `1.0x` favor
+TensorStudio. The matmul result is from the optimized C++ contiguous path; a
+pre-optimization run was about 259 ms for the same `(256, 256)` case on this
+machine.
+
 Do not treat these results as universal. TensorStudio does not currently claim
 to be faster than NumPy, TensorFlow, PyTorch, or JAX overall.
 
