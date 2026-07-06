@@ -14,7 +14,7 @@ env:
   CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
   CIBW_TEST_COMMAND: >-
-    python -c "import tensorstudio as ts; import tensorstudio._C; x = ts.tensor([1.0, 2.0], requires_grad=True); y = (x * x).sum(); y.backward(); print(ts.__version__, x.grad.tolist())"
+    python -c "import tensorstudio as ts; import tensorstudio._C; x = ts.ones((2, 2), requires_grad=True); y = ((x * 2.0) + 1.0).sum(); y.backward(); assert x.grad.tolist() == [[2.0, 2.0], [2.0, 2.0]]; print(ts.__version__, x.grad.tolist())"
 
 jobs:
   windows_wheels:
