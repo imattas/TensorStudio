@@ -314,12 +314,15 @@ model.load_state_dict(ts.load_npz("weights.tsnpz"))
 
 ## ONNX Export
 
-Install the ONNX extra, then export supported Sequential models:
+Install the ONNX extra, then export, inspect, or import supported static
+Sequential models:
 
 ```python
 ts.export_onnx(model.model, "classifier.onnx", input_shape=(1, 3, 8, 8))
+print(ts.inspect_onnx("classifier.onnx")["operators"])
+imported = ts.import_onnx("classifier.onnx")
 ```
 
 The exporter covers common TensorStudio modules such as `Linear`, `Conv2d`,
-`Flatten`, activations, and 2D pooling. It does not trace arbitrary Python
-control flow.
+`ConvTranspose2d`, `Flatten`, activations, and 2D pooling. Import is limited to
+a constrained static subset and does not trace arbitrary Python control flow.

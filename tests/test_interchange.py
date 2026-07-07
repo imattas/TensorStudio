@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import tensorstudio as ts
 from tensorstudio import nn
@@ -60,3 +61,29 @@ def test_export_onnx_configurable_image_classifier(tmp_path) -> None:
         "Flatten",
         "Gemm",
     ]
+
+
+def test_inspect_import_onnx_and_model_card_metadata(tmp_path) -> None:
+    ts.manual_seed(0)
+    model = nn.Sequential(nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2))
+    input_tensor = ts.tensor([[1.0, 2.0, 3.0], [0.5, -1.0, 2.0]])
+    path = tmp_path / "linear.onnx"
+    card_path = tmp_path / "model-card.json"
+
+    ts.export_onnx(model, path, input_shape=(2, 3))
+    metadata = ts.inspect_onnx(path)
+    imported = ts.import_onnx(path)
+    output = imported(input_tensor)
+    card = ts.export_model_card_metadata(
+        {"name": "linear-demo", "format": metadata["format"]},
+        card_path,
+    )
+
+    assert metadata["format"] == "onnx"
+    assert metadata["node_count"] == 3
+    assert metadata["operators"] == ["Gemm", "Relu"]
+    assert metadata["initializer_count"] == 4
+    assert card.exists()
+    assert ts.inspect_model_metadata(path)["node_count"] == 3
+    assert output.shape == (2, 2)
+    np.testing.assert_allclose(output.numpy(), model(input_tensor).numpy(), rtol=1e-6, atol=1e-6)

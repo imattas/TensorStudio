@@ -62,3 +62,27 @@ def test_npz_state_dict_roundtrip_loads_into_model(tmp_path) -> None:
     assert sorted(loaded) == ["0.bias", "0.weight", "2.bias", "2.weight"]
     model.load_state_dict(loaded)
     np.testing.assert_allclose(model.state_dict()["0.weight"].numpy(), state["0.weight"].numpy())
+
+
+def test_npz_metadata_and_safetensors_roundtrip(tmp_path) -> None:
+    state = {
+        "weight": ts.tensor([[1.0, 2.0], [3.0, 4.0]]),
+        "bias": ts.tensor([0.5, -0.5]),
+    }
+    npz_path = tmp_path / "state.tsnpz"
+    safe_path = tmp_path / "state.safetensors"
+
+    ts.save_npz(state, npz_path, metadata={"task": "demo"})
+    metadata = ts.load_npz_metadata(npz_path)
+    inspected = ts.inspect_model_metadata(npz_path)
+    ts.save_safetensors(state, safe_path, metadata={"task": "demo"})
+    safe_loaded = ts.load_safetensors(safe_path)
+    safe_metadata = ts.inspect_model_metadata(safe_path)
+
+    assert metadata["version"] == 2
+    assert metadata["metadata"]["task"] == "demo"
+    assert inspected["tensor_count"] == 2
+    assert sorted(safe_loaded) == ["bias", "weight"]
+    np.testing.assert_allclose(safe_loaded["weight"].numpy(), state["weight"].numpy())
+    assert safe_metadata["tensor_count"] == 2
+    assert safe_metadata["metadata"]["task"] == "demo"

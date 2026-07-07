@@ -1,6 +1,7 @@
 # Serialization
 
-TensorStudio exposes trusted pickle roundtrips and safer NPZ tensor files.
+TensorStudio exposes trusted pickle roundtrips, safer NPZ tensor files, optional
+SafeTensors files, and limited ONNX interchange.
 
 ## Trusted Object Roundtrips
 
@@ -60,6 +61,18 @@ model.load_state_dict(ts.load_npz("weights.tsnpz"))
 `nn.Module.state_dict()`. It stores raw NumPy arrays plus TensorStudio JSON
 metadata and loads with NumPy pickle support disabled.
 
+## SafeTensors Files
+
+SafeTensors is the preferred optional format for tensor-only weight files:
+
+```python
+ts.save_safetensors(model.state_dict(), "weights.safetensors")
+state = ts.load_safetensors("weights.safetensors")
+```
+
+It does not use pickle. It stores tensors and string metadata, not arbitrary
+Python objects or optimizer classes.
+
 ## ONNX Model Files
 
 TensorStudio can export supported module stacks to ONNX:
@@ -68,5 +81,5 @@ TensorStudio can export supported module stacks to ONNX:
 ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
 ```
 
-ONNX support is export-only and covers common TensorStudio layers such
-as `Linear`, `Conv2d`, `Flatten`, activations, and 2D pooling.
+TensorStudio can inspect supported ONNX metadata and import a constrained
+static subset for TensorStudio eager execution. It is not a full ONNX runtime.

@@ -59,8 +59,11 @@ nav:
   - Interchange And Serialization:
       - NumPy Interop: interchange/numpy-interop.md
       - TensorStudio Serialization: interchange/serialization.md
+      - SafeTensors: interchange/safetensors.md
+      - Model Metadata: interchange/metadata.md
       - Trusted Pickle Guide: interchange/trusted-serialization.md
       - ONNX: interchange/onnx.md
+      - ONNX Import: interchange/onnx-import.md
       - Model Formats: interchange/model-formats.md
   - Performance:
       - Benchmarks: performance/benchmarks.md

@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.11.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.12.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -161,23 +161,23 @@ toolkit.
 Interchange should prioritize safe, inspectable formats before broad runtime
 compatibility.
 
-- Expand NPZ metadata for richer model and optimizer state.
-- Add `safetensors` support for safe tensor weight storage.
-- Expand ONNX export coverage for more TensorStudio modules and ops.
-- Add ONNX metadata inspection for supported files, including graph inputs,
+- Completed in `1.12.0`: expand NPZ metadata for richer model and optimizer state.
+- Completed in `1.12.0`: add `safetensors` support for safe tensor weight storage.
+- Completed in `1.12.0`: expand ONNX export coverage for more TensorStudio modules and ops.
+- Completed in `1.12.0`: add ONNX metadata inspection for supported files, including graph inputs,
   outputs, opset, initializer summaries, node counts, and model producer
   fields.
-- Add ONNX import for a supported subset of static graphs.
-- Add execution support for imported ONNX graphs only where TensorStudio has
+- Completed in `1.12.0`: add ONNX import for a supported subset of static graphs.
+- Completed in `1.12.0`: add execution support for imported ONNX graphs only where TensorStudio has
   correct matching tensor ops; clearly reject unsupported operators and dynamic
   graph features.
-- Add model metadata extraction for TensorStudio checkpoints, NPZ bundles, and
+- Completed in `1.12.0`: add model metadata extraction for TensorStudio checkpoints, NPZ bundles, and
   supported ONNX files. Do not advertise metadata support for formats that
   cannot be parsed safely or accurately.
-- Add import/export research for practical neural-network model formats that
+- Completed in `1.12.0`: add import/export research for practical neural-network model formats that
   can be supported without unsafe execution or fake compatibility layers.
-- Add versioned checkpoint metadata and compatibility checks.
-- Add model card or metadata export for packaged examples.
+- Completed in `1.12.0`: add versioned checkpoint metadata and compatibility checks.
+- Completed in `1.12.0`: add model card or metadata export for packaged examples.
 - Consider DLPack-style interop after tensor/device semantics are mature.
 
 ## 9. Packaging, CI, And Release Quality

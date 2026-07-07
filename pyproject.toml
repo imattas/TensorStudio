@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "tensorstudio"
-version = "1.11.0"
+version = "1.12.0"
 description = "TensorStudio is a compact C++ tensor and autograd engine with a Python API for learning, experimentation, and lightweight ML workloads."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -47,6 +47,7 @@ dev = [
   "pre-commit>=3.7",
   "onnx>=1.16",
   "Pillow>=10",
+  "safetensors>=0.4",
 ]
 docs = [
   "mkdocs>=1.6",
@@ -54,6 +55,9 @@ docs = [
 ]
 onnx = [
   "onnx>=1.16",
+]
+safetensors = [
+  "safetensors>=0.4",
 ]
 vision = [
   "Pillow>=10",

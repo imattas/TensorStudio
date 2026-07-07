@@ -1,7 +1,8 @@
 # ONNX Interchange
 
-TensorStudio `1.11.0` includes a limited ONNX exporter for supported
-TensorStudio module stacks.
+TensorStudio `1.12.0` includes a limited ONNX exporter, ONNX metadata
+inspection, and supported-subset ONNX import/execution for TensorStudio module
+stacks.
 
 Install the optional dependency:
 
@@ -29,10 +30,24 @@ ts.export_onnx(model, "classifier.onnx", input_shape=(1, 1, 4, 4))
 The exporter writes an ONNX graph and validates it with `onnx.checker` before
 saving.
 
+## Inspect And Import
+
+```python
+metadata = ts.inspect_onnx("classifier.onnx")
+imported = ts.import_onnx("classifier.onnx")
+output = imported(ts.ones((1, 1, 4, 4)))
+```
+
+Import supports a constrained static subset: `Gemm`, `Relu`, `Sigmoid`, `Tanh`,
+`Flatten`, `Conv`, `ConvTranspose`, `MaxPool`, and `AveragePool`. Unsupported
+operators, dynamic graph features, multiple graph inputs, and asymmetric
+padding are rejected clearly.
+
 ## Supported Modules
 
 - `nn.Linear`
-- `nn.Conv2d`
+- `nn.Conv2d`, including grouped/depthwise convolution metadata
+- `nn.ConvTranspose2d`
 - `nn.Flatten`
 - `nn.ReLU`
 - `nn.Sigmoid`
@@ -60,8 +75,8 @@ path = ts.export_onnx(
 
 ## Current Limits
 
-- Export-only: TensorStudio does not import ONNX models.
-- No ONNX runtime is bundled.
+- Import is limited to the static subset listed above.
+- No full ONNX runtime is bundled.
 - Arbitrary Python `forward` control flow is not traced.
 - Unsupported modules raise `ValueError` instead of silently producing an
   incomplete graph.

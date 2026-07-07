@@ -490,17 +490,28 @@ ts.save(obj, "object.tsmodel")
 loaded = ts.load("object.tsmodel")
 ts.save_npz(model.state_dict(), "weights.tsnpz")
 state = ts.load_npz("weights.tsnpz")
+metadata = ts.load_npz_metadata("weights.tsnpz")
 ```
 
 `save`/`load` use pickle. Only load pickle files from trusted sources.
 `save_npz`/`load_npz` store tensors and flat state dictionaries without pickle.
+`inspect_model_metadata` reads metadata from TensorStudio NPZ files,
+SafeTensors files, supported ONNX files, and trusted TensorStudio checkpoints.
 
 ## `tensorstudio.interchange`
 
 - `export_onnx(model, path, input_shape, input_name="input", output_name="output")`
+- `inspect_onnx(path)`
+- `import_onnx(path)`
+- `export_model_card_metadata(metadata, path)`
+- `save_safetensors(tensors, path, metadata=None)`
+- `load_safetensors(path)`
+- `inspect_model_metadata(path, trusted_pickle=False)`
 
-ONNX export supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`, `Tanh`,
-`MaxPool2d`, and `AvgPool2d` module stacks.
+ONNX export supports `Linear`, grouped/depthwise `Conv2d`,
+`ConvTranspose2d`, `Flatten`, `ReLU`, `Sigmoid`, `Tanh`, `MaxPool2d`, and
+`AvgPool2d` module stacks. ONNX import supports a constrained static subset,
+not arbitrary ONNX models.
 
 ## `tensorstudio.vision`
 

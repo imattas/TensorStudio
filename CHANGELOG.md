@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 1.12.0 - 2026-07-07
+
+- Completed the ordered Serialization And Interchange roadmap section as one
+  release batch.
+- Expanded NPZ archives to version 2 metadata with TensorStudio version,
+  tensor counts, tensor shapes/dtypes, `requires_grad` flags, and user metadata.
+- Added optional SafeTensors save/load support for safe tensor-only weight maps.
+- Added model metadata inspection for TensorStudio NPZ files, SafeTensors,
+  supported ONNX files, and trusted TensorStudio checkpoints.
+- Added versioned checkpoint metadata and compatibility checks for full trusted
+  checkpoints.
+- Expanded ONNX export for grouped convolution metadata and `ConvTranspose2d`.
+- Added ONNX graph metadata inspection and supported-subset ONNX import/execution
+  for static graphs using TensorStudio's eager tensor ops.
+- Added model-card metadata JSON export.
+- Expanded interchange tests and docs for SafeTensors, metadata inspection, and
+  ONNX import.
+
 ## 1.11.0 - 2026-07-07
 
 - Completed the ordered Computer Vision Depth roadmap section as one release

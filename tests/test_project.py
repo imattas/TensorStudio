@@ -75,4 +75,11 @@ def test_project_state_dict_and_full_checkpoint_roundtrip(tmp_path) -> None:
     checkpoint = load_checkpoint(restored, checkpoint_path, optimizer=restored_optimizer)
 
     assert checkpoint["metadata"]["epoch"] == 4
+    assert checkpoint["format"] == "tensorstudio.checkpoint"
+    assert checkpoint["version"] == 2
+    with np.testing.assert_raises(ValueError):
+        ts.inspect_model_metadata(checkpoint_path)
+    metadata = ts.inspect_model_metadata(checkpoint_path, trusted_pickle=True)
+    assert metadata["has_optimizer"] is True
+    assert metadata["model_tensor_count"] == 2
     np.testing.assert_allclose(restored(x).numpy(), prediction, rtol=1e-6, atol=1e-6)

@@ -1,8 +1,8 @@
 # Serialization
 
-TensorStudio `1.11.0` provides two serialization paths: trusted pickle
-roundtrips for internal objects and non-pickle NPZ files for tensor/state_dict
-interchange.
+TensorStudio `1.12.0` provides trusted pickle roundtrips for internal objects,
+non-pickle NPZ files for tensor/state_dict interchange, and optional
+SafeTensors support for tensor-only weight maps.
 
 ## Trusted Pickle Roundtrips
 
@@ -57,8 +57,24 @@ roundtrip = ts.load_npz("tensor.tsnpz")
 ```
 
 NPZ archives store NumPy arrays and TensorStudio JSON metadata with pickle
-disabled. They do not save arbitrary Python modules, optimizer objects, or
+disabled. `save_npz(..., metadata={...})` records user metadata alongside tensor
+names, dtypes, shapes, and `requires_grad` flags. Use `load_npz_metadata()` or
+`inspect_model_metadata()` to inspect metadata without loading every tensor
+payload. NPZ files do not save arbitrary Python modules, optimizer objects, or
 custom classes.
+
+## SafeTensors
+
+```python
+ts.save_safetensors(model.state_dict(), "weights.safetensors")
+state = ts.load_safetensors("weights.safetensors")
+```
+
+SafeTensors support is optional and requires:
+
+```bash
+python -m pip install "tensorstudio[safetensors]"
+```
 
 ## ONNX Export
 
@@ -75,4 +91,5 @@ See [ONNX Interchange](onnx.md) for supported module types and limits.
 
 - Use `.tsmodel` for trusted TensorStudio pickle files.
 - Use `.tsnpz` for tensor and state_dict NPZ files.
+- Use `.safetensors` for safe tensor-only weight maps.
 - Use `.onnx` for exported ONNX model files.

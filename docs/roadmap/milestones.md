@@ -65,6 +65,10 @@ numbers can change, but the order should stay foundation-first.
 - Add ONNX metadata extraction where reliable.
 - Add import for supported operator subsets.
 - Reject unsupported graphs clearly.
+- Completed in `1.12.0`: added richer NPZ metadata, optional SafeTensors,
+  ONNX metadata inspection, ONNX import/execution for a constrained static
+  subset, metadata extraction for NPZ/SafeTensors/ONNX/trusted checkpoints,
+  versioned checkpoint metadata, and model-card metadata export.
 
 ## Milestone G: Hardware And Scale
 

@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.11.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.12.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -56,10 +56,11 @@ TensorStudio is:
   state-dict checkpoints, trusted full checkpoints, resume helpers, and starter
   templates.
 - NumPy copy interop, pickle-based internal serialization, non-pickle NPZ
-  tensor/state_dict files, limited ONNX export, vision IO, batch transforms,
-  image augmentations, detection utilities, segmentation helpers, vision
-  datasets, metrics, visualization, compact CNN/UNet helpers, examples, tests,
-  benchmarks, and GitHub Actions release workflows.
+  tensor/state_dict files with richer metadata, optional SafeTensors, ONNX
+  export/inspection/import for a supported static subset, vision IO, batch
+  transforms, image augmentations, detection utilities, segmentation helpers,
+  vision datasets, metrics, visualization, compact CNN/UNet helpers, examples,
+  tests, benchmarks, and GitHub Actions release workflows.
 
 ## Design Goals
 
@@ -76,13 +77,14 @@ TensorStudio prioritizes:
 TensorStudio does not currently include CUDA, Metal, distributed execution,
 graph compilation, advanced list/tensor/boolean indexing, sparse tensors, mixed
 precision, a high performance kernel library, pretrained vision model zoo,
-detection/segmentation training stack, video IO, an ONNX runtime, or ONNX
-import. Benchmarks are rough local references only; TensorStudio wins some
-small eager CPU cases but is not faster than PyTorch, NumPy, TensorFlow, or JAX
-overall.
+detection/segmentation training stack, video IO, or a full ONNX runtime. ONNX
+import exists for a constrained static subset only. Benchmarks are rough local
+references; TensorStudio wins some small eager CPU cases but is not faster than
+PyTorch, NumPy, TensorFlow, or JAX overall.
 
 Pickle serialization is available for trusted internal objects. Prefer
-`save_npz`/`load_npz` for portable tensor and state_dict files.
+`save_npz`/`load_npz` or optional SafeTensors files for portable tensor and
+state_dict files.
 
 ## Next Steps
 

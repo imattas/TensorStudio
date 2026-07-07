@@ -16,10 +16,16 @@ Visual Studio Build Tools.
 
 ## Optional Extras
 
-Install ONNX export support:
+Install ONNX export/import support:
 
 ```bash
 python -m pip install "tensorstudio[onnx]"
+```
+
+Install SafeTensors weight-file support:
+
+```bash
+python -m pip install "tensorstudio[safetensors]"
 ```
 
 Install Pillow-backed image IO:
@@ -28,10 +34,10 @@ Install Pillow-backed image IO:
 python -m pip install "tensorstudio[vision]"
 ```
 
-Install both:
+Install common optional integrations:
 
 ```bash
-python -m pip install "tensorstudio[onnx,vision]"
+python -m pip install "tensorstudio[onnx,vision,safetensors]"
 ```
 
 ## Verify The Native Extension
@@ -63,4 +69,3 @@ Source builds require:
 - pybind11 through the build environment.
 
 See [Build From Source](source-build.md) for platform notes.
-

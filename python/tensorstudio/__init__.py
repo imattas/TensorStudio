@@ -6,7 +6,7 @@ from . import data, dtypes, interchange, math, metrics, nn, optim, project, visi
 from ._version import __version__
 from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
-from .interchange import export_onnx
+from .interchange import export_model_card_metadata, export_onnx, import_onnx, inspect_onnx
 from .math import einsum, norm
 from .ops import (
     acos,
@@ -53,7 +53,16 @@ from .ops import (
     where,
 )
 from .performance import get_num_threads, performance_info, set_num_threads
-from .serialization import load, load_npz, save, save_npz
+from .serialization import (
+    inspect_model_metadata,
+    load,
+    load_npz,
+    load_npz_metadata,
+    load_safetensors,
+    save,
+    save_npz,
+    save_safetensors,
+)
 from .tensor import (
     Tensor,
     arange,
@@ -115,6 +124,7 @@ __all__ = [
     "einsum",
     "eye",
     "equal",
+    "export_model_card_metadata",
     "export_onnx",
     "from_numpy",
     "full",
@@ -125,10 +135,15 @@ __all__ = [
     "less",
     "less_equal",
     "interchange",
+    "inspect_model_metadata",
+    "inspect_onnx",
+    "import_onnx",
     "is_grad_enabled",
     "linspace",
     "load",
     "load_npz",
+    "load_npz_metadata",
+    "load_safetensors",
     "log_softmax",
     "log1p",
     "logsumexp",
@@ -160,6 +175,7 @@ __all__ = [
     "rsqrt",
     "save",
     "save_npz",
+    "save_safetensors",
     "set_grad_enabled",
     "set_num_threads",
     "sin",

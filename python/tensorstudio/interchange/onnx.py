@@ -12,6 +12,7 @@ import numpy as np
 from tensorstudio.nn import (
     AvgPool2d,
     Conv2d,
+    ConvTranspose2d,
     Flatten,
     Linear,
     MaxPool2d,
@@ -21,6 +22,8 @@ from tensorstudio.nn import (
     Sigmoid,
     Tanh,
 )
+from tensorstudio.ops import avg_pool2d, conv2d, conv_transpose2d, max_pool2d
+from tensorstudio.tensor import Tensor, from_numpy
 from tensorstudio.typing import PathLikeStr
 
 _DTYPE_TO_ONNX_NAME = {
@@ -206,6 +209,7 @@ def export_onnx(
                     strides=list(layer.stride),
                     pads=pads,
                     dilations=list(layer.dilation),
+                    group=layer.groups,
                 )
             )
             current_shape = _conv_output_shape(
@@ -216,6 +220,47 @@ def export_onnx(
                 layer.padding,
                 layer.dilation,
             )
+        elif isinstance(layer, ConvTranspose2d):
+            weight_name = f"conv_transpose_{index}_weight"
+            inputs = [current_name, weight_name]
+            initializers.append(_tensor_initializer(weight_name, layer.weight, numpy_helper))
+            if layer.bias is not None:
+                bias_name = f"conv_transpose_{index}_bias"
+                inputs.append(bias_name)
+                initializers.append(_tensor_initializer(bias_name, layer.bias, numpy_helper))
+            pads = [layer.padding[0], layer.padding[1], layer.padding[0], layer.padding[1]]
+            nodes.append(
+                helper.make_node(
+                    "ConvTranspose",
+                    inputs,
+                    [next_name],
+                    name=f"ConvTranspose2d_{index}",
+                    kernel_shape=list(layer.kernel_size),
+                    strides=list(layer.stride),
+                    pads=pads,
+                    dilations=list(layer.dilation),
+                    output_padding=list(layer.output_padding),
+                    group=layer.groups,
+                )
+            )
+            if len(current_shape) != 4:
+                raise ValueError("ConvTranspose2d ONNX export expects input shape (N, C, H, W)")
+            batch, _, height, width = current_shape
+            out_h = (
+                (height - 1) * layer.stride[0]
+                - 2 * layer.padding[0]
+                + layer.dilation[0] * (layer.kernel_size[0] - 1)
+                + layer.output_padding[0]
+                + 1
+            )
+            out_w = (
+                (width - 1) * layer.stride[1]
+                - 2 * layer.padding[1]
+                + layer.dilation[1] * (layer.kernel_size[1] - 1)
+                + layer.output_padding[1]
+                + 1
+            )
+            current_shape = (batch, layer.out_channels, out_h, out_w)
         elif isinstance(layer, Flatten):
             nodes.append(
                 helper.make_node(
@@ -311,4 +356,210 @@ def export_onnx(
     return output_path
 
 
-__all__ = ["export_onnx"]
+class ImportedOnnxModel:
+    """Executable TensorStudio representation of a supported static ONNX graph."""
+
+    def __init__(self, path: PathLikeStr) -> None:
+        _, _, numpy_helper = _require_onnx()
+        import onnx
+
+        self.path = Path(path)
+        self.model = onnx.load(self.path)
+        self.initializers: dict[str, Tensor] = {
+            initializer.name: from_numpy(np.array(numpy_helper.to_array(initializer), copy=True))
+            for initializer in self.model.graph.initializer
+        }
+        self.input_names = [
+            value.name
+            for value in self.model.graph.input
+            if value.name not in self.initializers
+        ]
+        self.output_names = [value.name for value in self.model.graph.output]
+        self.nodes = list(self.model.graph.node)
+        unsupported = sorted({node.op_type for node in self.nodes} - _SUPPORTED_IMPORT_OPS)
+        if unsupported:
+            raise ValueError(f"unsupported ONNX operators for TensorStudio import: {unsupported}")
+        if len(self.input_names) != 1:
+            raise ValueError("TensorStudio ONNX import currently supports exactly one graph input")
+
+    def __call__(self, input: Tensor) -> Tensor:
+        values: dict[str, Tensor] = dict(self.initializers)
+        values[self.input_names[0]] = input
+        for node in self.nodes:
+            self._execute_node(node, values)
+        if len(self.output_names) != 1:
+            raise ValueError("TensorStudio ONNX import currently supports exactly one graph output")
+        return values[self.output_names[0]]
+
+    def _execute_node(self, node: Any, values: dict[str, Tensor]) -> None:
+        attrs = _node_attributes(node)
+        inputs = [values[name] for name in node.input if name]
+        op_type = node.op_type
+        if op_type == "Gemm":
+            left = inputs[0].T if int(attrs.get("transA", 0)) else inputs[0]
+            right = inputs[1].T if int(attrs.get("transB", 0)) else inputs[1]
+            output = left @ right
+            if len(inputs) > 2:
+                output = output + inputs[2]
+        elif op_type == "Relu":
+            output = inputs[0].relu()
+        elif op_type == "Sigmoid":
+            output = inputs[0].sigmoid()
+        elif op_type == "Tanh":
+            output = inputs[0].tanh()
+        elif op_type == "Flatten":
+            axis = int(attrs.get("axis", 1))
+            shape = inputs[0].shape
+            normalized = axis if axis >= 0 else len(shape) + axis
+            prefix = shape[:normalized]
+            flattened = math.prod(shape[normalized:]) if normalized < len(shape) else 1
+            output = inputs[0].reshape((*prefix, flattened))
+        elif op_type == "Conv":
+            output = conv2d(
+                inputs[0],
+                inputs[1],
+                inputs[2] if len(inputs) > 2 else None,
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+                groups=int(attrs.get("group", 1)),
+            )
+        elif op_type == "ConvTranspose":
+            output = conv_transpose2d(
+                inputs[0],
+                inputs[1],
+                inputs[2] if len(inputs) > 2 else None,
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                output_padding=_attr_pair(attrs, "output_padding", (0, 0)),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+                groups=int(attrs.get("group", 1)),
+            )
+        elif op_type == "MaxPool":
+            output = max_pool2d(
+                inputs[0],
+                kernel_size=_attr_pair(attrs, "kernel_shape", (1, 1)),
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+            )
+        elif op_type == "AveragePool":
+            output = avg_pool2d(
+                inputs[0],
+                kernel_size=_attr_pair(attrs, "kernel_shape", (1, 1)),
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                count_include_pad=bool(attrs.get("count_include_pad", 0)),
+            )
+        else:  # pragma: no cover - guarded in __init__
+            raise ValueError(f"unsupported ONNX operator: {op_type}")
+        values[node.output[0]] = output
+
+
+_SUPPORTED_IMPORT_OPS = {
+    "AveragePool",
+    "Conv",
+    "ConvTranspose",
+    "Flatten",
+    "Gemm",
+    "MaxPool",
+    "Relu",
+    "Sigmoid",
+    "Tanh",
+}
+
+
+def inspect_onnx(path: PathLikeStr) -> dict[str, Any]:
+    """Inspect supported ONNX metadata without executing the graph."""
+
+    _, _, numpy_helper = _require_onnx()
+    import onnx
+
+    model = onnx.load(Path(path))
+    initializers = [
+        {
+            "name": initializer.name,
+            "shape": list(numpy_helper.to_array(initializer).shape),
+            "dtype": str(numpy_helper.to_array(initializer).dtype),
+        }
+        for initializer in model.graph.initializer
+    ]
+    return {
+        "format": "onnx",
+        "producer_name": model.producer_name,
+        "producer_version": model.producer_version,
+        "opsets": {item.domain or "": item.version for item in model.opset_import},
+        "graph_name": model.graph.name,
+        "inputs": [value.name for value in model.graph.input],
+        "outputs": [value.name for value in model.graph.output],
+        "node_count": len(model.graph.node),
+        "operators": sorted({node.op_type for node in model.graph.node}),
+        "initializer_count": len(initializers),
+        "initializers": initializers,
+    }
+
+
+def import_onnx(path: PathLikeStr) -> ImportedOnnxModel:
+    """Import a supported static ONNX graph as a callable TensorStudio model."""
+
+    return ImportedOnnxModel(path)
+
+
+def export_model_card_metadata(
+    metadata: dict[str, Any],
+    path: PathLikeStr,
+) -> Path:
+    """Write a small JSON model-card metadata file."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json_dumps_stable(metadata),
+        encoding="utf-8",
+    )
+    return output_path
+
+
+def json_dumps_stable(value: dict[str, Any]) -> str:
+    import json
+
+    return json.dumps(value, indent=2, sort_keys=True) + "\n"
+
+
+def _node_attributes(node: Any) -> dict[str, Any]:
+    _, helper, _ = _require_onnx()
+    return {attribute.name: helper.get_attribute_value(attribute) for attribute in node.attribute}
+
+
+def _attr_pair(
+    attrs: dict[str, Any],
+    name: str,
+    default: tuple[int, int],
+) -> tuple[int, int]:
+    value = attrs.get(name, default)
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if isinstance(value, (int, float)):
+        return (int(value), int(value))
+    if len(value) != 2:
+        raise ValueError(f"ONNX attribute {name!r} must contain two values")
+    return (int(value[0]), int(value[1]))
+
+
+def _pads_to_pair(value: Any) -> tuple[int, int]:
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if len(value) == 2:
+        return (int(value[0]), int(value[1]))
+    if len(value) == 4 and int(value[0]) == int(value[2]) and int(value[1]) == int(value[3]):
+        return (int(value[0]), int(value[1]))
+    raise ValueError("TensorStudio ONNX import supports symmetric 2D padding only")
+
+
+__all__ = [
+    "ImportedOnnxModel",
+    "export_model_card_metadata",
+    "export_onnx",
+    "import_onnx",
+    "inspect_onnx",
+]

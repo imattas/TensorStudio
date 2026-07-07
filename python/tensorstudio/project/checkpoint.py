@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, cast
 
+from tensorstudio._version import __version__
 from tensorstudio.nn import Module
 from tensorstudio.serialization import load, load_npz, save, save_npz
 from tensorstudio.tensor import Tensor
@@ -57,6 +58,9 @@ def save_checkpoint(
     """
 
     checkpoint: dict[str, Any] = {
+        "format": "tensorstudio.checkpoint",
+        "version": 2,
+        "tensorstudio_version": __version__,
         "model": model.state_dict(),
         "metadata": dict(metadata or {}),
     }
@@ -82,6 +86,9 @@ def load_checkpoint(
     checkpoint = load(path)
     if not isinstance(checkpoint, dict) or "model" not in checkpoint:
         raise ValueError("checkpoint must contain a 'model' state_dict")
+    version = checkpoint.get("version", 1)
+    if not isinstance(version, int) or version > 2:
+        raise ValueError(f"unsupported TensorStudio checkpoint version: {version!r}")
     model_state = checkpoint["model"]
     if not isinstance(model_state, dict):
         raise ValueError("checkpoint 'model' must be a state_dict mapping")
