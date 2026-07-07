@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 1.3.4 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with tuple/list-axis
+  reductions for `sum`, `mean`, `max`, and `min`.
+- Added C++ binding-layer axis normalization for reduction methods and
+  functional ops, including negative-axis handling, duplicate-axis errors, and
+  `axis=()` no-op behavior.
+- Added NumPy parity tests and autograd coverage for tuple-axis reductions.
+- Added ordered roadmap entries for supported ONNX/model metadata extraction,
+  supported ONNX import/execution, safe model-format research, and image/tensor
+  dataset creation helpers.
+
 ## 1.3.3 - 2026-07-07
 
 - Hardened CI type checks for newer Python/mypy combinations by annotating

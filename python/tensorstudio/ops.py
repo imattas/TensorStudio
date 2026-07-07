@@ -8,6 +8,7 @@ from . import _C
 from .tensor import Tensor
 
 PairLike = int | tuple[int, int] | list[int]
+AxisLike = int | tuple[int, ...] | list[int] | None
 
 
 def _pair(value: PairLike, name: str) -> tuple[int, int]:
@@ -147,19 +148,19 @@ def avg_pool2d(
     )
 
 
-def sum(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+def sum(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
     return _C.sum(input, axis, keepdims)
 
 
-def mean(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+def mean(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:
     return _C.mean(input, axis, keepdims)
 
 
-def max(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+def max(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
     return _C.max(input, axis, keepdims)
 
 
-def min(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+def min(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
     return _C.min(input, axis, keepdims)
 
 

@@ -193,6 +193,24 @@ def test_higher_level_math_helpers() -> None:
     )
     np.testing.assert_allclose(ts.math.norm(x).item(), np.linalg.norm(values), rtol=1e-6)
 
+    three_d = np.arange(1, 25, dtype=np.float32).reshape(2, 3, 4)
+    y = ts.from_numpy(three_d)
+    np.testing.assert_allclose(
+        ts.math.variance(y, axis=(0, 2)).numpy(),
+        np.var(three_d, axis=(0, 2)),
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        ts.math.std(y, axis=(1, 2), keepdims=True).numpy(),
+        np.std(three_d, axis=(1, 2), keepdims=True),
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        ts.math.norm(y, ord=1, axis=(0, 2)).numpy(),
+        np.abs(three_d).sum(axis=(0, 2)),
+        rtol=1e-6,
+    )
+
 
 def test_axis_reductions_match_numpy() -> None:
     values = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
@@ -216,6 +234,41 @@ def test_axis_reductions_match_numpy() -> None:
 
     with pytest.raises(Exception, match="out of range"):
         x.sum(axis=3)
+
+
+def test_tuple_axis_reductions_match_numpy() -> None:
+    values = np.arange(1, 25, dtype=np.float32).reshape(2, 3, 4)
+    x = ts.from_numpy(values)
+
+    for axis in [(0, 2), [1, 2], (-1, 0), ()]:
+        np.testing.assert_allclose(x.sum(axis=axis).numpy(), values.sum(axis=tuple(axis)))
+        np.testing.assert_allclose(x.mean(axis=axis).numpy(), values.mean(axis=tuple(axis)))
+        np.testing.assert_allclose(x.max(axis=axis).numpy(), values.max(axis=tuple(axis)))
+        np.testing.assert_allclose(x.min(axis=axis).numpy(), values.min(axis=tuple(axis)))
+
+    np.testing.assert_allclose(
+        x.sum(axis=(0, 2), keepdims=True).numpy(),
+        values.sum(axis=(0, 2), keepdims=True),
+    )
+    np.testing.assert_allclose(
+        ts.ops.mean(x, axis=(1, 2), keepdims=True).numpy(),
+        values.mean(axis=(1, 2), keepdims=True),
+    )
+    np.testing.assert_allclose(
+        ts.ops.max(x, axis=(0, -1), keepdims=True).numpy(),
+        values.max(axis=(0, -1), keepdims=True),
+    )
+    np.testing.assert_allclose(
+        ts.ops.min(x, axis=[0, 1]).numpy(),
+        values.min(axis=(0, 1)),
+    )
+
+    with pytest.raises(Exception, match="duplicate"):
+        x.sum(axis=(0, -3))
+    with pytest.raises(Exception, match="out of range"):
+        x.mean(axis=(0, 4))
+    with pytest.raises(Exception, match="axis entries"):
+        x.max(axis=(0, "bad"))  # type: ignore[arg-type]
 
 
 def test_cast_concat_and_stack_match_numpy() -> None:

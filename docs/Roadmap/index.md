@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.3.3` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.3.4` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -21,7 +21,8 @@ tensor semantics.
 - Completed in `1.3.2`: add exhaustive broadcasting tests for every binary
   elementwise arithmetic and comparison operation, including functional and
   operator overload paths.
-- Add tuple-axis reductions for `sum`, `mean`, `max`, and `min`.
+- Completed in `1.3.4`: add tuple-axis reductions for `sum`, `mean`,
+  `max`, and `min`.
 - Add arg reductions: `argmax` and `argmin`.
 - Add `where`, `maximum`, `minimum`, `clip`, and richer comparison helpers.
 - Add full NumPy-style indexing and slicing for common cases.
@@ -95,6 +96,9 @@ families.
 The project utilities should evolve into a clean small-project workflow without
 becoming an opaque training framework.
 
+- Add dataset creation helpers for images, tabular arrays, labels, and
+  TensorStudio tensors, with deterministic train/validation splitting and
+  metadata summaries.
 - Add callbacks for checkpointing, early stopping, CSV logging, and learning
   rate logging.
 - Add a metrics package for regression, classification, and multilabel tasks.
@@ -131,7 +135,18 @@ compatibility.
 - Expand NPZ metadata for richer model and optimizer state.
 - Add `safetensors` support for safe tensor weight storage.
 - Expand ONNX export coverage for more TensorStudio modules and ops.
+- Add ONNX metadata inspection for supported files, including graph inputs,
+  outputs, opset, initializer summaries, node counts, and model producer
+  fields.
 - Add ONNX import for a supported subset of static graphs.
+- Add execution support for imported ONNX graphs only where TensorStudio has
+  correct matching tensor ops; clearly reject unsupported operators and dynamic
+  graph features.
+- Add model metadata extraction for TensorStudio checkpoints, NPZ bundles, and
+  supported ONNX files. Do not advertise metadata support for formats that
+  cannot be parsed safely or accurately.
+- Add import/export research for practical neural-network model formats that
+  can be supported without unsafe execution or fake compatibility layers.
 - Add versioned checkpoint metadata and compatibility checks.
 - Add model card or metadata export for packaged examples.
 - Consider DLPack-style interop after tensor/device semantics are mature.

@@ -146,6 +146,10 @@ Math:
 - `mean(axis=None, keepdims=False)`
 - `max(axis=None, keepdims=False)`
 - `min(axis=None, keepdims=False)`
+
+For reductions, `axis` may be `None`, an int, or a tuple/list of ints.
+Negative axes are normalized against the input rank, duplicate axes are
+rejected, and `axis=()` is a no-op identity.
 - `relu()`
 - `sigmoid()`
 - `tanh()`
@@ -294,6 +298,9 @@ Optimizers implement `zero_grad`, `step`, `state_dict`, and `load_state_dict`.
 - `variance(input, axis=None, keepdims=False, correction=0)`
 - `std(input, axis=None, keepdims=False, correction=0)`
 - `norm(input, ord=2, axis=None, keepdims=False)`
+
+These helpers accept the same reduction axis forms as native reductions:
+`None`, an int, or a tuple/list of ints.
 
 These helpers compose TensorStudio tensors and keep autograd support.
 

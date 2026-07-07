@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <sstream>
+#include <set>
 #include <string>
 
 #include <pybind11/operators.h>
@@ -15,6 +16,7 @@
 #include "tensorstudio/errors.hpp"
 #include "tensorstudio/ops.hpp"
 #include "tensorstudio/random.hpp"
+#include "tensorstudio/shape.hpp"
 
 namespace tensorstudio::bindings {
 namespace {
@@ -167,6 +169,44 @@ Tensor reverse_binary_tensor_op(
   return op(ensure_tensor(left), right);
 }
 
+int64_t normalize_reduction_axis(const Tensor& input, int64_t axis, const std::string& op_name) {
+  const int64_t ndim = input.ndim();
+  const int64_t original_axis = axis;
+  if (axis < 0) {
+    axis += ndim;
+  }
+  if (axis < 0 || axis >= ndim) {
+    throw ShapeError(
+        op_name + " axis " + std::to_string(original_axis) + " is out of range for tensor with shape " +
+        shape_to_string(input.shape()));
+  }
+  return axis;
+}
+
+std::vector<int64_t> reduction_axes_from_py(const Tensor& input, py::object axis, const std::string& op_name) {
+  if (py::isinstance<py::int_>(axis)) {
+    return {normalize_reduction_axis(input, py::cast<int64_t>(axis), op_name)};
+  }
+  if (!is_sequence_like(axis)) {
+    throw ShapeError(op_name + " axis must be None, an int, or a sequence of ints");
+  }
+
+  std::vector<int64_t> axes;
+  std::set<int64_t> seen;
+  for (py::handle item : py::reinterpret_borrow<py::sequence>(axis)) {
+    if (!py::isinstance<py::int_>(item)) {
+      throw ShapeError(op_name + " axis entries must be integers");
+    }
+    const int64_t normalized = normalize_reduction_axis(input, py::cast<int64_t>(item), op_name);
+    if (!seen.insert(normalized).second) {
+      throw ShapeError(op_name + " received duplicate reduction axis " + std::to_string(normalized));
+    }
+    axes.push_back(normalized);
+  }
+  std::sort(axes.begin(), axes.end(), std::greater<int64_t>());
+  return axes;
+}
+
 }  // namespace
 
 DType dtype_from_py(py::object object, DType fallback) {
@@ -242,6 +282,29 @@ Tensor ensure_tensor(py::object object) {
   return tensor_from_py(std::move(object), py::none(), false);
 }
 
+Tensor reduce_from_py(
+    const Tensor& input,
+    py::object axis,
+    bool keepdims,
+    const std::string& op_name,
+    const std::function<Tensor(const Tensor&)>& reduce_all,
+    const std::function<Tensor(const Tensor&, int64_t, bool)>& reduce_axis) {
+  if (axis.is_none()) {
+    return reduce_all(input);
+  }
+
+  const std::vector<int64_t> axes = reduction_axes_from_py(input, std::move(axis), op_name);
+  if (axes.empty()) {
+    return input;
+  }
+
+  Tensor result = input;
+  for (const int64_t normalized_axis : axes) {
+    result = reduce_axis(result, normalized_axis, keepdims);
+  }
+  return result;
+}
+
 py::array tensor_to_numpy(const Tensor& tensor) {
   py::array array(numpy_dtype(tensor.dtype()), ssize_shape(tensor.shape()));
   if (tensor.is_contiguous()) {
@@ -308,28 +371,32 @@ void bind_tensor(py::module_& module) {
       .def("flatten", &flatten)
       .def("transpose", &transpose)
       .def("sum", [](const Tensor& self, py::object axis, bool keepdims) {
-        if (axis.is_none()) {
-          return sum(self);
-        }
-        return sum(self, py::cast<int64_t>(axis), keepdims);
+        return reduce_from_py(self, std::move(axis), keepdims, "sum", [](const Tensor& input) {
+          return sum(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return sum(input, normalized_axis, keep);
+        });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("mean", [](const Tensor& self, py::object axis, bool keepdims) {
-        if (axis.is_none()) {
-          return mean(self);
-        }
-        return mean(self, py::cast<int64_t>(axis), keepdims);
+        return reduce_from_py(self, std::move(axis), keepdims, "mean", [](const Tensor& input) {
+          return mean(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return mean(input, normalized_axis, keep);
+        });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("max", [](const Tensor& self, py::object axis, bool keepdims) {
-        if (axis.is_none()) {
-          return max(self);
-        }
-        return max(self, py::cast<int64_t>(axis), keepdims);
+        return reduce_from_py(self, std::move(axis), keepdims, "max", [](const Tensor& input) {
+          return max(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return max(input, normalized_axis, keep);
+        });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("min", [](const Tensor& self, py::object axis, bool keepdims) {
-        if (axis.is_none()) {
-          return min(self);
-        }
-        return min(self, py::cast<int64_t>(axis), keepdims);
+        return reduce_from_py(self, std::move(axis), keepdims, "min", [](const Tensor& input) {
+          return min(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return min(input, normalized_axis, keep);
+        });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("relu", &relu)
       .def("sigmoid", &sigmoid)

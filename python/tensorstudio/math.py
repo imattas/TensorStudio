@@ -7,6 +7,25 @@ from typing import Literal
 from .tensor import Tensor
 
 NormOrder = Literal[1, 2, "fro", "inf"]
+AxisLike = int | tuple[int, ...] | list[int] | None
+
+
+def _normalized_axes(axis: AxisLike, ndim: int) -> tuple[int, ...]:
+    if axis is None:
+        return tuple(range(ndim))
+    axes = (axis,) if isinstance(axis, int) else tuple(axis)
+
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for value in axes:
+        normalized_axis = value if value >= 0 else ndim + value
+        if normalized_axis < 0 or normalized_axis >= ndim:
+            raise ValueError("axis is out of range")
+        if normalized_axis in seen:
+            raise ValueError("duplicate reduction axis")
+        seen.add(normalized_axis)
+        normalized.append(normalized_axis)
+    return tuple(normalized)
 
 
 def square(input: Tensor) -> Tensor:
@@ -23,25 +42,23 @@ def reciprocal(input: Tensor) -> Tensor:
 
 def variance(
     input: Tensor,
-    axis: int | None = None,
+    axis: AxisLike = None,
     keepdims: bool = False,
     correction: int = 0,
 ) -> Tensor:
-    """Compute variance over all elements or one axis.
+    """Compute variance over all elements, one axis, or a tuple/list of axes.
 
     ``correction=1`` gives the usual sample variance denominator. TensorStudio
-    currently supports a single optional axis, matching the C++ reduction API.
+    uses the product of the reduced axes as the denominator base.
     """
 
     if correction < 0:
         raise ValueError("correction must be non-negative")
-    if axis is None:
-        denom = input.size - correction
-    else:
-        normalized_axis = axis if axis >= 0 else input.ndim + axis
-        if normalized_axis < 0 or normalized_axis >= input.ndim:
-            raise ValueError("axis is out of range")
-        denom = input.shape[normalized_axis] - correction
+    axes = _normalized_axes(axis, input.ndim)
+    denom = 1
+    for normalized_axis in axes:
+        denom *= input.shape[normalized_axis]
+    denom -= correction
     if denom <= 0:
         raise ValueError("variance denominator must be positive")
     mean = input.mean(axis=axis, keepdims=True)
@@ -52,11 +69,11 @@ def variance(
 
 def std(
     input: Tensor,
-    axis: int | None = None,
+    axis: AxisLike = None,
     keepdims: bool = False,
     correction: int = 0,
 ) -> Tensor:
-    """Compute standard deviation over all elements or one axis."""
+    """Compute standard deviation over all elements, one axis, or a tuple/list of axes."""
 
     return variance(input, axis=axis, keepdims=keepdims, correction=correction).sqrt()
 
@@ -64,10 +81,10 @@ def std(
 def norm(
     input: Tensor,
     ord: NormOrder = 2,
-    axis: int | None = None,
+    axis: AxisLike = None,
     keepdims: bool = False,
 ) -> Tensor:
-    """Compute a vector-style norm over all elements or one axis."""
+    """Compute a vector-style norm over all elements, one axis, or a tuple/list of axes."""
 
     magnitude = input.abs()
     if ord == 1:
@@ -79,4 +96,12 @@ def norm(
     raise ValueError("ord must be 1, 2, 'fro', or 'inf'")
 
 
-__all__ = ["NormOrder", "norm", "reciprocal", "square", "std", "variance"]
+__all__ = [
+    "AxisLike",
+    "NormOrder",
+    "norm",
+    "reciprocal",
+    "square",
+    "std",
+    "variance",
+]

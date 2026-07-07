@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <string>
+
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
@@ -17,6 +20,13 @@ py::object tensor_to_py_list(const Tensor& tensor);
 Tensor ensure_tensor(py::object object);
 Shape shape_from_py(py::object object);
 DType dtype_from_py(py::object object, DType fallback = DType::Float32);
+Tensor reduce_from_py(
+    const Tensor& input,
+    py::object axis,
+    bool keepdims,
+    const std::string& op_name,
+    const std::function<Tensor(const Tensor&)>& reduce_all,
+    const std::function<Tensor(const Tensor&, int64_t, bool)>& reduce_axis);
 
 void bind_tensor(py::module_& module);
 void bind_ops(py::module_& module);

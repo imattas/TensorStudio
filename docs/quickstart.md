@@ -109,13 +109,14 @@ print(ts.sin(x).tolist())
 print(ts.math.std(x).item())
 ```
 
-Reductions can operate over all elements or one axis:
+Reductions can operate over all elements, one axis, or a tuple/list of axes:
 
 ```python
 x = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 print(x.sum().item())
 print(x.mean(axis=0).tolist())
 print(x.max(axis=1, keepdims=True).tolist())
+print(ts.arange(24).reshape((2, 3, 4)).sum(axis=(0, 2)).tolist())
 ```
 
 Tensors can be cast, concatenated, and stacked:

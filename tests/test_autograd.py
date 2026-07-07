@@ -105,6 +105,31 @@ def test_axis_reduction_autograd() -> None:
     np.testing.assert_allclose(z.grad.numpy(), np.array([[0.0, 0.5, 0.5], [0.5, 0.5, 0.0]]))
 
 
+def test_tuple_axis_reduction_autograd() -> None:
+    values = np.arange(1, 25, dtype=np.float64).reshape(2, 3, 4)
+
+    x = ts.tensor(values.tolist(), dtype="float64", requires_grad=True)
+    (x.sum(axis=(0, 2)) * ts.tensor([1.0, 2.0, 3.0], dtype="float64")).sum().backward()
+    expected = np.broadcast_to(np.array([1.0, 2.0, 3.0]).reshape(1, 3, 1), values.shape)
+    np.testing.assert_allclose(x.grad.numpy(), expected, rtol=1e-6)
+
+    y = ts.tensor(values.tolist(), dtype="float64", requires_grad=True)
+    y.mean(axis=(1, 2)).sum().backward()
+    np.testing.assert_allclose(y.grad.numpy(), np.full(values.shape, 1.0 / 12.0), rtol=1e-6)
+
+    z = ts.tensor(
+        [[[1.0, 4.0], [4.0, 2.0]], [[3.0, 3.0], [0.0, 5.0]]],
+        dtype="float64",
+        requires_grad=True,
+    )
+    z.max(axis=(1, 2)).sum().backward()
+    np.testing.assert_allclose(
+        z.grad.numpy(),
+        np.array([[[0.0, 0.5], [0.5, 0.0]], [[0.0, 0.0], [0.0, 1.0]]]),
+        rtol=1e-6,
+    )
+
+
 def test_cast_concat_stack_autograd() -> None:
     x = ts.tensor([1.0, 2.0], requires_grad=True)
     x.astype("float64").sum().backward()

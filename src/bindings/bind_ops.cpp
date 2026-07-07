@@ -1,5 +1,7 @@
 #include "bindings.hpp"
 
+#include <utility>
+
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -72,28 +74,32 @@ void bind_ops(py::module_& module) {
       py::arg("padding_w") = 0,
       py::arg("count_include_pad") = false);
   module.def("sum", [](const Tensor& input, py::object axis, bool keepdims) {
-    if (axis.is_none()) {
-      return sum(input);
-    }
-    return sum(input, py::cast<int64_t>(axis), keepdims);
+    return reduce_from_py(input, std::move(axis), keepdims, "sum", [](const Tensor& tensor) {
+      return sum(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return sum(tensor, normalized_axis, keep);
+    });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("mean", [](const Tensor& input, py::object axis, bool keepdims) {
-    if (axis.is_none()) {
-      return mean(input);
-    }
-    return mean(input, py::cast<int64_t>(axis), keepdims);
+    return reduce_from_py(input, std::move(axis), keepdims, "mean", [](const Tensor& tensor) {
+      return mean(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return mean(tensor, normalized_axis, keep);
+    });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("max", [](const Tensor& input, py::object axis, bool keepdims) {
-    if (axis.is_none()) {
-      return max(input);
-    }
-    return max(input, py::cast<int64_t>(axis), keepdims);
+    return reduce_from_py(input, std::move(axis), keepdims, "max", [](const Tensor& tensor) {
+      return max(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return max(tensor, normalized_axis, keep);
+    });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("min", [](const Tensor& input, py::object axis, bool keepdims) {
-    if (axis.is_none()) {
-      return min(input);
-    }
-    return min(input, py::cast<int64_t>(axis), keepdims);
+    return reduce_from_py(input, std::move(axis), keepdims, "min", [](const Tensor& tensor) {
+      return min(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return min(tensor, normalized_axis, keep);
+    });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("relu", &relu);
   module.def("sigmoid", &sigmoid);

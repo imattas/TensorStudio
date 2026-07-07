@@ -1,6 +1,6 @@
 # Serialization
 
-TensorStudio `1.3.3` provides two serialization paths: trusted pickle
+TensorStudio `1.3.4` provides two serialization paths: trusted pickle
 roundtrips for internal objects and non-pickle NPZ files for tensor/state_dict
 interchange.
 

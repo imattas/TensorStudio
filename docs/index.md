@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.3.3` is a CPU-only stable API foundation for the tensor, autograd,
+`1.3.4` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -26,8 +26,8 @@ TensorStudio is:
   `empty`, `rand`, `randn`, `arange`, `eye`, `linspace`, and matching
   `*_like` helpers.
 - NumPy-style broadcasting for binary elementwise operations.
-- Arithmetic, comparisons, matrix multiplication, all-element and single-axis
-  reductions, common activations, trigonometric functions, inverse
+- Arithmetic, comparisons, matrix multiplication, all-element, single-axis, and
+  tuple-axis reductions, common activations, trigonometric functions, inverse
   trigonometric functions, `log1p`, `sqrt`, `rsqrt`, `abs`, `clamp`, CPU NCHW
   `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten, and 2D transpose.
 - Higher-level `tensorstudio.math` helpers for variance, standard deviation,
@@ -61,7 +61,7 @@ TensorStudio prioritizes:
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
 graph compilation, grouped convolution, adaptive/global pooling, advanced
-indexing, sparse tensors, mixed precision, tuple-axis reductions, a high
+indexing, sparse tensors, mixed precision, a high
 performance kernel library, pretrained vision model zoo, detection/segmentation
 training stack, video IO, an ONNX runtime, or ONNX import. Benchmarks are rough
 local references only; TensorStudio wins some small eager CPU cases but is not
