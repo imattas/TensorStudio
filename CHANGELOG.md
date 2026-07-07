@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.3.7 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with native C++ basic
+  indexing and slicing views.
+- Added Python `Tensor.__getitem__` support for integers, slices with steps,
+  tuples, ellipsis, and `None`/newaxis while rejecting advanced list, tensor,
+  and boolean indexing clearly.
+- Added autograd scatter-back support for differentiable integer/slice views.
+- Added NumPy parity tests for common indexing and slicing cases, scalar
+  indexing, negative strides, empty slices, unsupported indexing errors, and
+  indexing autograd.
+- Expanded docs into multi-page sections for sparse documentation folders:
+  data, performance, project workflows, release process, and roadmap.
+
 ## 1.3.6 - 2026-07-07
 
 - Completed the next ordered correctness-roadmap item with native C++

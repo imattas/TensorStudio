@@ -8,6 +8,24 @@
 
 namespace tensorstudio {
 
+enum class TensorIndexKind {
+  Index,
+  Slice,
+  NewAxis,
+};
+
+struct TensorIndex {
+  TensorIndexKind kind{TensorIndexKind::Slice};
+  int64_t index{0};
+  int64_t start{0};
+  int64_t length{0};
+  int64_t step{1};
+
+  static TensorIndex at(int64_t index);
+  static TensorIndex slice(int64_t start, int64_t length, int64_t step = 1);
+  static TensorIndex new_axis();
+};
+
 Tensor zeros(const Shape& shape, DType dtype = DType::Float32);
 Tensor ones(const Shape& shape, DType dtype = DType::Float32);
 Tensor full(const Shape& shape, double fill_value, DType dtype = DType::Float32);
@@ -95,6 +113,7 @@ Tensor stack(const std::vector<Tensor>& tensors, int64_t axis = 0);
 Tensor reshape(const Tensor& input, const Shape& shape);
 Tensor flatten(const Tensor& input);
 Tensor transpose(const Tensor& input);
+Tensor index(const Tensor& input, const std::vector<TensorIndex>& indices);
 
 Tensor scalar_tensor(double value, DType dtype = DType::Float32);
 Tensor unbroadcast(const Tensor& grad, const Shape& target_shape);

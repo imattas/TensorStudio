@@ -150,15 +150,34 @@ Supported views:
 - `flatten`
 - 2D `transpose`
 - 2D `T` property
+- Basic indexing and slicing with integers, slices, tuples, ellipsis, and
+  `None`/newaxis
 
 ```python
 x = ts.arange(6).reshape((2, 3))
 print(x.flatten().tolist())
 print(x.T.shape)
+print(x[0, :].tolist())
 ```
 
 `reshape` currently requires a contiguous tensor. `transpose` returns a strided
-view.
+view. Basic slicing also returns a view where possible.
+
+Indexing supports common NumPy-style read cases:
+
+```python
+x = ts.arange(24).reshape((2, 3, 4))
+
+x[0]              # integer index, drops the first dimension
+x[:, 1:]          # slice
+x[..., -1]        # ellipsis
+x[None, :, 0, :]  # new leading axis
+x[::-1, :, ::2]   # negative and stepped slices
+x[1, 2, 3].item() # scalar zero-dimensional tensor
+```
+
+Advanced list, tensor, and boolean-mask indexing are not implemented yet.
+Use comparison tensors with `where` for elementwise selection.
 
 ## Math
 

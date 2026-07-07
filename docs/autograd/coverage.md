@@ -40,7 +40,7 @@ Calling `backward()`:
 
 ## Supported Gradient Operations
 
-`1.3.6` supports gradients for:
+`1.3.7` supports gradients for:
 
 - `add`
 - `sub`
@@ -71,6 +71,7 @@ Calling `backward()`:
 - `reshape`
 - `flatten`
 - `transpose`
+- basic integer and slice indexing views
 
 ## Broadcasting Gradients
 
@@ -113,5 +114,7 @@ Optimizers also expose `zero_grad()`.
 - No in-place operation tracking beyond optimizer assignment helpers.
 - No higher-order gradients.
 - No gradient checkpointing.
-- No advanced indexing gradients.
+- Basic integer and slice indexing gradients scatter back into the source
+  tensor. Advanced list, tensor, and boolean-mask indexing gradients are not
+  implemented.
 - CPU tensors only.

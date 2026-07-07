@@ -1,6 +1,6 @@
 # Serialization
 
-TensorStudio `1.3.6` provides two serialization paths: trusted pickle
+TensorStudio `1.3.7` provides two serialization paths: trusted pickle
 roundtrips for internal objects and non-pickle NPZ files for tensor/state_dict
 interchange.
 
@@ -69,7 +69,7 @@ to ONNX when the `onnx` extra is installed:
 ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
 ```
 
-See [ONNX Interchange](interchange.md) for supported module types and limits.
+See [ONNX Interchange](onnx.md) for supported module types and limits.
 
 ## Recommended File Extensions
 

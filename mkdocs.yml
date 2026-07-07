@@ -36,11 +36,15 @@ nav:
       - Training: nn/training.md
   - Data:
       - Datasets And DataLoaders: data/datasets-and-dataloaders.md
+      - Tensor Datasets: data/tensor-datasets.md
+      - DataLoader Patterns: data/dataloader-patterns.md
   - Vision:
       - Overview: vision/overview.md
       - Dataset Creation: vision/dataset-creation.md
   - Project Workflows:
       - Local Projects: project/workflows.md
+      - Project Layout: project/project-layout.md
+      - Checkpoints: project/checkpoints.md
   - Interchange And Serialization:
       - NumPy Interop: interchange/numpy-interop.md
       - TensorStudio Serialization: interchange/serialization.md
@@ -49,6 +53,8 @@ nav:
       - Model Formats: interchange/model-formats.md
   - Performance:
       - Benchmarks: performance/benchmarks.md
+      - Profiling: performance/profiling.md
+      - Optimization Guide: performance/optimization.md
   - Hardware:
       - CPU Backend: hardware/cpu-backend.md
       - Windows: hardware/windows.md
@@ -59,4 +65,9 @@ nav:
       - C++ First Policy: development/cpp-first.md
   - Release:
       - Publishing: release/publishing.md
-  - Roadmap: roadmap/roadmap.md
+      - Versioning: release/versioning.md
+      - Release Checklist: release/checklist.md
+  - Roadmap:
+      - Roadmap: roadmap/roadmap.md
+      - Priorities: roadmap/priorities.md
+      - Milestones: roadmap/milestones.md

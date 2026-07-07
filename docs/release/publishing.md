@@ -1,9 +1,10 @@
 # Publishing
 
-TensorStudio release publishing should use GitHub Actions. PyPI Trusted
-Publishing is preferred; when a repository-level `PYPI_TOKEN` secret is
-configured, the release workflow can use that token as an explicit fallback. Do
-not hardcode PyPI tokens in workflows, docs examples, or source files.
+TensorStudio release publishing should use GitHub Actions with PyPI Trusted
+Publishing. The release workflow intentionally does not accept a PyPI API token
+secret; configure PyPI's trusted publisher for the GitHub repository and
+environment instead. Do not hardcode PyPI tokens in workflows, docs examples, or
+source files.
 
 ## Release Candidate Flow
 
@@ -22,8 +23,8 @@ Windows, Linux, and macOS.
 After the release checklist passes, tag the stable release:
 
 ```bash
-git tag v1.3.6
-git push origin v1.3.6
+git tag v1.3.7
+git push origin v1.3.7
 ```
 
 Stable release notes must avoid unsupported performance claims. Publish measured
@@ -39,8 +40,7 @@ Workflows:
 - `wheels.yml`: cibuildwheel artifacts for Windows first, Linux second, macOS
   third, plus sdist.
 - `publish.yml`: artifact verification plus PyPI publishing through
-  `pypa/gh-action-pypi-publish`; it uses `PYPI_TOKEN` when configured and
-  otherwise falls back to Trusted Publishing.
+  `pypa/gh-action-pypi-publish` using Trusted Publishing only.
 
 The publish workflow must include:
 
@@ -63,7 +63,7 @@ clean environment:
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.6
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.7
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -74,7 +74,7 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.6
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.7
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -112,6 +112,7 @@ version strings in package metadata and the version header synchronized.
 - No TODO-only files.
 - No hidden failing tests or ignored CI failures.
 - No publishing tokens are committed.
+- No publishing tokens are configured as workflow fallbacks.
 
 ## Post-Release Verification
 

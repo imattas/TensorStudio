@@ -69,6 +69,7 @@ The v1 release supports gradients for:
 - `relu`, `sigmoid`, `tanh`
 - `exp`, `log`, `sqrt`, `abs`
 - `reshape`, `flatten`, `transpose`
+- basic integer and slice indexing views
 - broadcasted binary operations
 
 `max` and `min` split the incoming gradient evenly across tied extrema.
@@ -105,6 +106,8 @@ copied = x.clone()
 - No higher-order gradients.
 - No graph compiler or tracing runtime.
 - No checkpointing.
-- No advanced indexing gradients.
+- Basic indexing and slicing views scatter gradients back into the source.
+  Advanced list, tensor, and boolean-mask indexing gradients are not
+  implemented.
 - No in-place operation tracking beyond optimizer internals.
 - CPU tensors only.

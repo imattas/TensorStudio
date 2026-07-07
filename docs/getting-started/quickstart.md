@@ -95,6 +95,7 @@ print((a + b).tolist())
 print((a * 2 - 1).tolist())
 print((a @ ts.eye(2)).tolist())
 print(a.T.tolist())
+print(a[0, :].tolist())
 ```
 
 Supported math includes `sum`, `mean`, `max`, `min`, `relu`, `sigmoid`, `tanh`,

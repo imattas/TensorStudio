@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.3.6` is a CPU-only stable API foundation for the tensor, autograd,
+`1.3.7` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -30,8 +30,8 @@ TensorStudio is:
   multiplication, all-element, single-axis, and tuple-axis reductions, arg
   reductions, common activations, trigonometric functions, inverse
   trigonometric functions, `log1p`, `sqrt`, `rsqrt`, `abs`, `clamp`/`clip`,
-  CPU NCHW `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten, and 2D
-  transpose.
+  CPU NCHW `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten, 2D
+  transpose, and common integer/slice indexing views.
 - Higher-level `tensorstudio.math` helpers for variance, standard deviation,
   norms, square, and reciprocal.
 - Basic dtype casting plus native `concat` and `stack`.
@@ -63,7 +63,7 @@ TensorStudio prioritizes:
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
 graph compilation, grouped convolution, adaptive/global pooling, advanced
-indexing, sparse tensors, mixed precision, a high
+advanced list/tensor/boolean indexing, sparse tensors, mixed precision, a high
 performance kernel library, pretrained vision model zoo, detection/segmentation
 training stack, video IO, an ONNX runtime, or ONNX import. Benchmarks are rough
 local references only; TensorStudio wins some small eager CPU cases but is not
@@ -79,7 +79,31 @@ Pickle serialization is available for trusted internal objects. Prefer
 - Understand gradients in [Autograd](autograd/overview.md).
 - Build small models with [Neural Networks](nn/overview.md).
 - Organize complete runs with [Projects](project/workflows.md).
+- Structure project folders with [Project Layout](project/project-layout.md).
+- Save and resume models with [Checkpoints](project/checkpoints.md).
 - Build image classifiers with [Vision](vision/overview.md).
 - Export supported module stacks with [ONNX](interchange/onnx.md).
 - Use small datasets with [Data](data/datasets-and-dataloaders.md).
+- Batch data predictably with [DataLoader Patterns](data/dataloader-patterns.md).
+- Profile runtime behavior with [Profiling](performance/profiling.md).
 - Read [Publishing](release/publishing.md) before release work.
+- Follow release steps in the [Release Checklist](release/checklist.md).
+- Review implementation order in [Roadmap Priorities](roadmap/priorities.md).
+
+## Documentation Map
+
+The docs are organized as multi-page sections:
+
+- `getting-started`: install, quickstart, and source-build notes.
+- `core`: tensor semantics, broadcasting, native C++ design, and API reference.
+- `autograd`: engine overview, gradient notes, and coverage matrix.
+- `nn`: modules, optimizers, and training workflows.
+- `data`: dataset contracts, tensor datasets, and DataLoader usage.
+- `vision`: image utilities and dataset creation.
+- `project`: local project structure, workflow helpers, and checkpoints.
+- `interchange`: NumPy, serialization, trusted pickle notes, ONNX, and formats.
+- `performance`: benchmark results, profiling guidance, and optimization notes.
+- `hardware`: CPU backend plus platform build notes.
+- `development`: contribution guidance and the C++-first policy.
+- `release`: publishing, versioning, and release checklist.
+- `roadmap`: ordered roadmap, priorities, and release-sized milestones.

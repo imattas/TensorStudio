@@ -148,6 +148,12 @@ Views:
 - `reshape(*shape)` or `reshape(shape)`
 - `flatten()`
 - `transpose()`
+- `__getitem__(key)` through `x[key]`
+
+Indexing keys may contain integers, slices, tuples, ellipsis, and `None` for
+new axes. Integer indexing drops the indexed dimension. Slice indexing returns
+strided views, including negative-step views. Advanced list, tensor, and
+boolean-mask indexing are rejected.
 
 Math:
 
@@ -218,6 +224,7 @@ branches, not through the boolean condition.
 - `x <= y`
 - `x > y`
 - `x >= y`
+- `x[key]`
 
 `+=` is intentionally unsupported and raises a clear error.
 

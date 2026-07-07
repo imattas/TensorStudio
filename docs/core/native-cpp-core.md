@@ -29,6 +29,7 @@ The C++ layer owns:
 - Elementwise arithmetic and comparisons.
 - Matrix multiplication.
 - Reductions and arg reductions.
+- Basic integer and slice indexing views.
 - CPU convolution and pooling kernels.
 - Reverse-mode autograd graph metadata and backward traversal.
 - Error types mapped into Python exceptions.
@@ -59,7 +60,7 @@ Native C++ ops include:
 - Activations and math: `relu`, `sigmoid`, `tanh`, `exp`, `log`, `log1p`,
   `sqrt`, `rsqrt`, `abs`, trigonometric functions, inverse trigonometric
   functions.
-- Layout: `reshape`, `flatten`, `transpose`.
+- Layout and views: `reshape`, `flatten`, `transpose`, and basic indexing.
 - Vision kernels: `conv2d`, `max_pool2d`, `avg_pool2d`.
 
 ## Adding A Native Op
@@ -72,4 +73,3 @@ For a new tensor primitive:
 4. Bind it in `src/bindings/bind_ops.cpp` or `bind_tensor.cpp`.
 5. Add thin Python exports and type stubs.
 6. Test against NumPy where semantics overlap.
-

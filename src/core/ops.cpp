@@ -10,6 +10,35 @@
 #include "tensorstudio/errors.hpp"
 
 namespace tensorstudio {
+
+TensorIndex TensorIndex::at(int64_t index_value) {
+  TensorIndex item;
+  item.kind = TensorIndexKind::Index;
+  item.index = index_value;
+  return item;
+}
+
+TensorIndex TensorIndex::slice(int64_t start_value, int64_t length_value, int64_t step_value) {
+  if (step_value == 0) {
+    throw ShapeError("slice step cannot be zero");
+  }
+  if (length_value < 0) {
+    throw ShapeError("slice length must be non-negative");
+  }
+  TensorIndex item;
+  item.kind = TensorIndexKind::Slice;
+  item.start = start_value;
+  item.length = length_value;
+  item.step = step_value;
+  return item;
+}
+
+TensorIndex TensorIndex::new_axis() {
+  TensorIndex item;
+  item.kind = TensorIndexKind::NewAxis;
+  return item;
+}
+
 namespace {
 
 Tensor full_like(const Shape& shape, double value, DType dtype) {
@@ -652,6 +681,7 @@ Tensor concat_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_
 Tensor stack_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad);
 Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad);
 Tensor transpose_impl(const Tensor& input, bool track_grad);
+Tensor index_impl(const Tensor& input, const std::vector<TensorIndex>& indices, bool track_grad);
 
 Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   Tensor out = elementwise_binary_impl(
@@ -1589,6 +1619,143 @@ int64_t linear_from_coordinates(const Shape& coords, const Shape& shape) {
     stride *= shape[index];
   }
   return linear;
+}
+
+struct AppliedIndex {
+  TensorIndexKind kind{TensorIndexKind::Slice};
+  int64_t input_dim{-1};
+  int64_t index{0};
+  int64_t start{0};
+  int64_t length{0};
+  int64_t step{1};
+};
+
+int64_t normalize_index_value(int64_t index_value, int64_t dim_size, int64_t dim) {
+  int64_t normalized = index_value < 0 ? index_value + dim_size : index_value;
+  if (normalized < 0 || normalized >= dim_size) {
+    throw ShapeError(
+        "index " + std::to_string(index_value) + " is out of range for axis " +
+        std::to_string(dim) + " with size " + std::to_string(dim_size));
+  }
+  return normalized;
+}
+
+std::vector<AppliedIndex> normalize_indices(const Shape& input_shape, const std::vector<TensorIndex>& indices) {
+  std::vector<AppliedIndex> result;
+  result.reserve(indices.size() + input_shape.size());
+  int64_t input_dim = 0;
+  const int64_t input_rank = static_cast<int64_t>(input_shape.size());
+
+  for (const TensorIndex& item : indices) {
+    if (item.kind == TensorIndexKind::NewAxis) {
+      result.push_back(AppliedIndex{TensorIndexKind::NewAxis, -1, 0, 0, 1, 1});
+      continue;
+    }
+    if (input_dim >= input_rank) {
+      throw ShapeError("too many indices for tensor with shape " + shape_to_string(input_shape));
+    }
+
+    const int64_t dim_size = input_shape[static_cast<std::size_t>(input_dim)];
+    if (item.kind == TensorIndexKind::Index) {
+      const int64_t normalized = normalize_index_value(item.index, dim_size, input_dim);
+      result.push_back(AppliedIndex{TensorIndexKind::Index, input_dim, normalized, 0, 0, 1});
+      ++input_dim;
+      continue;
+    }
+
+    if (item.kind == TensorIndexKind::Slice) {
+      if (item.length < 0) {
+        throw ShapeError("slice length must be non-negative");
+      }
+      if (item.step == 0) {
+        throw ShapeError("slice step cannot be zero");
+      }
+      if (item.length > 0) {
+        const int64_t last_index = item.start + (item.length - 1) * item.step;
+        if (item.start < 0 || item.start >= dim_size || last_index < 0 || last_index >= dim_size) {
+          throw ShapeError(
+              "slice is out of range for axis " + std::to_string(input_dim) +
+              " with size " + std::to_string(dim_size));
+        }
+      }
+      result.push_back(AppliedIndex{TensorIndexKind::Slice, input_dim, 0, item.start, item.length, item.step});
+      ++input_dim;
+      continue;
+    }
+  }
+
+  while (input_dim < input_rank) {
+    const int64_t dim_size = input_shape[static_cast<std::size_t>(input_dim)];
+    result.push_back(AppliedIndex{TensorIndexKind::Slice, input_dim, 0, 0, dim_size, 1});
+    ++input_dim;
+  }
+
+  return result;
+}
+
+Tensor index_backward(
+    const Tensor& grad,
+    const Shape& input_shape,
+    const std::vector<AppliedIndex>& applied) {
+  Tensor out(input_shape, grad.dtype(), false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    out.set_value_at_logical(i, 0.0);
+  }
+
+  for (int64_t linear = 0; linear < grad.numel(); ++linear) {
+    const Shape grad_coords = coordinates_from_linear(linear, grad.shape());
+    Shape input_coords(input_shape.size(), 0);
+    std::size_t grad_dim = 0;
+
+    for (const AppliedIndex& item : applied) {
+      if (item.kind == TensorIndexKind::NewAxis) {
+        ++grad_dim;
+        continue;
+      }
+      const auto input_axis = static_cast<std::size_t>(item.input_dim);
+      if (item.kind == TensorIndexKind::Index) {
+        input_coords[input_axis] = item.index;
+        continue;
+      }
+      input_coords[input_axis] = item.start + grad_coords[grad_dim] * item.step;
+      ++grad_dim;
+    }
+
+    const int64_t target_linear = linear_from_coordinates(input_coords, input_shape);
+    out.set_value_at_logical(target_linear, out.value_at_logical(target_linear) + grad.value_at_logical(linear));
+  }
+  return out;
+}
+
+Tensor index_impl(const Tensor& input, const std::vector<TensorIndex>& indices, bool track_grad) {
+  const std::vector<AppliedIndex> applied = normalize_indices(input.shape(), indices);
+  Shape output_shape;
+  Shape output_strides;
+  int64_t output_offset = input.offset();
+
+  for (const AppliedIndex& item : applied) {
+    if (item.kind == TensorIndexKind::NewAxis) {
+      output_shape.push_back(1);
+      output_strides.push_back(0);
+      continue;
+    }
+    const auto input_axis = static_cast<std::size_t>(item.input_dim);
+    if (item.kind == TensorIndexKind::Index) {
+      output_offset += item.index * input.strides()[input_axis];
+      continue;
+    }
+    output_offset += item.start * input.strides()[input_axis];
+    output_shape.push_back(item.length);
+    output_strides.push_back(input.strides()[input_axis] * item.step);
+  }
+
+  Tensor out(input.impl()->storage, input.dtype(), output_shape, output_strides, output_offset, false);
+  if (track_grad) {
+    set_history(out, {input}, [input_shape = input.shape(), applied](const Tensor& grad) {
+      return std::vector<Tensor>{index_backward(grad, input_shape, applied)};
+    });
+  }
+  return out;
 }
 
 int64_t reduction_output_linear(
@@ -2679,6 +2846,10 @@ Tensor flatten(const Tensor& input) {
 
 Tensor transpose(const Tensor& input) {
   return transpose_impl(input, true);
+}
+
+Tensor index(const Tensor& input, const std::vector<TensorIndex>& indices) {
+  return index_impl(input, indices, true);
 }
 
 Tensor scalar_tensor(double value, DType dtype) {

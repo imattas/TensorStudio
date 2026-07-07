@@ -321,6 +321,102 @@ Tensor arg_reduce_from_py(
   return reduce_axis(input, normalize_reduction_axis(input, py::cast<int64_t>(axis), op_name), keepdims);
 }
 
+bool is_ellipsis(py::handle object) {
+  return object.ptr() == Py_Ellipsis;
+}
+
+bool is_slice(py::handle object) {
+  return PySlice_Check(object.ptr()) != 0;
+}
+
+std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
+  std::vector<py::object> raw_items;
+  if (py::isinstance<py::tuple>(key)) {
+    py::tuple tuple = py::reinterpret_borrow<py::tuple>(key);
+    raw_items.reserve(tuple.size());
+    for (py::handle item : tuple) {
+      raw_items.push_back(py::reinterpret_borrow<py::object>(item));
+    }
+  } else {
+    raw_items.push_back(std::move(key));
+  }
+
+  int64_t ellipsis_count = 0;
+  int64_t consuming_count = 0;
+  for (const py::object& item : raw_items) {
+    if (is_ellipsis(item)) {
+      ++ellipsis_count;
+      continue;
+    }
+    if (item.is_none()) {
+      continue;
+    }
+    if (py::isinstance<py::bool_>(item)) {
+      throw ShapeError("boolean tensor indexing is not supported; use comparison masks with where");
+    }
+    if (py::isinstance<py::int_>(item) || is_slice(item)) {
+      ++consuming_count;
+      continue;
+    }
+    throw ShapeError("unsupported tensor index type; use integers, slices, ellipsis, or None/newaxis");
+  }
+
+  if (ellipsis_count > 1) {
+    throw ShapeError("an index can contain at most one ellipsis");
+  }
+  if (consuming_count > input.ndim()) {
+    throw ShapeError(
+        "too many indices for tensor with shape " + shape_to_string(input.shape()));
+  }
+
+  std::vector<TensorIndex> indices;
+  int64_t input_dim = 0;
+  for (const py::object& item : raw_items) {
+    if (is_ellipsis(item)) {
+      const int64_t missing = input.ndim() - consuming_count;
+      for (int64_t i = 0; i < missing; ++i) {
+        const int64_t dim_size = input.shape()[static_cast<std::size_t>(input_dim)];
+        indices.push_back(TensorIndex::slice(0, dim_size, 1));
+        ++input_dim;
+      }
+      continue;
+    }
+    if (item.is_none()) {
+      indices.push_back(TensorIndex::new_axis());
+      continue;
+    }
+    if (py::isinstance<py::int_>(item) && !py::isinstance<py::bool_>(item)) {
+      if (input_dim >= input.ndim()) {
+        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+      }
+      indices.push_back(TensorIndex::at(py::cast<int64_t>(item)));
+      ++input_dim;
+      continue;
+    }
+    if (is_slice(item)) {
+      if (input_dim >= input.ndim()) {
+        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+      }
+      const auto dim_size = static_cast<Py_ssize_t>(input.shape()[static_cast<std::size_t>(input_dim)]);
+      Py_ssize_t start = 0;
+      Py_ssize_t stop = 0;
+      Py_ssize_t step = 1;
+      Py_ssize_t length = 0;
+      if (PySlice_GetIndicesEx(item.ptr(), dim_size, &start, &stop, &step, &length) != 0) {
+        PyErr_Clear();
+        throw ShapeError("invalid slice for tensor axis " + std::to_string(input_dim));
+      }
+      indices.push_back(TensorIndex::slice(
+          static_cast<int64_t>(start),
+          static_cast<int64_t>(length),
+          static_cast<int64_t>(step)));
+      ++input_dim;
+      continue;
+    }
+  }
+  return indices;
+}
+
 py::array tensor_to_numpy(const Tensor& tensor) {
   py::array array(numpy_dtype(tensor.dtype()), ssize_shape(tensor.shape()));
   if (tensor.is_contiguous()) {
@@ -369,6 +465,9 @@ void bind_tensor(py::module_& module) {
       .def_property_readonly("size", &Tensor::size)
       .def_property_readonly("is_contiguous", &Tensor::is_contiguous)
       .def_property_readonly("T", [](const Tensor& self) { return transpose(self); })
+      .def("__getitem__", [](const Tensor& self, py::object key) {
+        return index(self, indices_from_py(self, std::move(key)));
+      }, py::is_operator())
       .def("numpy", &tensor_to_numpy)
       .def("tolist", &tensor_to_py_list)
       .def("item", &tensor_to_py_scalar)
