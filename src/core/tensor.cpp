@@ -6,6 +6,7 @@
 #include <sstream>
 #include <type_traits>
 
+#include "tensorstudio/autograd.hpp"
 #include "tensorstudio/errors.hpp"
 
 namespace tensorstudio {
@@ -239,6 +240,15 @@ void Tensor::ensure_defined() const {
   }
 }
 
+void Tensor::ensure_inplace_allowed(const std::string& op_name) const {
+  ensure_defined();
+  if (requires_grad() && grad_enabled()) {
+    throw AutogradError(
+        "in-place " + op_name +
+        " on a tensor that requires gradients is only supported inside tensorstudio.no_grad()");
+  }
+}
+
 DType Tensor::dtype() const {
   ensure_defined();
   return impl_->dtype;
@@ -295,6 +305,37 @@ Tensor Tensor::detach() const {
   return Tensor(impl_->storage, impl_->dtype, impl_->shape, impl_->strides, impl_->offset, false);
 }
 
+void Tensor::detach_() {
+  ensure_defined();
+  if (!impl_->autograd) {
+    impl_->autograd = std::make_shared<AutogradMeta>();
+  }
+  impl_->autograd->requires_grad = false;
+  impl_->autograd->grad.reset();
+  impl_->autograd->parents.clear();
+  impl_->autograd->backward = {};
+  impl_->autograd->graph_consumed = false;
+}
+
+bool Tensor::is_leaf() const {
+  ensure_defined();
+  if (!impl_->autograd) {
+    return true;
+  }
+  return !impl_->autograd->graph_consumed && !impl_->autograd->backward &&
+         impl_->autograd->parents.empty();
+}
+
+void Tensor::clear_history() {
+  ensure_defined();
+  if (!impl_->autograd) {
+    impl_->autograd = std::make_shared<AutogradMeta>();
+  }
+  impl_->autograd->parents.clear();
+  impl_->autograd->backward = {};
+  impl_->autograd->graph_consumed = false;
+}
+
 bool Tensor::requires_grad() const {
   ensure_defined();
   return impl_->autograd && impl_->autograd->requires_grad;
@@ -311,6 +352,9 @@ void Tensor::set_requires_grad(bool value) {
     impl_->autograd = std::make_shared<AutogradMeta>();
   }
   impl_->autograd->requires_grad = value;
+  if (value) {
+    impl_->autograd->graph_consumed = false;
+  }
 }
 
 bool Tensor::has_grad() const {
@@ -440,6 +484,22 @@ void Tensor::add_scaled_(const Tensor& other, double scale) {
       set_value_at_logical(i, value_at_logical(i) + other.value_at_logical(i) * scale);
     }
   }
+}
+
+void Tensor::add_(const Tensor& other, double alpha) {
+  ensure_inplace_allowed("add_");
+  add_scaled_(other, alpha);
+}
+
+void Tensor::fill_(double value) {
+  ensure_inplace_allowed("fill_");
+  for (int64_t i = 0; i < numel(); ++i) {
+    set_value_at_logical(i, value);
+  }
+}
+
+void Tensor::zero_() {
+  fill_(0.0);
 }
 
 std::shared_ptr<TensorImpl> Tensor::impl() const {

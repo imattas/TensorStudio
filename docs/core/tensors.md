@@ -326,6 +326,25 @@ by `numpy()` does not mutate the TensorStudio tensor.
 
 ## Mutation
 
-General in-place tensor math is intentionally limited in v1.
-`+=` raises a clear error. Optimizers use private assignment helpers to update
-parameters after gradients are computed.
+General in-place tensor math is intentionally limited in v1. `+=` raises a
+clear error.
+
+Approved public in-place helpers:
+
+- `zero_()`
+- `fill_(value)`
+- `add_(other, alpha=1.0)`
+
+They reject mutation of tensors that require gradients while grad mode is
+enabled:
+
+```python
+x = ts.ones((2,), requires_grad=True)
+
+with ts.no_grad():
+    x.zero_()
+    x.fill_(1.0)
+```
+
+Optimizers use private assignment helpers to update parameters after gradients
+are computed.

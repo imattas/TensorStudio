@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.7.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.8.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -82,14 +82,22 @@ that models and scientific users expect.
 Autograd should grow alongside the operation set, with tests that make coverage
 visible.
 
-- Maintain a documented gradient coverage matrix.
-- Add gradients for every new differentiable tensor op.
-- Expand non-scalar backward coverage.
-- Add graph lifecycle controls to reduce retained memory.
-- Improve leaf tensor semantics and gradient accumulation behavior.
-- Add safer in-place semantics for a small approved set of operations.
-- Add finite-difference gradient tests for all differentiable math ops.
-- Add higher-order gradient support as a later milestone.
+- Completed in `1.8.0`: maintain a documented gradient coverage matrix.
+- Completed in `1.8.0`: add gradients for every new differentiable tensor op
+  from the `1.7.0` math expansion.
+- Completed in `1.8.0`: expand non-scalar backward coverage with explicit
+  gradient tests through newer differentiable ops.
+- Completed in `1.8.0`: add graph lifecycle controls to reduce retained memory,
+  including retained-graph backward and normal graph release.
+- Completed in `1.8.0`: improve leaf tensor semantics and gradient
+  accumulation behavior.
+- Completed in `1.8.0`: add safer in-place semantics for a small approved set
+  of operations.
+- Completed in `1.8.0`: add finite-difference gradient tests for the current
+  differentiable math surface.
+- Deferred beyond `1.8.0`: higher-order gradient support remains a later
+  engine-design milestone because the current backward engine intentionally
+  detaches backward gradients.
 
 ## 5. Neural Network Building Blocks
 

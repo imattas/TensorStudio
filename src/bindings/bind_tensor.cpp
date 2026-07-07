@@ -603,6 +603,7 @@ void bind_tensor(py::module_& module) {
       .def_property_readonly("ndim", &Tensor::ndim)
       .def_property_readonly("size", &Tensor::size)
       .def_property_readonly("is_contiguous", &Tensor::is_contiguous)
+      .def_property_readonly("is_leaf", &Tensor::is_leaf)
       .def_property_readonly("T", [](const Tensor& self) { return transpose(self); })
       .def("__getitem__", [](const Tensor& self, py::object key) {
         return index(self, indices_from_py(self, std::move(key)));
@@ -612,6 +613,14 @@ void bind_tensor(py::module_& module) {
       .def("item", &tensor_to_py_scalar)
       .def("clone", &Tensor::clone)
       .def("detach", &Tensor::detach)
+      .def("detach_", [](Tensor& self) {
+        self.detach_();
+        return self;
+      })
+      .def("clear_history", [](Tensor& self) {
+        self.clear_history();
+        return self;
+      })
       .def("reshape", [](const Tensor& self, py::args args) {
         return reshape(self, shape_from_varargs(args, "reshape"));
       })
@@ -719,14 +728,26 @@ void bind_tensor(py::module_& module) {
       .def("to", [](const Tensor& self, py::object dtype) {
         return astype(self, dtype_from_py(dtype, self.dtype()));
       }, py::arg("dtype"))
-      .def("backward", [](Tensor& self, py::object gradient) {
+      .def("backward", [](Tensor& self, py::object gradient, bool retain_graph) {
         if (gradient.is_none()) {
-          backward(self);
+          backward(self, std::nullopt, retain_graph);
           return;
         }
-        backward(self, ensure_tensor(gradient));
-      }, py::arg("gradient") = py::none())
+        backward(self, ensure_tensor(gradient), retain_graph);
+      }, py::arg("gradient") = py::none(), py::arg("retain_graph") = false)
       .def("zero_grad", &Tensor::zero_grad)
+      .def("zero_", [](Tensor& self) {
+        self.zero_();
+        return self;
+      })
+      .def("fill_", [](Tensor& self, double value) {
+        self.fill_(value);
+        return self;
+      }, py::arg("value"))
+      .def("add_", [](Tensor& self, py::object other, double alpha) {
+        self.add_(ensure_tensor(std::move(other)), alpha);
+        return self;
+      }, py::arg("other"), py::arg("alpha") = 1.0)
       .def("_assign", &Tensor::copy_from)
       .def("_add_scaled_", &Tensor::add_scaled_)
       .def("equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, equal); }, py::arg("other"))

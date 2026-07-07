@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 1.8.0 - 2026-07-07
+
+- Completed the ordered Autograd Coverage And Hardening roadmap section as one
+  release batch.
+- Added `retain_graph` support to `Tensor.backward()` and
+  `tensorstudio.autograd.backward()`.
+- Added graph lifecycle hardening: normal backward frees non-leaf graph history,
+  repeated backward through a freed graph raises a clear error, and retained
+  graphs clear intermediate gradients between backward passes.
+- Added Tensor `is_leaf`, `clear_history()`, and `detach_()` controls for
+  explicit graph lifecycle management.
+- Added guarded public in-place methods `zero_()`, `fill_()`, and `add_()`.
+  They reject gradient-tracked mutation while grad mode is enabled and work
+  inside `tensorstudio.no_grad()`.
+- Expanded non-scalar backward and finite-difference gradient tests for stable
+  probability ops, statistics, norms, and batched matrix multiplication.
+- Expanded autograd documentation with a coverage matrix, lifecycle notes, and
+  explicit higher-order-gradient limitations.
+
 ## 1.7.0 - 2026-07-07
 
 - Completed the ordered Core Math Expansion roadmap section as one release

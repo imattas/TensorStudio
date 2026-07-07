@@ -39,9 +39,11 @@ print(y.requires_grad)  # False
 1. Validates the output tensor.
 2. Creates an all-ones gradient for scalar outputs when no gradient is supplied.
 3. Builds a deterministic topological order.
-4. Walks the graph in reverse.
-5. Calls operation-specific backward functions.
-6. Accumulates gradients into tensors that require gradients.
+4. Clears stale intermediate gradients from previous retained-graph passes.
+5. Walks the graph in reverse.
+6. Calls operation-specific backward functions.
+7. Accumulates gradients into leaf tensors that require gradients.
+8. Releases non-leaf graph history unless `retain_graph=True` is supplied.
 
 For non-scalar outputs, pass an explicit gradient:
 
@@ -49,6 +51,17 @@ For non-scalar outputs, pass an explicit gradient:
 y = x * 2.0
 y.backward(ts.ones(y.shape))
 ```
+
+Reuse a graph only when needed:
+
+```python
+loss = (x * x).sum()
+loss.backward(retain_graph=True)
+loss.backward()
+```
+
+The final call frees the graph. Calling `backward()` again on the same non-leaf
+output raises an error.
 
 Gradients accumulate until cleared:
 
@@ -64,11 +77,13 @@ The v1 release supports gradients for:
 - `add`, `sub`, `mul`, `div`
 - `neg`
 - scalar `pow`
-- `matmul`
-- `sum`, `mean`, `max`, `min`
+- `matmul`, `bmm`
+- `sum`, `mean`, `var`, `std`, `max`, `min`
+- `logsumexp`, `softmax`, `log_softmax`
 - `relu`, `sigmoid`, `tanh`
-- `exp`, `log`, `sqrt`, `abs`
-- `reshape`, `flatten`, `transpose`
+- `exp`, `log`, `log1p`, `sqrt`, `rsqrt`, `abs`
+- trigonometric and inverse trigonometric functions
+- `reshape`, `flatten`, `transpose`, `permute`, `squeeze`, `unsqueeze`
 - basic integer and slice indexing views
 - broadcasted binary operations
 
@@ -92,13 +107,34 @@ print(b.grad.tolist())  # [2.0, 2.0]
 ## Detach And Clone
 
 `detach()` returns a tensor view that shares storage but does not carry autograd
-history.
+history. `detach_()` clears history and disables gradient tracking on the
+tensor in place.
 
 `clone()` copies tensor values into new storage.
+`clear_history()` removes parent/backward metadata while preserving
+`requires_grad`.
 
 ```python
 detached = x.detach()
 copied = x.clone()
+y = (x * 2.0).clear_history()
+```
+
+## Safe In-Place Mutation
+
+Public in-place mutation is intentionally small:
+
+- `zero_()`
+- `fill_(value)`
+- `add_(other, alpha=1.0)`
+
+These methods reject mutation of tensors that require gradients while grad mode
+is enabled. Use them inside `no_grad()` for parameter initialization or manual
+state updates:
+
+```python
+with ts.no_grad():
+    parameter.zero_()
 ```
 
 ## Limitations
@@ -109,5 +145,5 @@ copied = x.clone()
 - Basic indexing and slicing views scatter gradients back into the source.
   Advanced list, tensor, and boolean-mask indexing gradients are not
   implemented.
-- No in-place operation tracking beyond optimizer internals.
+- No general in-place autograd tracking.
 - CPU tensors only.

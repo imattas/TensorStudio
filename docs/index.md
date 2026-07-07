@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.7.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.8.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -39,6 +39,9 @@ TensorStudio is:
   subset, square, and reciprocal.
 - Basic dtype casting plus native `concat` and `stack`.
 - Reverse-mode autograd for the v1 operation set.
+- Autograd graph lifecycle controls including `retain_graph`,
+  `clear_history`, `detach_`, leaf introspection, and guarded public in-place
+  mutation helpers.
 - Python `nn.Module`, parameters, linear, convolution, and pooling layers,
   sequential models, activation modules, dropout, flatten, module introspection,
   and common losses including multiclass cross entropy.

@@ -19,6 +19,10 @@ numbers can change, but the order should stay foundation-first.
 - Add gradient checking helpers.
 - Reduce temporary tensors in backward passes.
 - Document unsupported gradients per op.
+- Completed in `1.8.0`: documented the gradient coverage matrix, added
+  retained-graph and graph-release behavior, hardened leaf and in-place
+  mutation semantics, and expanded finite-difference tests for the current
+  differentiable math surface.
 
 ## Milestone C: Neural Network Breadth
 

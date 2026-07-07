@@ -153,6 +153,7 @@ division returns `float32` or `float64`, and comparisons return `bool`.
 - `requires_grad`
 - `grad`
 - `is_contiguous`
+- `is_leaf`
 - `T`
 
 ## Tensor Methods
@@ -165,10 +166,15 @@ Conversion:
 
 Autograd and copying:
 
-- `backward(gradient=None)`
+- `backward(gradient=None, retain_graph=False)`
 - `zero_grad()`
 - `clone()`
 - `detach()`
+- `detach_()`
+- `clear_history()`
+- `zero_()`
+- `fill_(value)`
+- `add_(other, alpha=1.0)`
 
 Views:
 

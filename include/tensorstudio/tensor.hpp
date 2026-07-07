@@ -47,6 +47,9 @@ class Tensor {
   Device device() const;
   Tensor clone() const;
   Tensor detach() const;
+  void detach_();
+  bool is_leaf() const;
+  void clear_history();
 
   bool requires_grad() const;
   void set_requires_grad(bool value);
@@ -62,6 +65,9 @@ class Tensor {
   std::vector<double> to_flat_vector() const;
   void copy_from(const Tensor& other);
   void add_scaled_(const Tensor& other, double scale);
+  void add_(const Tensor& other, double alpha = 1.0);
+  void fill_(double value);
+  void zero_();
 
   std::shared_ptr<TensorImpl> impl() const;
   std::string repr() const;
@@ -70,6 +76,7 @@ class Tensor {
   std::shared_ptr<TensorImpl> impl_;
 
   void ensure_defined() const;
+  void ensure_inplace_allowed(const std::string& op_name) const;
 };
 
 using BackwardFn = std::function<std::vector<Tensor>(const Tensor& out_grad)>;
@@ -79,6 +86,7 @@ struct AutogradMeta {
   std::shared_ptr<Tensor> grad{};
   BackwardFn backward{};
   std::vector<Tensor> parents{};
+  bool graph_consumed{false};
 };
 
 struct TensorImpl {

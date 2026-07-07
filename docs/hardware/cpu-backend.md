@@ -1,6 +1,6 @@
 # CPU Backend
 
-TensorStudio `1.7.0` supports CPU tensors only, with a stronger native runtime
+TensorStudio `1.8.0` supports CPU tensors only, with a stronger native runtime
 than earlier releases.
 
 ## Device Abstraction
