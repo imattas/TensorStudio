@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.2.0` is a CPU-only stable API foundation. It is eager-only,
+TensorStudio `1.3.1` is a CPU-only stable API foundation. It is eager-only,
 intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -106,6 +106,41 @@ print(c.tolist(), d.tolist())
 print(ts.zeros_like(b).shape, ts.randn_like(b, seed=11).dtype)
 ```
 
+Arithmetic promotion is explicit and inspectable:
+
+```python
+print(ts.promote_types("int32", "float32"))        # float32
+print(ts.result_type("int64", "int32", op="div")) # float32
+print(ts.result_type("int64", "float32", op="gt")) # bool
+```
+
+## Advanced Math
+
+Native C++ elementwise math includes trigonometric functions and numerically
+useful helpers with autograd support:
+
+```python
+import tensorstudio as ts
+
+x = ts.tensor([0.1, 0.2, 0.3], requires_grad=True)
+y = ts.sin(x) + x.cos() + x.log1p() + x.rsqrt()
+loss = y.mean()
+loss.backward()
+
+print(loss.item())
+print(x.grad.tolist())
+```
+
+Higher-level helpers live in `tensorstudio.math`:
+
+```python
+values = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+print(ts.math.variance(values).item())
+print(ts.math.std(values, axis=0).tolist())
+print(ts.math.norm(values, ord=2).item())
+```
+
 ## Autograd
 
 ```python
@@ -156,21 +191,28 @@ print(model.parameter_count())
 
 ## Vision
 
-TensorStudio includes a small vision namespace for image preprocessing and
-compact CNN classifiers. Image file decoding remains the job of Pillow or other
-image libraries; TensorStudio converts image-like arrays into channel-first
-tensors and runs the model with its native Conv2d and pooling kernels.
+TensorStudio includes a practical computer-vision namespace for local image
+classification workflows: Pillow-backed image IO, transform pipelines,
+deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
+bounding-box drawing, and compact CNN classifiers running through native
+Conv2d/pooling kernels.
 
 ```python
 import numpy as np
 import tensorstudio as ts
 from tensorstudio import nn, optim
 
+transform = ts.vision.Compose(
+    [
+        ts.vision.Resize((8, 8)),
+        ts.vision.ToTensor(),
+        ts.vision.Normalize(0.5, 0.5),
+    ]
+)
 image = np.zeros((8, 8, 3), dtype=np.uint8)
-x = ts.vision.to_tensor(image).reshape((1, 3, 8, 8))
-x = ts.vision.normalize(x, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+x = transform(image).reshape((1, 3, 8, 8))
 
-model = ts.vision.TinyConvClassifier((3, 8, 8), num_classes=2)
+model = ts.vision.ImageClassifier((3, 8, 8), num_classes=2, channels=(4,))
 target = ts.tensor([1], dtype="int64")
 optimizer = optim.SGD(model.parameters(), lr=0.01)
 
@@ -178,6 +220,7 @@ optimizer.zero_grad()
 loss = nn.CrossEntropyLoss()(model(x), target)
 loss.backward()
 optimizer.step()
+print(ts.vision.accuracy(model(x), target))
 ```
 
 ## DataLoader
@@ -195,6 +238,30 @@ for features, targets in loader:
 
 The v1 DataLoader is intentionally single-process so it works cleanly on
 Windows without multiprocessing setup.
+
+## Projects And Training
+
+`tensorstudio.project` provides project folders, JSON config, reusable trainers,
+safe NPZ weight files, and trusted full checkpoints:
+
+```python
+import tensorstudio as ts
+from tensorstudio import nn, optim
+from tensorstudio.data import DataLoader, TensorDataset
+from tensorstudio.project import Project, ProjectConfig, Trainer, save_state_dict
+
+x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
+y = ts.tensor([[1.0], [3.0], [5.0], [7.0]])
+
+model = nn.Linear(1, 1)
+loader = DataLoader(TensorDataset(x, y), batch_size=2)
+trainer = Trainer(model, optim.SGD(model.parameters(), lr=0.05), nn.MSELoss())
+project = Project("runs/linear", ProjectConfig(name="linear-regression", seed=7))
+
+history = trainer.fit(loader, epochs=50)
+save_state_dict(model, project.checkpoint_path("weights"))
+print(history.last)
+```
 
 ## Performance
 
@@ -286,7 +353,7 @@ model = nn.Sequential(
 ts.export_onnx(model, "classifier.onnx", input_shape=(1, 1, 4, 4))
 ```
 
-The v1.2 exporter supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`,
+The exporter supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`,
 `Tanh`, `MaxPool2d`, and `AvgPool2d`. It is an exporter, not an ONNX runtime or
 importer.
 
@@ -336,8 +403,10 @@ tokens or print secrets.
 - No graph compiler or distributed runtime.
 - Convolution and pooling support are currently limited to CPU NCHW
   `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
-- Vision utilities are preprocessing and small CNN helpers, not a full computer
-  vision library.
+- Vision covers local image-classification utilities, metrics, visualization,
+  and compact CNNs. It is not an OpenCV replacement and does not include
+  pretrained model zoos, detection/segmentation training stacks, video IO, or
+  GPU image kernels yet.
 - ONNX support is export-only for a limited set of TensorStudio modules.
 - Reductions support all-element or single-axis reductions, not tuple-axis
   reductions yet.

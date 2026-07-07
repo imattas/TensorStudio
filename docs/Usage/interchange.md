@@ -1,6 +1,6 @@
 # ONNX Interchange
 
-TensorStudio `1.2.0` includes a limited ONNX exporter for supported
+TensorStudio `1.3.1` includes a limited ONNX exporter for supported
 TensorStudio module stacks.
 
 Install the optional dependency:
@@ -40,8 +40,8 @@ saving.
 - `nn.MaxPool2d`
 - `nn.AvgPool2d`
 
-`ts.vision.TinyConvClassifier` is exportable because it owns a supported
-Sequential stack.
+`ts.vision.TinyConvClassifier` and `ts.vision.ImageClassifier` are exportable
+because their nested vision blocks flatten to supported TensorStudio layers.
 
 ## Export Contract
 

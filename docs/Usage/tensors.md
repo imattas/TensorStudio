@@ -50,6 +50,44 @@ ts.tensor([True, False]).dtype
 ts.tensor([1.0], dtype="float64").dtype
 ```
 
+## DType Promotion
+
+TensorStudio uses a compact promotion order for arithmetic:
+
+```text
+bool < int32 < int64 < float32 < float64
+```
+
+`add`, `sub`, `mul`, and `matmul` return the wider dtype from that order.
+`div` always returns a floating dtype: `float64` if either input is `float64`,
+otherwise `float32`. Comparisons always return `bool`.
+
+| left | right | arithmetic result |
+|---|---|---|
+| `bool` | `bool` | `bool` |
+| `bool` | `int32` | `int32` |
+| `bool` | `int64` | `int64` |
+| `bool` | `float32` | `float32` |
+| `bool` | `float64` | `float64` |
+| `int32` | `int32` | `int32` |
+| `int32` | `int64` | `int64` |
+| `int32` | `float32` | `float32` |
+| `int32` | `float64` | `float64` |
+| `int64` | `int64` | `int64` |
+| `int64` | `float32` | `float32` |
+| `int64` | `float64` | `float64` |
+| `float32` | `float32` | `float32` |
+| `float32` | `float64` | `float64` |
+| `float64` | `float64` | `float64` |
+
+Use `promote_types` and `result_type` to inspect the rule:
+
+```python
+ts.promote_types("int32", "float32")        # "float32"
+ts.result_type("int64", "int32", op="div") # "float32"
+ts.result_type("int64", "float32", op="gt") # "bool"
+```
+
 ## Creation
 
 ```python
@@ -130,7 +168,9 @@ Elementwise:
 - `neg`
 - scalar `pow`
 - `relu`, `sigmoid`, `tanh`
-- `exp`, `log`, `sqrt`, `abs`
+- `exp`, `log`, `log1p`, `sqrt`, `rsqrt`, `abs`
+- `sin`, `cos`, `tan`
+- `asin`, `acos`, `atan`
 - `clamp` and `clip`
 
 Comparisons:
@@ -153,6 +193,15 @@ x = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 x.sum(axis=1)
 x.mean(axis=0, keepdims=True)
 x.max(axis=-1)
+```
+
+Higher-level helpers in `tensorstudio.math` include variance, standard
+deviation, norms, square, and reciprocal:
+
+```python
+ts.math.variance(x)
+ts.math.std(x, axis=0)
+ts.math.norm(x, ord=2)
 ```
 
 Image-style functional operations:

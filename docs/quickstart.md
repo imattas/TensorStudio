@@ -98,12 +98,15 @@ print(a.T.tolist())
 ```
 
 Supported math includes `sum`, `mean`, `max`, `min`, `relu`, `sigmoid`, `tanh`,
-`exp`, `log`, `sqrt`, `abs`, and `clamp`.
+`exp`, `log`, `log1p`, `sqrt`, `rsqrt`, trigonometric and inverse
+trigonometric functions, `abs`, and `clamp`.
 
 ```python
 x = ts.tensor([-2.0, -1.0, 0.0, 4.0])
 print(x.abs().tolist())
 print(x.clamp(-1.0, 2.0).tolist())
+print(ts.sin(x).tolist())
+print(ts.math.std(x).item())
 ```
 
 Reductions can operate over all elements or one axis:
@@ -202,19 +205,34 @@ loss.backward()
 
 ## Vision
 
-Convert HWC images to channel-first tensors and run a tiny CNN classifier:
+Convert HWC images to channel-first tensors and run a compact CNN classifier:
 
 ```python
 import numpy as np
 
 image = np.zeros((8, 8, 3), dtype=np.uint8)
-x = ts.vision.to_tensor(image).reshape((1, 3, 8, 8))
-x = ts.vision.normalize(x, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+transform = ts.vision.Compose(
+    [
+        ts.vision.Resize((8, 8)),
+        ts.vision.ToTensor(),
+        ts.vision.Normalize(0.5, 0.5),
+    ]
+)
+x = transform(image).reshape((1, 3, 8, 8))
 
-model = ts.vision.TinyConvClassifier((3, 8, 8), num_classes=2)
+model = ts.vision.ImageClassifier((3, 8, 8), num_classes=2, channels=(4,))
 logits = model(x)
+target = ts.tensor([1], dtype="int64")
 
 print(logits.shape)
+print(ts.vision.accuracy(logits, target))
+```
+
+For local image directories, use `ImageFolder`:
+
+```python
+dataset = ts.vision.ImageFolder("dataset", transform=transform)
+loader = ts.data.DataLoader(dataset, batch_size=8, shuffle=True, seed=7)
 ```
 
 ## DataLoader
@@ -230,6 +248,22 @@ for features, targets in loader:
 ```
 
 The DataLoader is single-process by design in v1.
+
+## Projects
+
+Use `tensorstudio.project` when an example grows into a repeatable run with
+config, folders, training history, and checkpoints:
+
+```python
+from tensorstudio.project import Project, ProjectConfig, Trainer, save_state_dict
+
+project = Project("runs/linear", ProjectConfig(name="linear-regression", seed=7))
+trainer = Trainer(model, optimizer, loss_fn)
+history = trainer.fit(loader, epochs=20)
+save_state_dict(model, project.checkpoint_path("weights"))
+
+print(history.last)
+```
 
 ## Save And Load
 

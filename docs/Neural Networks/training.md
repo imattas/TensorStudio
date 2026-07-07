@@ -24,6 +24,28 @@ for step in range(100):
     optimizer.step()
 ```
 
+## Project Trainer
+
+For repeatable small projects, `tensorstudio.project.Trainer` wraps the same
+eager training steps and records epoch metrics:
+
+```python
+from tensorstudio.data import DataLoader, TensorDataset
+from tensorstudio.project import Project, ProjectConfig, Trainer, save_state_dict
+
+loader = DataLoader(TensorDataset(x, y), batch_size=2, shuffle=True, seed=7)
+project = Project("runs/linear", ProjectConfig(name="linear-regression", seed=7))
+trainer = Trainer(model, optimizer, loss_fn)
+
+history = trainer.fit(loader, epochs=50)
+save_state_dict(model, project.checkpoint_path("weights"))
+
+print(history.last)
+```
+
+Use this when you want a project folder, a JSON config, reusable trainer calls,
+and checkpoint helpers while keeping the model code ordinary TensorStudio.
+
 ## Optimizer Contract
 
 Optimizers expect an iterable of tensors that require gradients.
@@ -58,7 +80,7 @@ w = ts.randn((4, 4), seed=123)
 
 ## Practical Tips
 
-- Keep tensors modest in `1.2.0`; kernels are simple CPU loops.
+- Keep tensors modest in `1.3.1`; kernels are simple CPU loops.
 - Prefer `float32` unless you need `float64`.
 - Compare with NumPy in tests for expected numerical values.
 - Watch shape errors carefully around broadcasting and matrix multiplication.

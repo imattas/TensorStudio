@@ -41,3 +41,22 @@ def test_export_onnx_vision_classifier(tmp_path) -> None:
 
     assert loaded.graph.output[0].name == "output"
     assert [dim.dim_value for dim in loaded.graph.output[0].type.tensor_type.shape.dim] == [1, 2]
+
+
+def test_export_onnx_configurable_image_classifier(tmp_path) -> None:
+    model = ts.vision.ImageClassifier((1, 8, 8), num_classes=3, channels=(2, 4))
+    path = tmp_path / "image_classifier.onnx"
+
+    ts.export_onnx(model, path, input_shape=(1, 1, 8, 8))
+    loaded = onnx.load(path)
+
+    assert [node.op_type for node in loaded.graph.node] == [
+        "Conv",
+        "Relu",
+        "MaxPool",
+        "Conv",
+        "Relu",
+        "MaxPool",
+        "Flatten",
+        "Gemm",
+    ]

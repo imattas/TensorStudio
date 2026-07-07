@@ -163,6 +163,37 @@ def test_matmul_reductions_and_activations() -> None:
     np.testing.assert_allclose(x.clip(-0.5, 0.5).numpy(), np.clip(x.numpy(), -0.5, 0.5))
 
 
+def test_advanced_math_ops_match_numpy() -> None:
+    values = np.array([-0.7, -0.2, 0.0, 0.4], dtype=np.float32)
+    x = ts.from_numpy(values)
+
+    np.testing.assert_allclose(x.sin().numpy(), np.sin(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(ts.cos(x).numpy(), np.cos(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(x.tan().numpy(), np.tan(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(x.asin().numpy(), np.arcsin(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(ts.acos(x).numpy(), np.arccos(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(x.atan().numpy(), np.arctan(values), rtol=1e-6, atol=1e-6)
+    np.testing.assert_allclose(ts.log1p(x).numpy(), np.log1p(values), rtol=1e-6, atol=1e-6)
+
+    positive = ts.tensor([0.25, 1.0, 4.0])
+    np.testing.assert_allclose(positive.rsqrt().numpy(), 1.0 / np.sqrt(positive.numpy()), rtol=1e-6)
+
+
+def test_higher_level_math_helpers() -> None:
+    values = np.array([[1.0, 2.0, 3.0], [2.0, 4.0, 6.0]], dtype=np.float32)
+    x = ts.from_numpy(values)
+
+    np.testing.assert_allclose(ts.math.square(x).numpy(), values * values)
+    np.testing.assert_allclose(ts.math.reciprocal(x).numpy(), 1.0 / values)
+    np.testing.assert_allclose(ts.math.variance(x).numpy(), np.var(values), rtol=1e-6)
+    np.testing.assert_allclose(ts.math.std(x, axis=1).numpy(), np.std(values, axis=1), rtol=1e-6)
+    np.testing.assert_allclose(
+        ts.math.norm(x, ord=1, axis=0).numpy(),
+        np.linalg.norm(values, ord=1, axis=0),
+    )
+    np.testing.assert_allclose(ts.math.norm(x).item(), np.linalg.norm(values), rtol=1e-6)
+
+
 def test_axis_reductions_match_numpy() -> None:
     values = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32)
     x = ts.from_numpy(values)

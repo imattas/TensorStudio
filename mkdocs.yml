@@ -29,6 +29,7 @@ nav:
   - Neural Network Guides:
       - Modules: Neural Networks/modules.md
       - Training: Neural Networks/training.md
+  - Projects: Projects/index.md
   - Vision: Vision/index.md
   - Optimizers: Usage/optim.md
   - Data: Usage/data.md

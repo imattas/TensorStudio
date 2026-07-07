@@ -336,7 +336,15 @@ void bind_tensor(py::module_& module) {
       .def("tanh", &tanh)
       .def("exp", &exp)
       .def("log", &log)
+      .def("log1p", &log1p)
       .def("sqrt", &sqrt)
+      .def("rsqrt", &rsqrt)
+      .def("sin", &sin)
+      .def("cos", &cos)
+      .def("tan", &tan)
+      .def("asin", &asin)
+      .def("acos", &acos)
+      .def("atan", &atan)
       .def("abs", &abs)
       .def("clamp", &clamp, py::arg("min_value"), py::arg("max_value"))
       .def("clip", &clamp, py::arg("min_value"), py::arg("max_value"))
@@ -452,6 +460,13 @@ void bind_tensor(py::module_& module) {
     return linspace(start, stop, steps, dtype_from_py(dtype));
   }, py::arg("start"), py::arg("stop"), py::arg("steps"), py::arg("dtype") = "float32");
   module.def("manual_seed", &manual_seed, py::arg("seed"));
+  module.def(
+      "promote_types",
+      [](py::object left, py::object right) {
+        return dtype_name(promote_types(dtype_from_py(left), dtype_from_py(right)));
+      },
+      py::arg("left"),
+      py::arg("right"));
 }
 
 }  // namespace tensorstudio::bindings

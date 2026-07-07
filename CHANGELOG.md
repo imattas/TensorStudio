@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-07-07
+
+- Started the ordered roadmap release train with the dtype-promotion contract.
+- Exposed native `promote_types` plus Python `tensorstudio.dtypes`,
+  `promote_types`, `result_type`, `normalize_dtype`, and `dtype_of` helpers.
+- Documented arithmetic, division, and comparison dtype result rules.
+- Added tests that pin binary operation result dtypes across supported dtypes.
+
+## 1.3.0 - 2026-07-07
+
+- Expanded `tensorstudio.vision` into a broader computer-vision toolkit with
+  image IO, transform pipelines, deterministic augmentation helpers, image
+  grids, and bounding-box drawing.
+- Added `ImageFolder` and `ImageList` datasets for local image classification
+  workflows.
+- Added classification metrics (`accuracy`, `top_k_accuracy`,
+  `confusion_matrix`) and detection utility `box_iou`.
+- Added reusable vision modules `ConvBlock`, `ImageClassifier`, and
+  `make_image_classifier`.
+- Updated ONNX export flattening so nested vision model blocks export through
+  their supported TensorStudio layers.
+- Added an ImageFolder classification example and expanded vision tests.
+- Added native C++ advanced math ops (`sin`, `cos`, `tan`, `asin`, `acos`,
+  `atan`, `log1p`, `rsqrt`) with autograd coverage.
+- Added `tensorstudio.math` helpers for square, reciprocal, variance, standard
+  deviation, and norms.
+- Added `tensorstudio.project` with JSON project configs, run folders, a small
+  eager `Trainer`, safe NPZ state-dict checkpoints, and trusted full
+  checkpoints.
+- Added a project-training example and project workflow tests.
+
 ## 1.2.0 - 2026-07-07
 
 - Added `save_npz` and `load_npz` for non-pickle tensor and flat

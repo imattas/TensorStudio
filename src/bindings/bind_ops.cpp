@@ -100,7 +100,15 @@ void bind_ops(py::module_& module) {
   module.def("tanh", &tanh);
   module.def("exp", &exp);
   module.def("log", &log);
+  module.def("log1p", &log1p);
   module.def("sqrt", &sqrt);
+  module.def("rsqrt", &rsqrt);
+  module.def("sin", &sin);
+  module.def("cos", &cos);
+  module.def("tan", &tan);
+  module.def("asin", &asin);
+  module.def("acos", &acos);
+  module.def("atan", &atan);
   module.def("abs", &abs);
   module.def("clamp", &clamp, py::arg("input"), py::arg("min_value"), py::arg("max_value"));
   module.def(

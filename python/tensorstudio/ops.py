@@ -183,8 +183,40 @@ def log(input: Tensor) -> Tensor:
     return _C.log(input)
 
 
+def log1p(input: Tensor) -> Tensor:
+    return _C.log1p(input)
+
+
 def sqrt(input: Tensor) -> Tensor:
     return _C.sqrt(input)
+
+
+def rsqrt(input: Tensor) -> Tensor:
+    return _C.rsqrt(input)
+
+
+def sin(input: Tensor) -> Tensor:
+    return _C.sin(input)
+
+
+def cos(input: Tensor) -> Tensor:
+    return _C.cos(input)
+
+
+def tan(input: Tensor) -> Tensor:
+    return _C.tan(input)
+
+
+def asin(input: Tensor) -> Tensor:
+    return _C.asin(input)
+
+
+def acos(input: Tensor) -> Tensor:
+    return _C.acos(input)
+
+
+def atan(input: Tensor) -> Tensor:
+    return _C.atan(input)
 
 
 def abs(input: Tensor) -> Tensor:  # noqa: A001
@@ -226,11 +258,15 @@ def transpose(input: Tensor) -> Tensor:
 __all__ = [
     "add",
     "abs",
+    "acos",
+    "asin",
     "astype",
+    "atan",
     "avg_pool2d",
     "clamp",
     "clip",
     "concat",
+    "cos",
     "conv2d",
     "div",
     "equal",
@@ -241,6 +277,7 @@ __all__ = [
     "less",
     "less_equal",
     "log",
+    "log1p",
     "matmul",
     "max",
     "max_pool2d",
@@ -252,11 +289,14 @@ __all__ = [
     "pow",
     "relu",
     "reshape",
+    "rsqrt",
     "sigmoid",
+    "sin",
     "stack",
     "sub",
     "sum",
     "sqrt",
+    "tan",
     "tanh",
     "transpose",
 ]

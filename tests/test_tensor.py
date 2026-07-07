@@ -5,6 +5,14 @@ import pytest
 import tensorstudio as ts
 
 
+def _sample(dtype: str) -> ts.Tensor:
+    if dtype == "bool":
+        return ts.tensor([True], dtype=dtype)
+    if dtype.startswith("int"):
+        return ts.tensor([1], dtype=dtype)
+    return ts.tensor([1.0], dtype=dtype)
+
+
 def test_tensor_creation_and_properties() -> None:
     x = ts.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
 
@@ -24,6 +32,49 @@ def test_dtype_creation() -> None:
     assert ts.tensor([True, False]).dtype == "bool"
     assert ts.tensor([1, 2, 3], dtype="int32").dtype == "int32"
     assert ts.tensor([1.0], dtype="float64").dtype == "float64"
+
+
+def test_dtype_promotion_contract() -> None:
+    expected = {
+        ("bool", "bool"): "bool",
+        ("bool", "int32"): "int32",
+        ("bool", "int64"): "int64",
+        ("bool", "float32"): "float32",
+        ("bool", "float64"): "float64",
+        ("int32", "int32"): "int32",
+        ("int32", "int64"): "int64",
+        ("int32", "float32"): "float32",
+        ("int32", "float64"): "float64",
+        ("int64", "int64"): "int64",
+        ("int64", "float32"): "float32",
+        ("int64", "float64"): "float64",
+        ("float32", "float32"): "float32",
+        ("float32", "float64"): "float64",
+        ("float64", "float64"): "float64",
+    }
+
+    for (left_dtype, right_dtype), expected_dtype in expected.items():
+        left = _sample(left_dtype)
+        right = _sample(right_dtype)
+        assert ts.promote_types(left_dtype, right_dtype) == expected_dtype
+        assert ts.result_type(left, right, op="add") == expected_dtype
+        assert (left + right).dtype == expected_dtype
+        assert (left - right).dtype == expected_dtype
+        assert (left * right).dtype == expected_dtype
+        assert (left == right).dtype == "bool"
+
+    assert ts.result_type("int64", "int32", op="div") == "float32"
+    assert ts.result_type("int64", "float64", op="div") == "float64"
+    assert (ts.tensor([3], dtype="int64") / ts.tensor([2], dtype="int32")).dtype == "float32"
+    assert (ts.tensor([3], dtype="int64") / ts.tensor([2.0], dtype="float64")).dtype == "float64"
+    assert (ts.ones((1, 1), dtype="int32") @ ts.ones((1, 1), dtype="float32")).dtype == "float32"
+
+
+def test_dtype_helpers_normalize_and_infer() -> None:
+    assert ts.normalize_dtype("double") == "float64"
+    assert ts.dtype_of(np.array([1, 2], dtype=np.int32)) == "int32"
+    assert ts.dtype_of(True) == "bool"
+    assert ts.result_type("int32", "float64", op="gt") == "bool"
 
 
 def test_creation_helpers() -> None:

@@ -633,7 +633,15 @@ Tensor sigmoid_impl(const Tensor& input, bool track_grad);
 Tensor tanh_impl(const Tensor& input, bool track_grad);
 Tensor exp_impl(const Tensor& input, bool track_grad);
 Tensor log_impl(const Tensor& input, bool track_grad);
+Tensor log1p_impl(const Tensor& input, bool track_grad);
 Tensor sqrt_impl(const Tensor& input, bool track_grad);
+Tensor rsqrt_impl(const Tensor& input, bool track_grad);
+Tensor sin_impl(const Tensor& input, bool track_grad);
+Tensor cos_impl(const Tensor& input, bool track_grad);
+Tensor tan_impl(const Tensor& input, bool track_grad);
+Tensor asin_impl(const Tensor& input, bool track_grad);
+Tensor acos_impl(const Tensor& input, bool track_grad);
+Tensor atan_impl(const Tensor& input, bool track_grad);
 Tensor abs_impl(const Tensor& input, bool track_grad);
 Tensor clamp_impl(const Tensor& input, double min_value, double max_value, bool track_grad);
 Tensor astype_impl(const Tensor& input, DType dtype, bool track_grad);
@@ -1980,6 +1988,20 @@ Tensor log_impl(const Tensor& input, bool track_grad) {
   return out;
 }
 
+Tensor log1p_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::log1p(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor denom = add_impl(input, scalar_tensor(1.0, input.dtype()), false);
+      return std::vector<Tensor>{div_impl(grad, denom, false)};
+    });
+  }
+  return out;
+}
+
 Tensor sqrt_impl(const Tensor& input, bool track_grad) {
   Tensor out = elementwise_unary_impl(
       input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
@@ -1989,6 +2011,109 @@ Tensor sqrt_impl(const Tensor& input, bool track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       Tensor denom = mul_impl(scalar_tensor(2.0, grad.dtype()), sqrt_impl(input, false), false);
       return std::vector<Tensor>{div_impl(grad, denom, false)};
+    });
+  }
+  return out;
+}
+
+Tensor rsqrt_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return 1.0 / std::sqrt(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor coeff = scalar_tensor(-0.5, grad.dtype());
+      Tensor base = pow_impl(input, -1.5, false);
+      return std::vector<Tensor>{mul_impl(mul_impl(grad, coeff, false), base, false)};
+    });
+  }
+  return out;
+}
+
+Tensor sin_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::sin(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      return std::vector<Tensor>{mul_impl(grad, cos_impl(input, false), false)};
+    });
+  }
+  return out;
+}
+
+Tensor cos_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::cos(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      return std::vector<Tensor>{neg_impl(mul_impl(grad, sin_impl(input, false), false), false)};
+    });
+  }
+  return out;
+}
+
+Tensor tan_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::tan(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor y = tan_impl(input, false);
+      Tensor sec_sq = add_impl(full_like(y.shape(), 1.0, y.dtype()), mul_impl(y, y, false), false);
+      return std::vector<Tensor>{mul_impl(grad, sec_sq, false)};
+    });
+  }
+  return out;
+}
+
+Tensor asin_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::asin(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor one_minus_square =
+          sub_impl(full_like(input.shape(), 1.0, input.dtype()), mul_impl(input, input, false), false);
+      Tensor denom = sqrt_impl(one_minus_square, false);
+      return std::vector<Tensor>{div_impl(grad, denom, false)};
+    });
+  }
+  return out;
+}
+
+Tensor acos_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::acos(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor one_minus_square =
+          sub_impl(full_like(input.shape(), 1.0, input.dtype()), mul_impl(input, input, false), false);
+      Tensor denom = sqrt_impl(one_minus_square, false);
+      return std::vector<Tensor>{neg_impl(div_impl(grad, denom, false), false)};
+    });
+  }
+  return out;
+}
+
+Tensor atan_impl(const Tensor& input, bool track_grad) {
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
+        return std::atan(value);
+      });
+  if (track_grad) {
+    set_history(out, {input}, [input](const Tensor& grad) {
+      Tensor one_plus_square =
+          add_impl(full_like(input.shape(), 1.0, input.dtype()), mul_impl(input, input, false), false);
+      return std::vector<Tensor>{div_impl(grad, one_plus_square, false)};
     });
   }
   return out;
@@ -2273,8 +2398,40 @@ Tensor log(const Tensor& input) {
   return log_impl(input, true);
 }
 
+Tensor log1p(const Tensor& input) {
+  return log1p_impl(input, true);
+}
+
 Tensor sqrt(const Tensor& input) {
   return sqrt_impl(input, true);
+}
+
+Tensor rsqrt(const Tensor& input) {
+  return rsqrt_impl(input, true);
+}
+
+Tensor sin(const Tensor& input) {
+  return sin_impl(input, true);
+}
+
+Tensor cos(const Tensor& input) {
+  return cos_impl(input, true);
+}
+
+Tensor tan(const Tensor& input) {
+  return tan_impl(input, true);
+}
+
+Tensor asin(const Tensor& input) {
+  return asin_impl(input, true);
+}
+
+Tensor acos(const Tensor& input) {
+  return acos_impl(input, true);
+}
+
+Tensor atan(const Tensor& input) {
+  return atan_impl(input, true);
 }
 
 Tensor abs(const Tensor& input) {

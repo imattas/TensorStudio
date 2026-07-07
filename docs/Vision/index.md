@@ -1,83 +1,160 @@
 # Vision
 
-TensorStudio's vision package provides image-to-tensor preprocessing and small
-CNN classifier helpers for lightweight image-recognition experiments.
+TensorStudio's vision package provides local image IO, preprocessing,
+augmentation, datasets, metrics, visualization helpers, and compact CNN
+classifiers for image-recognition experiments.
 
-The vision namespace is intentionally compact. Image decoding, augmentation
-pipelines, pretrained model zoos, and production dataloading remain outside the
-v1.2 scope.
+It is designed for small CPU-first workflows. It is not a replacement for
+OpenCV, torchvision, or specialized production vision stacks.
 
 ## Install
 
 NumPy image arrays work with the base package. Install the optional Pillow extra
-when you want to pass Pillow images directly:
+for file IO and bounding-box drawing:
 
 ```bash
 python -m pip install "tensorstudio[vision]"
 ```
 
-## Image To Tensor
-
-`to_tensor` accepts HWC, CHW, NHWC, NCHW, and grayscale image-like arrays. It
-returns channel-first tensors and scales integer images to `[0, 1]` by default.
+## Image IO
 
 ```python
-import numpy as np
 import tensorstudio as ts
 
-image = np.zeros((8, 8, 3), dtype=np.uint8)
-x = ts.vision.to_tensor(image)
-
-print(x.shape)  # (3, 8, 8)
-print(x.dtype)  # float32
+image = ts.vision.load_image("cat.png", mode="RGB")
+ts.vision.save_image(image, "copy.png")
 ```
 
-## Preprocessing
+`load_image` returns an HWC NumPy array. `save_image` accepts NumPy arrays or
+TensorStudio tensors in HWC, CHW, NHWC, or NCHW style layouts.
+
+## Transform Pipelines
 
 ```python
-cropped = ts.vision.center_crop(image, (6, 6))
-resized = ts.vision.resize_nearest(cropped, (8, 8))
-x = ts.vision.to_tensor(resized).reshape((1, 3, 8, 8))
-x = ts.vision.normalize(x, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+transform = ts.vision.Compose(
+    [
+        ts.vision.Resize((32, 32), interpolation="bilinear"),
+        ts.vision.RandomHorizontalFlip(p=0.5, seed=7),
+        ts.vision.CenterCrop((28, 28)),
+        ts.vision.ToTensor(),
+        ts.vision.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
+    ]
+)
+
+x = transform(image)
+print(x.shape)  # (3, 28, 28)
 ```
 
-`normalize` works on CHW or NCHW TensorStudio tensors and keeps gradients flowing
-when the input requires gradients.
+Available transform functions include:
 
-## Tiny CNN Classifier
+- `to_tensor`
+- `to_numpy_image`
+- `normalize`
+- `resize_nearest`
+- `resize_bilinear`
+- `center_crop`
+- `random_crop`
+- `horizontal_flip`
+- `vertical_flip`
+- `random_horizontal_flip`
+- `pad`
+- `rgb_to_grayscale`
+- `grayscale_to_rgb`
+
+Callable transform classes include:
+
+- `Compose`
+- `ToTensor`
+- `Normalize`
+- `Resize`
+- `CenterCrop`
+- `RandomCrop`
+- `RandomHorizontalFlip`
+
+## ImageFolder
+
+`ImageFolder` reads directory trees laid out like:
+
+```text
+dataset/
+  cat/
+    image0.png
+  dog/
+    image1.png
+```
+
+```python
+dataset = ts.vision.ImageFolder("dataset", transform=transform)
+loader = ts.data.DataLoader(dataset, batch_size=8, shuffle=True, seed=0)
+
+for images, labels in loader:
+    print(images.shape, labels.shape)
+```
+
+`ImageList` is also available when you already have explicit `(path, target)`
+pairs.
+
+## Models
 
 ```python
 from tensorstudio import nn, optim
 
-model = ts.vision.TinyConvClassifier((3, 8, 8), num_classes=2, hidden_channels=4)
-target = ts.tensor([1], dtype="int64")
-optimizer = optim.Adam(model.parameters(), lr=0.01)
+model = ts.vision.ImageClassifier((3, 32, 32), num_classes=10, channels=(8, 16))
+optimizer = optim.Adam(model.parameters(), lr=0.001)
+loss_fn = nn.CrossEntropyLoss()
 
-for _ in range(10):
+for images, labels in loader:
     optimizer.zero_grad()
-    logits = model(x)
-    loss = nn.CrossEntropyLoss()(logits, target)
+    logits = model(images)
+    loss = loss_fn(logits, labels.astype("int64"))
     loss.backward()
     optimizer.step()
 ```
 
-The classifier uses:
+Available model helpers:
 
-- `nn.Conv2d`
-- `nn.ReLU`
-- `nn.MaxPool2d`
-- `nn.Flatten`
-- `nn.Linear`
+- `ConvBlock`
+- `TinyConvClassifier`
+- `ImageClassifier`
+- `make_cnn_classifier`
+- `make_image_classifier`
 
-Those layers run through TensorStudio tensor operations and autograd. The model
-is small by design and meant for examples, tests, and experimentation.
+These models use TensorStudio `nn.Conv2d`, `nn.ReLU`, `nn.MaxPool2d`,
+`nn.Flatten`, and `nn.Linear`.
+
+## Metrics
+
+```python
+acc = ts.vision.accuracy(logits, labels.astype("int64"))
+top1, top5 = ts.vision.top_k_accuracy(logits, labels.astype("int64"), k=(1, 5))
+matrix = ts.vision.confusion_matrix(logits, labels.astype("int64"), num_classes=10)
+iou = ts.vision.box_iou([[0, 0, 10, 10]], [[5, 5, 15, 15]])
+```
+
+## Visualization
+
+```python
+grid = ts.vision.make_grid(images, nrow=4, padding=2)
+boxed = ts.vision.draw_bounding_boxes(image, [[2, 2, 20, 20]], labels=["cat"])
+ts.vision.save_image(grid, "batch.png")
+ts.vision.save_image(boxed, "boxed.png")
+```
 
 ## ONNX Export
 
-The tiny classifier owns an exportable Sequential stack:
+Vision classifiers export through their supported TensorStudio layer stacks:
 
 ```python
-ts.export_onnx(model, "tiny_classifier.onnx", input_shape=(1, 3, 8, 8))
+model = ts.vision.ImageClassifier((3, 32, 32), num_classes=10, channels=(8, 16))
+ts.export_onnx(model, "classifier.onnx", input_shape=(1, 3, 32, 32))
 ```
 
-See [ONNX Interchange](../Usage/interchange.md) for details and limits.
+## Current Limits
+
+- CPU-only image models.
+- No pretrained model zoo yet.
+- No object-detection or semantic-segmentation training framework yet.
+- No video IO.
+- No GPU image kernels or accelerated image decode path.
+- Transform operations that convert through NumPy are intended for input
+  preprocessing, not differentiable augmentation.

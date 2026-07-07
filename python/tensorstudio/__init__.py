@@ -2,11 +2,27 @@
 
 from __future__ import annotations
 
-from . import data, interchange, nn, optim, vision
+from . import data, dtypes, interchange, math, nn, optim, project, vision
 from ._version import __version__
+from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
 from .interchange import export_onnx
-from .ops import astype, avg_pool2d, concat, conv2d, max_pool2d, stack
+from .ops import (
+    acos,
+    asin,
+    astype,
+    atan,
+    avg_pool2d,
+    concat,
+    conv2d,
+    cos,
+    log1p,
+    max_pool2d,
+    rsqrt,
+    sin,
+    stack,
+    tan,
+)
 from .serialization import load, load_npz, save, save_npz
 from .tensor import (
     Tensor,
@@ -33,12 +49,18 @@ from .tensor import (
 __all__ = [
     "Tensor",
     "__version__",
+    "acos",
     "arange",
+    "asin",
     "astype",
+    "atan",
     "avg_pool2d",
     "concat",
     "conv2d",
+    "cos",
     "data",
+    "dtype_of",
+    "dtypes",
     "empty",
     "empty_like",
     "eye",
@@ -51,22 +73,31 @@ __all__ = [
     "linspace",
     "load",
     "load_npz",
+    "log1p",
     "manual_seed",
     "max_pool2d",
+    "math",
     "nn",
     "no_grad",
     "ones",
     "ones_like",
     "optim",
+    "project",
+    "promote_types",
     "rand",
     "rand_like",
     "randn",
     "randn_like",
+    "rsqrt",
     "save",
     "save_npz",
     "set_grad_enabled",
+    "sin",
     "stack",
+    "tan",
     "tensor",
+    "normalize_dtype",
+    "result_type",
     "vision",
     "zeros",
     "zeros_like",

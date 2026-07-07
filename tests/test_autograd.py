@@ -152,6 +152,15 @@ def test_finite_difference_selected_ops() -> None:
     _assert_grad_matches(values, lambda x: x.mean(axis=0).sum())
 
 
+def test_finite_difference_advanced_math_ops() -> None:
+    values = np.array([[0.2, -0.3], [0.5, -0.6]], dtype=np.float64)
+    positive = np.array([[0.2, 0.8], [1.4, 2.2]], dtype=np.float64)
+
+    _assert_grad_matches(values, lambda x: (x.sin() + x.cos() + x.tan() + x.atan()).mean())
+    _assert_grad_matches(values, lambda x: (x.asin() + x.acos()).mean())
+    _assert_grad_matches(positive, lambda x: (x.log1p() + x.rsqrt()).mean())
+
+
 def test_finite_difference_matmul() -> None:
     values = np.array([[0.4, -0.7], [1.2, -1.5]], dtype=np.float64)
     weight = ts.tensor([[1.0, -2.0], [0.5, 3.0]], dtype="float64")

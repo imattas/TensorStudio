@@ -68,5 +68,5 @@ TensorStudio can export supported module stacks to ONNX:
 ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
 ```
 
-ONNX support is export-only in v1.2 and covers common TensorStudio layers such
+ONNX support is export-only and covers common TensorStudio layers such
 as `Linear`, `Conv2d`, `Flatten`, activations, and 2D pooling.

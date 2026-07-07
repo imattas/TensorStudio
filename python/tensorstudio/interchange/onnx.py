@@ -52,15 +52,30 @@ def _onnx_dtype(dtype: str) -> int:
 
 
 def _module_sequence(model: Module) -> list[Module]:
-    if isinstance(model, Sequential):
-        return list(model)
-    nested = getattr(model, "model", None)
-    if isinstance(nested, Sequential):
-        return list(nested)
-    layers = getattr(model, "layers", None)
-    if isinstance(layers, Iterable) and not isinstance(layers, (str, bytes)):
-        return list(layers)
-    return [model]
+    return _flatten_modules([model])
+
+
+def _flatten_modules(modules: Iterable[Module]) -> list[Module]:
+    result: list[Module] = []
+    for module in modules:
+        if isinstance(module, Sequential):
+            result.extend(_flatten_modules(list(module)))
+            continue
+        nested = getattr(module, "model", None)
+        if isinstance(nested, Module) and nested is not module:
+            result.extend(_flatten_modules([nested]))
+            continue
+        layers = getattr(module, "layers", None)
+        if isinstance(layers, Sequential):
+            result.extend(_flatten_modules(list(layers)))
+            continue
+        if isinstance(layers, Iterable) and not isinstance(layers, (str, bytes)):
+            layer_list = list(layers)
+            if layer_list and all(isinstance(layer, Module) for layer in layer_list):
+                result.extend(_flatten_modules(layer_list))
+                continue
+        result.append(module)
+    return result
 
 
 def _tensor_initializer(name: str, value: Any, numpy_helper: Any) -> Any:
@@ -137,7 +152,7 @@ def export_onnx(
 
     Supported modules are ``Linear``, ``Conv2d``, ``Flatten``, ``ReLU``,
     ``Sigmoid``, ``Tanh``, ``MaxPool2d``, and ``AvgPool2d``. Custom Python
-    control flow is intentionally not traced in v1.2.
+    control flow is intentionally not traced.
     """
 
     _, helper, numpy_helper = _require_onnx()
