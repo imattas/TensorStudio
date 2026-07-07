@@ -3,9 +3,9 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.13.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.14.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
-docs, packaging, and wheel workflows.
+docs, packaging, wheel workflows, and explicit hardware device APIs.
 
 ## Status
 

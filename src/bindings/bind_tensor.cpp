@@ -12,6 +12,7 @@
 #include <pybind11/stl.h>
 
 #include "tensorstudio/autograd.hpp"
+#include "tensorstudio/device.hpp"
 #include "tensorstudio/dtype.hpp"
 #include "tensorstudio/errors.hpp"
 #include "tensorstudio/ops.hpp"
@@ -305,6 +306,16 @@ Tensor ensure_tensor(py::object object) {
     return py::cast<Tensor>(object);
   }
   return tensor_from_py(std::move(object), py::none(), false);
+}
+
+Device device_from_py(py::object object) {
+  if (py::isinstance<Device>(object)) {
+    return py::cast<Device>(object);
+  }
+  if (py::isinstance<py::str>(object)) {
+    return parse_device(py::cast<std::string>(object));
+  }
+  throw DeviceError("device must be a TensorStudio Device or a string such as 'cpu' or 'cuda:0'");
 }
 
 Tensor reduce_from_py(
@@ -726,8 +737,22 @@ void bind_tensor(py::module_& module) {
         return astype(self, dtype_from_py(dtype, self.dtype()));
       }, py::arg("dtype"))
       .def("to", [](const Tensor& self, py::object dtype) {
+        if (py::isinstance<Device>(dtype)) {
+          return self.to_device(py::cast<Device>(dtype));
+        }
+        if (py::isinstance<py::str>(dtype)) {
+          const std::string text = py::cast<std::string>(dtype);
+          if (text == "cpu" || text.rfind("cuda", 0) == 0 || text.rfind("gpu", 0) == 0 ||
+              text.rfind("metal", 0) == 0 || text.rfind("mps", 0) == 0) {
+            return self.to_device(parse_device(text));
+          }
+        }
         return astype(self, dtype_from_py(dtype, self.dtype()));
-      }, py::arg("dtype"))
+      }, py::arg("target"))
+      .def("to_device", [](const Tensor& self, py::object device) {
+        return self.to_device(device_from_py(std::move(device)));
+      }, py::arg("device"))
+      .def("cpu", &Tensor::cpu)
       .def("backward", [](Tensor& self, py::object gradient, bool retain_graph) {
         if (gradient.is_none()) {
           backward(self, std::nullopt, retain_graph);

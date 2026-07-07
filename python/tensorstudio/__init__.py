@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
-from . import data, dtypes, interchange, math, metrics, nn, optim, project, vision
+from . import data, dtypes, hardware, interchange, math, metrics, nn, optim, project, vision
 from ._version import __version__
 from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
+from .hardware import (
+    Device,
+    available_devices,
+    backend_info,
+    cuda_is_available,
+    device,
+    device_count,
+    is_available,
+    metal_is_available,
+)
 from .interchange import export_model_card_metadata, export_onnx, import_onnx, inspect_onnx
 from .math import einsum, norm
 from .ops import (
@@ -94,6 +104,7 @@ from .tensor import (
 )
 
 __all__ = [
+    "Device",
     "Tensor",
     "__version__",
     "acos",
@@ -105,7 +116,9 @@ __all__ = [
     "asin",
     "astype",
     "atan",
+    "available_devices",
     "avg_pool2d",
+    "backend_info",
     "bernoulli",
     "bernoulli_like",
     "bmm",
@@ -115,7 +128,10 @@ __all__ = [
     "conv2d",
     "conv_transpose2d",
     "cos",
+    "cuda_is_available",
     "data",
+    "device",
+    "device_count",
     "dtype_of",
     "dtypes",
     "empty",
@@ -131,6 +147,7 @@ __all__ = [
     "full_like",
     "greater",
     "greater_equal",
+    "hardware",
     "get_num_threads",
     "less",
     "less_equal",
@@ -138,6 +155,7 @@ __all__ = [
     "inspect_model_metadata",
     "inspect_onnx",
     "import_onnx",
+    "is_available",
     "is_grad_enabled",
     "linspace",
     "load",
@@ -150,6 +168,7 @@ __all__ = [
     "manual_seed",
     "maximum",
     "max_pool2d",
+    "metal_is_available",
     "minimum",
     "math",
     "metrics",

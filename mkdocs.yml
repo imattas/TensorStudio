@@ -70,7 +70,11 @@ nav:
       - Profiling: performance/profiling.md
       - Optimization Guide: performance/optimization.md
   - Hardware:
+      - Device API: hardware/device-api.md
       - CPU Backend: hardware/cpu-backend.md
+      - CUDA Backend: hardware/cuda.md
+      - Metal Backend: hardware/metal.md
+      - Backend Benchmarks: hardware/backend-benchmarks.md
       - Windows: hardware/windows.md
       - Linux: hardware/linux.md
       - macOS: hardware/macos.md

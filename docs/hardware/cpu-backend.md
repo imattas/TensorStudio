@@ -1,12 +1,14 @@
 # CPU Backend
 
-TensorStudio `1.13.0` supports CPU tensors only, with a stronger native runtime
+TensorStudio `1.14.0` supports CPU tensors only, with a stronger native runtime
 than earlier releases.
 
 ## Device Abstraction
 
 The C++ core includes a device abstraction so future backends can fit into the
-same public model. Today, every tensor lives on CPU.
+same public model. Today, every executable tensor lives on CPU. CUDA and Metal
+descriptors are available for explicit availability checks, but allocation and
+execution on those devices are rejected in CPU wheels.
 
 ## What CPU Means In v1
 
@@ -70,9 +72,11 @@ The code is intended to compile on:
 
 CMake and scikit-build-core coordinate the native extension build.
 
-## GPU Future Work
+## Accelerator Boundary
 
-CUDA and other accelerator backends are future work. Adding them would require:
+CUDA and Metal execution are future work. The `1.14.0` backend boundary already
+defines device descriptors, backend availability metadata, CMake hooks, and
+device-aware storage validation. Real accelerator execution still requires:
 
 - device-specific storage
 - copy operations
@@ -81,4 +85,5 @@ CUDA and other accelerator backends are future work. Adding them would require:
 - kernel implementations
 - expanded testing infrastructure
 
-The current CPU implementation keeps those concerns out of the v1 release.
+The current CPU implementation keeps those concerns explicit instead of silently
+falling back from an unavailable accelerator to CPU.

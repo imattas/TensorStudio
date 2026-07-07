@@ -67,18 +67,29 @@ Storage* acquire_storage(std::size_t size_bytes) {
 
 }  // namespace
 
-Storage::Storage(std::size_t size_bytes) : data_(size_bytes) {}
+Storage::Storage(std::size_t size_bytes, Device device) : data_(size_bytes), device_(device) {}
 
 std::shared_ptr<Storage> Storage::allocate(int64_t elements, DType dtype) {
+  return allocate(elements, dtype, cpu_device());
+}
+
+std::shared_ptr<Storage> Storage::allocate(int64_t elements, DType dtype, const Device& device) {
   if (elements < 0) {
     throw ShapeError("cannot allocate storage for negative element count");
+  }
+  if (!is_device_available(device)) {
+    throw DeviceError("cannot allocate storage on unavailable device '" + device.str() + "'");
+  }
+  if (!device.is_cpu()) {
+    throw DeviceError("accelerator storage allocation is not implemented for device '" + device.str() + "'");
   }
   const std::size_t size_bytes = static_cast<std::size_t>(elements) * dtype_size(dtype);
   Storage* storage = acquire_storage(size_bytes);
   if (storage == nullptr) {
-    storage = new Storage(size_bytes);
+    storage = new Storage(size_bytes, device);
   } else {
     std::fill(storage->data_.begin(), storage->data_.end(), std::byte{0});
+    storage->device_ = device;
   }
   return std::shared_ptr<Storage>(storage, [](Storage* item) { Storage::release(item); });
 }
@@ -111,6 +122,10 @@ const std::byte* Storage::data() const {
 
 std::size_t Storage::size_bytes() const {
   return data_.size();
+}
+
+Device Storage::device() const {
+  return device_;
 }
 
 }  // namespace tensorstudio

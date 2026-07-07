@@ -45,6 +45,8 @@ class Tensor {
   int64_t numel() const;
   bool is_contiguous() const;
   Device device() const;
+  Tensor to_device(const Device& device) const;
+  Tensor cpu() const;
   Tensor clone() const;
   Tensor detach() const;
   void detach_();

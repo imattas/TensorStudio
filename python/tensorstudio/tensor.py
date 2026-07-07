@@ -7,36 +7,52 @@ from typing import Any
 import numpy as np
 
 from . import _C
+from .hardware import DeviceLike
+from .hardware import device as make_device
 
 Tensor = _C.Tensor
 
 
-def _with_requires_grad(value: Tensor, requires_grad: bool) -> Tensor:
+def _finish_tensor(
+    value: Tensor,
+    requires_grad: bool = False,
+    target_device: DeviceLike = "cpu",
+) -> Tensor:
     if requires_grad:
         value.requires_grad = True
-    return value
+    return value.to_device(make_device(target_device))
 
 
-def tensor(data: Any, dtype: str | None = None, requires_grad: bool = False) -> Tensor:
+def tensor(
+    data: Any,
+    dtype: str | None = None,
+    requires_grad: bool = False,
+    device: DeviceLike = "cpu",
+) -> Tensor:
     """Create a Tensor from Python numeric data or a NumPy array."""
 
-    return _C.tensor(data, dtype, requires_grad)
+    return _finish_tensor(_C.tensor(data, dtype, requires_grad), target_device=device)
 
 
-def from_numpy(array: np.ndarray, requires_grad: bool = False) -> Tensor:
+def from_numpy(
+    array: np.ndarray,
+    requires_grad: bool = False,
+    device: DeviceLike = "cpu",
+) -> Tensor:
     """Create a Tensor copy from a NumPy array."""
 
-    return _C.from_numpy(np.asarray(array), requires_grad)
+    return _finish_tensor(_C.from_numpy(np.asarray(array), requires_grad), target_device=device)
 
 
 def zeros(
     shape: int | tuple[int, ...] | list[int],
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor filled with zeros."""
 
-    return _with_requires_grad(_C.zeros(shape, dtype), requires_grad)
+    return _finish_tensor(_C.zeros(shape, dtype), requires_grad, device)
 
 
 def zeros_like(
@@ -50,6 +66,7 @@ def zeros_like(
         input.shape,
         dtype=dtype or input.dtype,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -57,6 +74,7 @@ def empty(
     shape: int | tuple[int, ...] | list[int],
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create an uninitialized tensor.
 
@@ -64,7 +82,7 @@ def empty(
     should not rely on any particular initial value.
     """
 
-    return _with_requires_grad(_C.empty(shape, dtype), requires_grad)
+    return _finish_tensor(_C.empty(shape, dtype), requires_grad, device)
 
 
 def empty_like(
@@ -78,6 +96,7 @@ def empty_like(
         input.shape,
         dtype=dtype or input.dtype,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -85,10 +104,11 @@ def ones(
     shape: int | tuple[int, ...] | list[int],
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor filled with ones."""
 
-    return _with_requires_grad(_C.ones(shape, dtype), requires_grad)
+    return _finish_tensor(_C.ones(shape, dtype), requires_grad, device)
 
 
 def ones_like(
@@ -102,6 +122,7 @@ def ones_like(
         input.shape,
         dtype=dtype or input.dtype,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -110,10 +131,11 @@ def full(
     fill_value: float,
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor filled with a scalar value."""
 
-    return _with_requires_grad(_C.full(shape, fill_value, dtype), requires_grad)
+    return _finish_tensor(_C.full(shape, fill_value, dtype), requires_grad, device)
 
 
 def full_like(
@@ -129,6 +151,7 @@ def full_like(
         fill_value,
         dtype=dtype or input.dtype,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -137,10 +160,11 @@ def rand(
     dtype: str = "float32",
     seed: int | None = None,
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor with uniform random values in [0, 1)."""
 
-    return _with_requires_grad(_C.rand(shape, dtype, seed), requires_grad)
+    return _finish_tensor(_C.rand(shape, dtype, seed), requires_grad, device)
 
 
 def rand_like(
@@ -156,6 +180,7 @@ def rand_like(
         dtype=dtype or input.dtype,
         seed=seed,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -166,10 +191,11 @@ def uniform(
     dtype: str = "float32",
     seed: int | None = None,
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor sampled from ``Uniform(low, high)``."""
 
-    return _with_requires_grad(_C.uniform(shape, low, high, dtype, seed), requires_grad)
+    return _finish_tensor(_C.uniform(shape, low, high, dtype, seed), requires_grad, device)
 
 
 def uniform_like(
@@ -189,6 +215,7 @@ def uniform_like(
         dtype=dtype or input.dtype,
         seed=seed,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -197,10 +224,11 @@ def randn(
     dtype: str = "float32",
     seed: int | None = None,
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor with normally distributed pseudo-random values."""
 
-    return _with_requires_grad(_C.randn(shape, dtype, seed), requires_grad)
+    return _finish_tensor(_C.randn(shape, dtype, seed), requires_grad, device)
 
 
 def randn_like(
@@ -216,6 +244,7 @@ def randn_like(
         dtype=dtype or input.dtype,
         seed=seed,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -226,10 +255,11 @@ def normal(
     dtype: str = "float32",
     seed: int | None = None,
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor sampled from ``Normal(mean, stddev)``."""
 
-    return _with_requires_grad(_C.normal(shape, mean, stddev, dtype, seed), requires_grad)
+    return _finish_tensor(_C.normal(shape, mean, stddev, dtype, seed), requires_grad, device)
 
 
 def normal_like(
@@ -249,6 +279,7 @@ def normal_like(
         dtype=dtype or input.dtype,
         seed=seed,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+        device=input.device,
     )
 
 
@@ -258,10 +289,11 @@ def randint(
     high: int,
     dtype: str = "int64",
     seed: int | None = None,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create an integer tensor sampled uniformly from ``[low, high)``."""
 
-    return _C.randint(shape, low, high, dtype, seed)
+    return _finish_tensor(_C.randint(shape, low, high, dtype, seed), target_device=device)
 
 
 def randint_like(
@@ -273,7 +305,14 @@ def randint_like(
 ) -> Tensor:
     """Create an integer random tensor with shape copied from another tensor."""
 
-    return randint(input.shape, low=low, high=high, dtype=dtype or "int64", seed=seed)
+    return randint(
+        input.shape,
+        low=low,
+        high=high,
+        dtype=dtype or "int64",
+        seed=seed,
+        device=input.device,
+    )
 
 
 def bernoulli(
@@ -281,10 +320,11 @@ def bernoulli(
     probability: float = 0.5,
     dtype: str = "bool",
     seed: int | None = None,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a tensor sampled from a Bernoulli distribution."""
 
-    return _C.bernoulli(shape, probability, dtype, seed)
+    return _finish_tensor(_C.bernoulli(shape, probability, dtype, seed), target_device=device)
 
 
 def bernoulli_like(
@@ -295,7 +335,13 @@ def bernoulli_like(
 ) -> Tensor:
     """Create a Bernoulli random tensor with shape copied from another tensor."""
 
-    return bernoulli(input.shape, probability=probability, dtype=dtype, seed=seed)
+    return bernoulli(
+        input.shape,
+        probability=probability,
+        dtype=dtype,
+        seed=seed,
+        device=input.device,
+    )
 
 
 def arange(
@@ -304,10 +350,11 @@ def arange(
     step: float = 1,
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a 1D tensor with evenly spaced values."""
 
-    return _with_requires_grad(_C.arange(start, stop, step, dtype), requires_grad)
+    return _finish_tensor(_C.arange(start, stop, step, dtype), requires_grad, device)
 
 
 def eye(
@@ -315,10 +362,11 @@ def eye(
     m: int | None = None,
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a 2D identity matrix."""
 
-    return _with_requires_grad(_C.eye(n, m, dtype), requires_grad)
+    return _finish_tensor(_C.eye(n, m, dtype), requires_grad, device)
 
 
 def linspace(
@@ -327,10 +375,11 @@ def linspace(
     steps: int,
     dtype: str = "float32",
     requires_grad: bool = False,
+    device: DeviceLike = "cpu",
 ) -> Tensor:
     """Create a 1D tensor with evenly spaced values including both endpoints."""
 
-    return _with_requires_grad(_C.linspace(start, stop, steps, dtype), requires_grad)
+    return _finish_tensor(_C.linspace(start, stop, steps, dtype), requires_grad, device)
 
 
 def manual_seed(seed: int) -> None:

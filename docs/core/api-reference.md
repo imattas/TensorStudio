@@ -165,6 +165,8 @@ Conversion:
 - `numpy()`
 - `tolist()`
 - `item()`
+- `to("float64")` for dtype casts
+- `to("cpu")`, `to_device("cpu")`, and `cpu()` for device transfers
 
 Autograd and copying:
 
@@ -467,6 +469,21 @@ These helpers compose TensorStudio tensors and keep autograd support.
 
 State-dict helpers use non-pickle NPZ files. Full checkpoints use trusted
 pickle for optimizer state and metadata.
+
+## `tensorstudio.hardware`
+
+- `Device("cpu")`
+- `device("cpu")`
+- `available_devices()`
+- `backend_info()`
+- `is_available(device)`
+- `device_count("cpu")`
+- `cuda_is_available()`
+- `metal_is_available()`
+
+The default wheels report CPU available and CUDA/Metal unavailable. Tensor
+factories accept `device="cpu"` and reject unavailable accelerator targets with
+`DeviceError`.
 
 ## Error Types
 

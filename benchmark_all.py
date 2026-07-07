@@ -20,6 +20,7 @@ ALL_SECTIONS = {
     "activations",
     "autograd",
     "training_loop",
+    "backends",
 }
 
 

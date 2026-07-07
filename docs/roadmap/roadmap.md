@@ -1,7 +1,7 @@
 # Roadmap
 
-TensorStudio `1.13.0` is a CPU-first tensor, autograd, neural-network, vision,
-project, serialization, ONNX, and release-automation foundation. The long-term direction is
+TensorStudio `1.14.0` is a CPU-first tensor, autograd, neural-network, vision,
+project, serialization, ONNX, release-automation, and device-API foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
 such as PyTorch, TensorFlow, NumPy, and JAX.
@@ -198,14 +198,14 @@ Release automation should make every published build reproducible and tested.
 New backends should wait until the CPU implementation has strong semantics and
 test coverage.
 
-- Add a formal device abstraction for CPU, CUDA, Metal, and future devices.
-- Add CUDA storage and kernel launch infrastructure.
-- Add CUDA kernels for elementwise ops, reductions, matmul, convolution, and
-  pooling.
-- Add Metal backend research for Apple platforms.
-- Add explicit device transfer APIs.
-- Add backend-specific benchmark suites.
-- Add mixed precision only after dtype semantics and hardware kernels are
+- Completed in `1.14.0`: add a formal device abstraction for CPU, CUDA, Metal, and future devices.
+- Completed in `1.14.0`: add device-aware storage boundaries plus CUDA/Metal CMake metadata hooks.
+- Deferred beyond `1.14.0`: ship CUDA execution kernels for elementwise ops, reductions,
+  matmul, convolution, and pooling only after CUDA builds and CI can test them.
+- Completed in `1.14.0`: add Metal backend research and documented Apple backend constraints.
+- Completed in `1.14.0`: add explicit device transfer APIs.
+- Completed in `1.14.0`: add backend-specific benchmark suites.
+- Deferred beyond `1.14.0`: add mixed precision only after dtype semantics and hardware kernels are
   stable.
 
 ## 11. Graph, Compiler, And Runtime Systems

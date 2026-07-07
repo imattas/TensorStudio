@@ -8,19 +8,24 @@ The benchmarks are meant to provide rough local context, not marketing claims.
 Do not claim TensorStudio is faster than NumPy or other frameworks unless a
 carefully controlled benchmark proves it.
 
-## Run Elementwise Benchmarks
+## Run The Unified Benchmark Report
 
 ```bash
 python benchmark_all.py
-python benchmarks/bench_tensor_ops.py
 ```
 
-This compares:
+The unified report covers:
 
 - elementwise add
-- ReLU
-
-against equivalent NumPy operations.
+- chained elementwise + ReLU
+- activations
+- reductions
+- matrix multiplication
+- convolution
+- pooling
+- autograd
+- tiny training loop
+- backend/device metadata checks
 
 Run the loose local regression thresholds with:
 
@@ -30,6 +35,26 @@ python benchmark_all.py --check-thresholds
 
 Thresholds live in `benchmarks/thresholds.json`. They are intentionally broad
 release smoke checks, not proof of superiority over another library.
+
+Run one section with:
+
+```bash
+python benchmark_all.py --section backends
+python benchmark_all.py --section matmul
+```
+
+Backend benchmarks record `backend_info`, `available_devices`, CPU transfer
+overhead, and accelerator availability checks. They are not CUDA or Metal
+performance claims.
+
+## Run Elementwise Legacy Script
+
+```bash
+python benchmarks/bench_tensor_ops.py
+```
+
+This older focused script compares elementwise add and ReLU against equivalent
+NumPy operations.
 
 ## Run Matmul Benchmarks
 
@@ -98,3 +123,4 @@ Useful benchmark notes:
 - Add broader shape sweep benchmarks.
 - Add CI smoke benchmarks.
 - Add memory allocation measurements.
+- Add CUDA and Metal suites only after those backends execute real kernels.

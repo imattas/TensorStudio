@@ -86,3 +86,8 @@ numbers can change, but the order should stay foundation-first.
 - Add CPU threading.
 - Prototype CUDA only after backend boundaries are clean.
 - Explore graph/JIT execution after eager semantics are stable.
+- Completed in `1.14.0`: added CPU/CUDA/Metal device descriptors, backend
+  availability metadata, device-aware storage validation, explicit transfer
+  APIs, tensor factory `device=` keywords, backend benchmark coverage, CMake
+  accelerator metadata hooks, and hardware docs. CUDA/Metal execution kernels
+  remain deferred until accelerator CI can validate them.

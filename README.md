@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.13.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.14.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
@@ -19,7 +19,10 @@ dataset factories, deterministic train/validation splitting, metrics, callbacks,
 multi-format configs, checkpoint resume helpers, and starter project templates.
 The interchange layer adds richer NPZ metadata, optional SafeTensors weight
 storage, ONNX metadata inspection, supported-subset ONNX import/execution, and
-model metadata helpers.
+model metadata helpers. The hardware layer now exposes formal CPU/CUDA/Metal
+device descriptors, backend availability reporting, device-aware storage
+boundaries, explicit transfer APIs, and backend benchmark artifacts while
+keeping the published wheels honest about CPU-only execution.
 It is eager-only, intentionally compact, and not a replacement for mature ML
 frameworks.
 
@@ -255,7 +258,7 @@ classification workflows: Pillow-backed image IO, transform pipelines,
 deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
 bounding-box drawing, and compact CNN classifiers running through native
 Conv2d/pooling kernels.
-The `1.13.0` vision surface includes batch-aware transforms, color jitter, random
+The `1.14.0` vision surface includes batch-aware transforms, color jitter, random
 resized crop, rotation, affine transforms, cutout, mixup, CutMix, detection
 helpers, segmentation mask helpers, detection/segmentation folder datasets,
 ResNet-style blocks, MobileNet-style depthwise blocks, a compact UNet, and
@@ -352,6 +355,27 @@ save_state_dict(model, project.checkpoint_path("weights"))
 print(history.last)
 ```
 
+## Hardware And Devices
+
+TensorStudio `1.14.0` exposes explicit device descriptors and backend metadata.
+The published wheels execute tensors on CPU only; CUDA and Metal descriptors are
+available for feature checks and clear errors.
+
+```python
+import tensorstudio as ts
+
+print(ts.available_devices())
+print(ts.backend_info())
+
+x = ts.ones((2, 2), device="cpu")
+print(x.to("float64").dtype)
+print(x.to_device("cpu").device)
+print(ts.cuda_is_available())
+```
+
+Passing `device="cuda"` or `device="metal"` on CPU-only wheels raises
+`DeviceError` instead of silently falling back.
+
 ## Performance
 
 TensorStudio is optimized for small-to-medium CPU eager workloads, but
@@ -382,11 +406,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.13.0`, with
+On one Windows CPython 3.10 development run reporting `1.14.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
-reported, and no BLAS provider found, TensorStudio beat NumPy on 8 local
-benchmark cases and lost on 95 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 51 local cases and lost 47. The
+reported, and no BLAS provider found, TensorStudio beat NumPy on 6 local
+benchmark cases and lost on 97 NumPy-comparable cases. JAX CPU dispatch was
+available on that machine; TensorStudio won 38 local cases and lost 60. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -398,15 +422,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0156 ms | 0.0048 ms | 0.0803 ms | 0.3067x | 5.1476x |
-| `mean` | `(32,)` | 0.0158 ms | 0.0091 ms | 0.0124 ms | 0.5738x | 0.7857x |
-| `sum_axis1` | `(16, 16)` | 0.0162 ms | 0.0028 ms | 0.0125 ms | 0.1725x | 0.7724x |
-| `chain_relu` | `(128,)` | 0.0873 ms | 0.0058 ms | 0.0976 ms | 0.0663x | 1.1173x |
-| `matmul` | `(256, 256)` | 2.5256 ms | 0.4482 ms | 0.2533 ms | 0.1775x | 0.1003x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1924 ms | 1.5425 ms | 0.1282 ms | 8.0171x | 0.6665x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0284 ms | 0.1697 ms | n/a | 5.9745x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0270 ms | 0.5957 ms | n/a | 22.0918x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.8153 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0153 ms | 0.0073 ms | 0.0745 ms | 0.4756x | 4.8586x |
+| `mean` | `(32,)` | 0.0156 ms | 0.0078 ms | 0.0114 ms | 0.4989x | 0.7318x |
+| `sum_axis1` | `(16, 16)` | 0.0158 ms | 0.0026 ms | 0.0121 ms | 0.1664x | 0.7628x |
+| `chain_relu` | `(128,)` | 0.0856 ms | 0.0055 ms | 0.0896 ms | 0.0642x | 1.0463x |
+| `matmul` | `(256, 256)` | 2.0576 ms | 0.4624 ms | 0.2808 ms | 0.2247x | 0.1365x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1832 ms | 1.2897 ms | 0.0998 ms | 7.0413x | 0.5449x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0276 ms | 0.1571 ms | n/a | 5.6964x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0273 ms | 0.5435 ms | n/a | 19.9107x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7089 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -524,7 +548,8 @@ tokens or print secrets.
 
 - CPU backend only.
 - Eager execution only.
-- No CUDA or Metal backend yet.
+- No CUDA or Metal tensor execution yet. CUDA/Metal device descriptors and
+  build metadata exist, but unavailable accelerators raise `DeviceError`.
 - Optional BLAS-backed matrix multiplication depends on the build environment
   exposing a compatible CBLAS/Accelerate interface; otherwise TensorStudio uses
   a portable C++ fallback.
@@ -553,7 +578,7 @@ tokens or print secrets.
 
 ## Roadmap
 
-- CUDA backend
+- CUDA and Metal execution backends
 - Graph/JIT mode
 - Broader convolution ops, adaptive/global pooling, and image-model examples
 - Richer dataset utilities

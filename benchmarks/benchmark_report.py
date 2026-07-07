@@ -108,6 +108,8 @@ def _iterations(shape: tuple[int, ...], category: str) -> int:
         if n <= 4096:
             return 30
         return 10
+    if category == "backends":
+        return 1_000
     if n <= 128:
         return 2_000
     if n <= 4096:
@@ -648,6 +650,30 @@ def _training_loop_build(
     raise NotImplementedError
 
 
+def _backend_build(
+    operation: str,
+) -> Callable[[Library, np.ndarray, np.ndarray], Callable[[], Any]]:
+    def build(library: Library, _: np.ndarray, __: np.ndarray) -> Callable[[], Any]:
+        if library.name != "TensorStudio":
+            raise NotImplementedError
+        tensor = ts.ones((1024,))
+
+        def run() -> Any:
+            if operation == "backend_info":
+                return ts.backend_info()
+            if operation == "available_devices":
+                return ts.available_devices()
+            if operation == "cpu_transfer":
+                return tensor.to_device("cpu")
+            if operation == "cuda_availability_check":
+                return ts.cuda_is_available()
+            raise ValueError(operation)
+
+        return run
+
+    return build
+
+
 def _build_cases(sections: set[str]) -> list[BenchmarkCase]:
     cases: list[BenchmarkCase] = []
 
@@ -713,6 +739,14 @@ def _build_cases(sections: set[str]) -> list[BenchmarkCase]:
                 repeats=5,
             )
         )
+
+    for operation in [
+        "backend_info",
+        "available_devices",
+        "cpu_transfer",
+        "cuda_availability_check",
+    ]:
+        add_case("backends", operation, (1,), _backend_build(operation))
 
     return cases
 
@@ -998,6 +1032,7 @@ def main() -> None:
             "activations",
             "autograd",
             "training_loop",
+            "backends",
         ],
         help="Benchmark section to run. Repeat for multiple sections. Defaults to all sections.",
     )
@@ -1019,6 +1054,7 @@ def main() -> None:
             "activations",
             "autograd",
             "training_loop",
+            "backends",
         ]
     )
     report = run_benchmarks(sections, args.output)

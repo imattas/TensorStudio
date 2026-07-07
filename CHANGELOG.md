@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 1.14.0 - 2026-07-07
+
+- Completed the safe, testable Hardware Backends roadmap batch without claiming
+  CUDA or Metal execution in CPU wheels.
+- Added native CPU/CUDA/Metal `Device` descriptors, parsing, equality, and
+  backend availability metadata.
+- Added top-level Python hardware helpers: `device`, `available_devices`,
+  `backend_info`, `device_count`, `cuda_is_available`, and
+  `metal_is_available`.
+- Added explicit tensor transfer APIs: `Tensor.to_device()`, `Tensor.cpu()`,
+  and `Tensor.to("cpu")` while preserving dtype casts like `Tensor.to("float64")`.
+- Added `device=` keywords to public tensor factory helpers.
+- Made native storage device-aware and reject unsupported accelerator
+  allocation clearly.
+- Added CMake gates for experimental CUDA and Metal metadata hooks.
+- Added backend benchmark coverage and hardware backend documentation.
+- Documented that real CUDA/Metal kernels remain deferred until accelerator
+  builds and CI can validate them.
+
 ## 1.13.0 - 2026-07-07
 
 - Completed the ordered Packaging, CI, And Release Quality roadmap section as

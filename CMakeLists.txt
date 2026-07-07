@@ -1,12 +1,14 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(tensorstudio VERSION 1.13.0 LANGUAGES CXX)
+project(tensorstudio VERSION 1.14.0 LANGUAGES CXX)
 
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
 
 option(TENSORSTUDIO_ENABLE_BLAS "Enable optional CBLAS-backed matmul when available" ON)
+option(TENSORSTUDIO_ENABLE_CUDA "Enable experimental CUDA backend metadata hooks" OFF)
+option(TENSORSTUDIO_ENABLE_METAL "Enable experimental Metal backend metadata hooks on Apple platforms" OFF)
 
 set(TENSORSTUDIO_CORE_SOURCES
   src/core/tensor.cpp
@@ -52,6 +54,23 @@ if(TENSORSTUDIO_ENABLE_BLAS)
     elseif(TENSORSTUDIO_HAVE_CBLAS_H)
       target_compile_definitions(_C PRIVATE TENSORSTUDIO_HAS_CBLAS=1)
     endif()
+  endif()
+endif()
+
+if(TENSORSTUDIO_ENABLE_CUDA)
+  find_package(CUDAToolkit QUIET)
+  if(CUDAToolkit_FOUND)
+    target_compile_definitions(_C PRIVATE TENSORSTUDIO_HAS_CUDA=1)
+  else()
+    message(WARNING "TENSORSTUDIO_ENABLE_CUDA was requested, but CUDAToolkit was not found")
+  endif()
+endif()
+
+if(TENSORSTUDIO_ENABLE_METAL)
+  if(APPLE)
+    target_compile_definitions(_C PRIVATE TENSORSTUDIO_HAS_METAL=1)
+  else()
+    message(WARNING "TENSORSTUDIO_ENABLE_METAL is only supported on Apple platforms")
   endif()
 endif()
 

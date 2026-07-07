@@ -1,6 +1,6 @@
 # Segmentation Utilities
 
-TensorStudio `1.13.0` includes mask helpers and a folder dataset for semantic
+TensorStudio `1.14.0` includes mask helpers and a folder dataset for semantic
 segmentation experiments.
 
 ## Mask Metrics

@@ -206,7 +206,7 @@ Tensor::Tensor(
   impl_->shape = std::move(shape);
   impl_->strides = std::move(strides);
   impl_->offset = offset;
-  impl_->device = cpu_device();
+  impl_->device = impl_->storage->device();
   impl_->autograd = std::make_shared<AutogradMeta>();
   set_requires_grad(requires_grad);
 }
@@ -291,6 +291,28 @@ bool Tensor::is_contiguous() const {
 Device Tensor::device() const {
   ensure_defined();
   return impl_->device;
+}
+
+Tensor Tensor::to_device(const Device& device) const {
+  ensure_defined();
+  if (!is_device_available(device)) {
+    throw DeviceError(
+        "device '" + device.str() + "' is not available in this TensorStudio build; " +
+        "available devices are CPU-only unless an accelerator backend is compiled and enabled");
+  }
+  if (impl_->device == device) {
+    return *this;
+  }
+  if (device.is_cpu()) {
+    Tensor out(shape(), dtype(), requires_grad());
+    out.copy_from(*this);
+    return out;
+  }
+  throw DeviceError("device transfer to '" + device.str() + "' is not implemented in this build");
+}
+
+Tensor Tensor::cpu() const {
+  return to_device(cpu_device());
 }
 
 Tensor Tensor::clone() const {

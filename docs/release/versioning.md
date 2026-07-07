@@ -30,8 +30,8 @@ Before a release, update the version consistently in:
 Tags use a leading `v`:
 
 ```bash
-git tag v1.13.0
-git push origin v1.13.0
+git tag v1.14.0
+git push origin v1.14.0
 ```
 
 GitHub Actions uses the tag to build wheels and release artifacts.
