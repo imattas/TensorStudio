@@ -22,6 +22,7 @@ nav:
       - Build From Source: getting-started/source-build.md
   - Core Tensor Engine:
       - Tensor API: core/tensors.md
+      - Math And Statistics: core/math-and-statistics.md
       - Broadcasting: core/broadcasting.md
       - Native C++ Core: core/native-cpp-core.md
       - API Reference: core/api-reference.md

@@ -64,7 +64,7 @@ equivalents where available.
 ## Interpreting Results
 
 Expect NumPy and PyTorch to be faster for many medium and large operations
-because they use highly optimized native kernels. TensorStudio `1.6.0` adds a
+because they use highly optimized native kernels. TensorStudio `1.6.0` and later add a
 native thread pool, compiler-vectorization-friendly `float32` and `float64`
 loops, bounded storage reuse, and optional CBLAS/Accelerate `matmul`, but it
 still favors clarity, portability, and a compact C++ implementation over full

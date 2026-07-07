@@ -7,9 +7,11 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.6.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.7.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
-CBLAS/Accelerate matrix multiplication when available. It is eager-only,
+CBLAS/Accelerate matrix multiplication when available. It adds native stable
+softmax/logsumexp, batched matrix multiplication, statistical reductions,
+boolean reductions, and seeded random distributions. It is eager-only,
 intentionally compact, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -101,12 +103,15 @@ a = ts.zeros((2, 3))
 b = ts.rand((2, 3))
 c = ts.eye(3)
 d = ts.linspace(0.0, 1.0, 5)
+labels = ts.randint((4,), low=0, high=3, seed=3)
+mask = ts.bernoulli((2, 3), probability=0.25, seed=5)
 
 print(a.shape, a.strides, a.device, a.is_contiguous)
 print((b.clamp(0.2, 0.8) + 1).mean().item())
 print(b.sum(axis=1).tolist())
 print(ts.concat([b, b], axis=0).shape, b.astype("float64").dtype)
 print(c.tolist(), d.tolist())
+print(labels.tolist(), mask.any(axis=1).tolist())
 print(ts.zeros_like(b).shape, ts.randn_like(b, seed=11).dtype)
 ```
 
@@ -135,14 +140,29 @@ print(loss.item())
 print(x.grad.tolist())
 ```
 
-Higher-level helpers live in `tensorstudio.math`:
+Stable reductions and normalized probabilities are available as Tensor methods,
+functional ops, and `tensorstudio.math` helpers:
 
 ```python
-values = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+values = ts.tensor([[1000.0, 1001.0, 999.0], [1.0, 2.0, 3.0]])
 
 print(ts.math.variance(values).item())
 print(ts.math.std(values, axis=0).tolist())
 print(ts.math.norm(values, ord=2).item())
+print(values.softmax(axis=1).tolist())
+print(ts.logsumexp(values, axis=1).tolist())
+```
+
+Batched matrix multiplication and a small documented `einsum` subset cover
+common model and scientific-programming patterns:
+
+```python
+left = ts.randn((2, 3, 4), seed=1)
+right = ts.randn((2, 4, 5), seed=2)
+
+print((left @ right).shape)
+print(ts.bmm(left, right).shape)
+print(ts.einsum("bij,bjk->bik", left, right).shape)
 ```
 
 ## Autograd
@@ -297,11 +317,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.6.0`, with
+On one Windows CPython 3.10 development run reporting `1.7.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
 benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 39 local cases and lost 59. The
+available on that machine; TensorStudio won 45 local cases and lost 53. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -313,15 +333,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0173 ms | 0.0047 ms | 0.0719 ms | 0.2724x | 4.1608x |
-| `mean` | `(32,)` | 0.0157 ms | 0.0082 ms | 0.0119 ms | 0.5208x | 0.7587x |
-| `sum_axis1` | `(16, 16)` | 0.0159 ms | 0.0031 ms | 0.0131 ms | 0.1924x | 0.8231x |
-| `chain_relu` | `(128,)` | 0.0992 ms | 0.0063 ms | 0.1113 ms | 0.0636x | 1.1219x |
-| `matmul` | `(256, 256)` | 2.5261 ms | 0.3848 ms | 0.2288 ms | 0.1524x | 0.0906x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2120 ms | 1.2975 ms | 0.0959 ms | 6.1191x | 0.4524x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0286 ms | 0.1613 ms | n/a | 5.6321x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0304 ms | 0.5601 ms | n/a | 18.4457x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7150 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0152 ms | 0.0044 ms | 0.0727 ms | 0.2909x | 4.7701x |
+| `mean` | `(32,)` | 0.0177 ms | 0.0083 ms | 0.0113 ms | 0.4715x | 0.6400x |
+| `sum_axis1` | `(16, 16)` | 0.0163 ms | 0.0031 ms | 0.0123 ms | 0.1901x | 0.7536x |
+| `chain_relu` | `(128,)` | 0.0867 ms | 0.0062 ms | 0.0923 ms | 0.0721x | 1.0641x |
+| `matmul` | `(256, 256)` | 2.2252 ms | 0.4754 ms | 0.2750 ms | 0.2136x | 0.1236x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1915 ms | 1.2845 ms | 0.1081 ms | 6.7064x | 0.5646x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0277 ms | 0.1577 ms | n/a | 5.7024x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0278 ms | 0.5538 ms | n/a | 19.8919x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7344 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.

@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+## 1.7.0 - 2026-07-07
+
+- Completed the ordered Core Math Expansion roadmap section as one release
+  batch.
+- Added native C++ `logsumexp`, `softmax`, and `log_softmax` operations with
+  max-shifted stable numerics and autograd support.
+- Added native C++ batched matrix multiplication through `bmm` and 3D `@`
+  dispatch, including reverse-mode gradients for both operands.
+- Added native C++ `var`, `variance`, `std`, `all`, and `any` operations, plus
+  Tensor methods and top-level Python exports where appropriate.
+- Added Tensor-level `norm()` and expanded `tensorstudio.math` with
+  `logsumexp`, `softmax`, `log_softmax`, boolean reductions, and a documented
+  practical `einsum` subset.
+- Added seeded native random distributions: `uniform`, `normal`, `randint`,
+  and `bernoulli`, with Python `*_like` helpers where useful.
+- Switched neural-network functional softmax/log-softmax and cross entropy to
+  the native stable kernels.
+- Added NumPy parity and autograd tests for the expanded math surface.
+
 ## 1.6.0 - 2026-07-07
 
 - Completed the ordered CPU Performance Core roadmap section as one release

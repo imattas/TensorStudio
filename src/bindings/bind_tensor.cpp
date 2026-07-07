@@ -160,6 +160,13 @@ py::object none_if_undefined(const Tensor& tensor) {
   return py::cast(tensor);
 }
 
+std::optional<uint64_t> optional_seed_from_py(py::object seed) {
+  if (seed.is_none()) {
+    return std::nullopt;
+  }
+  return py::cast<uint64_t>(seed);
+}
+
 py::tuple shape_tuple(const Shape& shape) {
   py::tuple result(shape.size());
   for (std::size_t i = 0; i < shape.size(); ++i) {
@@ -508,6 +515,78 @@ py::object tensor_to_py_list(const Tensor& tensor) {
   return nested_list_from_tensor(tensor, 0, linear);
 }
 
+Tensor variance_from_py(const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+  if (axis.is_none()) {
+    return variance(input, correction);
+  }
+  if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+    throw ShapeError("var axis must be None or an int; use tensorstudio.math.variance for tuple axes");
+  }
+  return variance(input, py::cast<int64_t>(axis), keepdims, correction);
+}
+
+Tensor stddev_from_py(const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+  if (axis.is_none()) {
+    return stddev(input, correction);
+  }
+  if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+    throw ShapeError("std axis must be None or an int; use tensorstudio.math.std for tuple axes");
+  }
+  return stddev(input, py::cast<int64_t>(axis), keepdims, correction);
+}
+
+Tensor norm_from_py(const Tensor& input, py::object ord, py::object axis, bool keepdims) {
+  Tensor magnitude = tensorstudio::abs(input);
+  bool use_l1 = false;
+  bool use_l2 = false;
+  bool use_inf = false;
+
+  if (py::isinstance<py::str>(ord)) {
+    const std::string name = py::cast<std::string>(ord);
+    if (name == "fro") {
+      use_l2 = true;
+    } else if (name == "inf") {
+      use_inf = true;
+    } else {
+      throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+    }
+  } else if (py::isinstance<py::int_>(ord) && !py::isinstance<py::bool_>(ord)) {
+    const int64_t value = py::cast<int64_t>(ord);
+    if (value == 1) {
+      use_l1 = true;
+    } else if (value == 2) {
+      use_l2 = true;
+    } else {
+      throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+    }
+  } else {
+    throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+  }
+
+  if (use_l1) {
+    return reduce_from_py(magnitude, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+      return sum(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return sum(tensor, normalized_axis, keep);
+    });
+  }
+  if (use_inf) {
+    return reduce_from_py(magnitude, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+      return max(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return max(tensor, normalized_axis, keep);
+    });
+  }
+
+  Tensor squared = mul(input, input);
+  Tensor reduced = reduce_from_py(squared, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+    return sum(tensor);
+  }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+    return sum(tensor, normalized_axis, keep);
+  });
+  return sqrt(reduced);
+}
+
 void bind_tensor(py::module_& module) {
   py::class_<Tensor>(module, "Tensor")
       .def("__repr__", &Tensor::repr)
@@ -562,6 +641,10 @@ void bind_tensor(py::module_& module) {
           return mean(input, normalized_axis, keep);
         });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("var", &variance_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("variance", &variance_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("std", &stddev_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("norm", &norm_from_py, py::arg("ord") = 2, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("max", [](const Tensor& self, py::object axis, bool keepdims) {
         return reduce_from_py(self, std::move(axis), keepdims, "max", [](const Tensor& input) {
           return max(input);
@@ -590,11 +673,34 @@ void bind_tensor(py::module_& module) {
           return argmin(input, normalized_axis, keep);
         });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("all", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "all", [](const Tensor& input) {
+          return tensorstudio::all(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return tensorstudio::all(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("any", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "any", [](const Tensor& input) {
+          return tensorstudio::any(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return tensorstudio::any(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("relu", &relu)
       .def("sigmoid", &sigmoid)
       .def("tanh", &tanh)
       .def("exp", &exp)
       .def("log", &log)
+      .def("logsumexp", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "logsumexp", [](const Tensor& input) {
+          return logsumexp(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return logsumexp(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("softmax", &softmax, py::arg("axis") = -1)
+      .def("log_softmax", &log_softmax, py::arg("axis") = -1)
       .def("log1p", &log1p)
       .def("sqrt", &sqrt)
       .def("rsqrt", &rsqrt)
@@ -690,11 +796,7 @@ void bind_tensor(py::module_& module) {
   module.def(
       "rand",
       [](py::object shape, py::object dtype, py::object seed) {
-        std::optional<uint64_t> cpp_seed;
-        if (!seed.is_none()) {
-          cpp_seed = py::cast<uint64_t>(seed);
-        }
-        return rand(shape_from_py(shape), dtype_from_py(dtype), cpp_seed);
+        return rand(shape_from_py(shape), dtype_from_py(dtype), optional_seed_from_py(seed));
       },
       py::arg("shape"),
       py::arg("dtype") = "float32",
@@ -702,14 +804,49 @@ void bind_tensor(py::module_& module) {
   module.def(
       "randn",
       [](py::object shape, py::object dtype, py::object seed) {
-        std::optional<uint64_t> cpp_seed;
-        if (!seed.is_none()) {
-          cpp_seed = py::cast<uint64_t>(seed);
-        }
-        return randn(shape_from_py(shape), dtype_from_py(dtype), cpp_seed);
+        return randn(shape_from_py(shape), dtype_from_py(dtype), optional_seed_from_py(seed));
       },
       py::arg("shape"),
       py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "uniform",
+      [](py::object shape, double low, double high, py::object dtype, py::object seed) {
+        return uniform(shape_from_py(shape), low, high, dtype_from_py(dtype), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("low") = 0.0,
+      py::arg("high") = 1.0,
+      py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "normal",
+      [](py::object shape, double mean, double stddev, py::object dtype, py::object seed) {
+        return normal(shape_from_py(shape), mean, stddev, dtype_from_py(dtype), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("mean") = 0.0,
+      py::arg("stddev") = 1.0,
+      py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "randint",
+      [](py::object shape, int64_t low, int64_t high, py::object dtype, py::object seed) {
+        return randint(shape_from_py(shape), low, high, dtype_from_py(dtype, DType::Int64), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("low"),
+      py::arg("high"),
+      py::arg("dtype") = "int64",
+      py::arg("seed") = py::none());
+  module.def(
+      "bernoulli",
+      [](py::object shape, double probability, py::object dtype, py::object seed) {
+        return bernoulli(shape_from_py(shape), probability, dtype_from_py(dtype, DType::Bool), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("probability") = 0.5,
+      py::arg("dtype") = "bool",
       py::arg("seed") = py::none());
   module.def(
       "arange",

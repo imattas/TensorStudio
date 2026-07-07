@@ -33,7 +33,7 @@ Before adding an optimized kernel:
 
 Allocation:
 Creating many temporary tensors can be more expensive than the math.
-TensorStudio `1.6.0` includes a bounded native storage pool for repeated
+TensorStudio `1.6.0` and later include a bounded native storage pool for repeated
 allocation sizes. It reuses blocks after tensors release their final reference
 and zeroes reused storage before handing it back to preserve existing behavior.
 Prefer fused kernels only when the behavior is stable and tests are strong.

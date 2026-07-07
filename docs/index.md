@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.6.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.7.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -23,17 +23,20 @@ TensorStudio is:
   device, and autograd metadata.
 - Dtypes: `float32`, `float64`, `int32`, `int64`, and `bool`.
 - Tensor creation helpers: `tensor`, `from_numpy`, `zeros`, `ones`, `full`,
-  `empty`, `rand`, `randn`, `arange`, `eye`, `linspace`, and matching
-  `*_like` helpers.
+  `empty`, `rand`, `randn`, `uniform`, `normal`, `randint`, `bernoulli`,
+  `arange`, `eye`, `linspace`, and matching `*_like` helpers where useful.
 - NumPy-style broadcasting for binary elementwise operations.
 - Arithmetic, comparison helpers, `where`, `maximum`, `minimum`, matrix
-  multiplication, all-element, single-axis, and tuple-axis reductions, arg
-  reductions, common activations, trigonometric functions, inverse
-  trigonometric functions, `log1p`, `sqrt`, `rsqrt`, `abs`, `clamp`/`clip`,
-  CPU NCHW `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten, 2D
+  multiplication, batched matrix multiplication, all-element, single-axis, and
+  tuple-axis reductions, arg reductions, boolean reductions, statistical
+  reductions, common activations, stable `softmax`, `log_softmax`,
+  `logsumexp`, trigonometric functions, inverse trigonometric functions,
+  `log1p`, `sqrt`, `rsqrt`, `abs`, `clamp`/`clip`, CPU NCHW `conv2d`,
+  `max_pool2d`, `avg_pool2d`, reshape, flatten, 2D
   transpose, and common integer/slice indexing views.
 - Higher-level `tensorstudio.math` helpers for variance, standard deviation,
-  norms, square, and reciprocal.
+  norms, stable probability helpers, boolean reductions, a practical `einsum`
+  subset, square, and reciprocal.
 - Basic dtype casting plus native `concat` and `stack`.
 - Reverse-mode autograd for the v1 operation set.
 - Python `nn.Module`, parameters, linear, convolution, and pooling layers,

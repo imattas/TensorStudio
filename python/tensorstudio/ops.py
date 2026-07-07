@@ -84,6 +84,10 @@ def matmul(left: Tensor, right: Any) -> Tensor:
     return _C.matmul(left, right)
 
 
+def bmm(left: Tensor, right: Any) -> Tensor:
+    return _C.bmm(left, right)
+
+
 def conv2d(
     input: Tensor,
     weight: Tensor,
@@ -168,6 +172,33 @@ def mean(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor
     return _C.mean(input, axis, keepdims)
 
 
+def var(
+    input: Tensor,
+    axis: int | None = None,
+    keepdims: bool = False,
+    correction: int = 0,
+) -> Tensor:
+    return _C.var(input, axis, keepdims, correction)
+
+
+def variance(
+    input: Tensor,
+    axis: int | None = None,
+    keepdims: bool = False,
+    correction: int = 0,
+) -> Tensor:
+    return _C.variance(input, axis, keepdims, correction)
+
+
+def std(
+    input: Tensor,
+    axis: int | None = None,
+    keepdims: bool = False,
+    correction: int = 0,
+) -> Tensor:
+    return _C.std(input, axis, keepdims, correction)
+
+
 def max(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
     return _C.max(input, axis, keepdims)
 
@@ -182,6 +213,14 @@ def argmax(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Te
 
 def argmin(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
     return _C.argmin(input, axis, keepdims)
+
+
+def all(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+    return _C.all(input, axis, keepdims)
+
+
+def any(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+    return _C.any(input, axis, keepdims)
 
 
 def relu(input: Tensor) -> Tensor:
@@ -202,6 +241,18 @@ def exp(input: Tensor) -> Tensor:
 
 def log(input: Tensor) -> Tensor:
     return _C.log(input)
+
+
+def logsumexp(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:
+    return _C.logsumexp(input, axis, keepdims)
+
+
+def softmax(input: Tensor, axis: int = -1) -> Tensor:
+    return _C.softmax(input, axis)
+
+
+def log_softmax(input: Tensor, axis: int = -1) -> Tensor:
+    return _C.log_softmax(input, axis)
 
 
 def log1p(input: Tensor) -> Tensor:
@@ -298,6 +349,9 @@ __all__ = [
     "astype",
     "atan",
     "avg_pool2d",
+    "all",
+    "any",
+    "bmm",
     "clamp",
     "clip",
     "concat",
@@ -312,7 +366,9 @@ __all__ = [
     "less",
     "less_equal",
     "log",
+    "log_softmax",
     "log1p",
+    "logsumexp",
     "matmul",
     "max",
     "max_pool2d",
@@ -330,14 +386,18 @@ __all__ = [
     "rsqrt",
     "sigmoid",
     "sin",
+    "softmax",
     "stack",
     "sub",
     "sum",
     "squeeze",
     "sqrt",
+    "std",
     "tan",
     "tanh",
     "transpose",
     "unsqueeze",
+    "var",
+    "variance",
     "where",
 ]

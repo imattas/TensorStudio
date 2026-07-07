@@ -9,6 +9,9 @@ numbers can change, but the order should stay foundation-first.
 - Expand reduction and indexing coverage.
 - Improve dtype conversion and promotion tests.
 - Add more native C++ kernels for hot paths.
+- Completed in `1.7.0`: core math expansion covering stable softmax,
+  logsumexp, batched matmul, statistics, boolean reductions, random
+  distributions, and a practical `einsum` subset.
 
 ## Milestone B: Autograd Coverage
 

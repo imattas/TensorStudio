@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from tensorstudio.ops import avg_pool2d as _avg_pool2d
 from tensorstudio.ops import conv2d as _conv2d
+from tensorstudio.ops import log_softmax as _log_softmax
 from tensorstudio.ops import max_pool2d as _max_pool2d
+from tensorstudio.ops import softmax as _softmax
 from tensorstudio.tensor import Tensor, tensor
 
 
@@ -73,14 +75,11 @@ def softplus(input: Tensor) -> Tensor:
 
 
 def softmax(input: Tensor, axis: int = -1) -> Tensor:
-    shifted = input - input.max(axis=axis, keepdims=True).detach()
-    exp_values = shifted.exp()
-    return exp_values / exp_values.sum(axis=axis, keepdims=True)
+    return _softmax(input, axis=axis)
 
 
 def log_softmax(input: Tensor, axis: int = -1) -> Tensor:
-    shifted = input - input.max(axis=axis, keepdims=True).detach()
-    return shifted - shifted.exp().sum(axis=axis, keepdims=True).log()
+    return _log_softmax(input, axis=axis)
 
 
 def mse_loss(input: Tensor, target: Tensor) -> Tensor:

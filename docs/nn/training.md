@@ -80,7 +80,7 @@ w = ts.randn((4, 4), seed=123)
 
 ## Practical Tips
 
-- Keep tensors modest in `1.6.0`; kernels are CPU-first and still compact
+- Keep tensors modest in `1.7.0`; kernels are CPU-first and still compact
   compared with mature high-performance ML runtimes.
 - Prefer `float32` unless you need `float64`.
 - Compare with NumPy in tests for expected numerical values.

@@ -27,6 +27,14 @@ modules, optimizers, data utilities, and serialization helpers.
 - `rand_like`
 - `randn`
 - `randn_like`
+- `uniform`
+- `uniform_like`
+- `normal`
+- `normal_like`
+- `randint`
+- `randint_like`
+- `bernoulli`
+- `bernoulli_like`
 - `arange`
 - `eye`
 - `linspace`
@@ -40,8 +48,12 @@ modules, optimizers, data utilities, and serialization helpers.
 - `asin`
 - `acos`
 - `atan`
+- `logsumexp`
+- `softmax`
+- `log_softmax`
 - `log1p`
 - `rsqrt`
+- `bmm`
 - `equal`
 - `not_equal`
 - `less`
@@ -54,6 +66,13 @@ modules, optimizers, data utilities, and serialization helpers.
 - `conv2d`
 - `max_pool2d`
 - `avg_pool2d`
+- `all`
+- `any`
+- `var`
+- `variance`
+- `std`
+- `norm`
+- `einsum`
 - `astype`
 - `concat`
 - `stack`
@@ -93,6 +112,14 @@ ts.rand(shape, dtype="float32", seed=None, requires_grad=False)
 ts.rand_like(input, dtype=None, seed=None, requires_grad=None)
 ts.randn(shape, dtype="float32", seed=None, requires_grad=False)
 ts.randn_like(input, dtype=None, seed=None, requires_grad=None)
+ts.uniform(shape, low=0.0, high=1.0, dtype="float32", seed=None, requires_grad=False)
+ts.uniform_like(input, low=0.0, high=1.0, dtype=None, seed=None, requires_grad=None)
+ts.normal(shape, mean=0.0, stddev=1.0, dtype="float32", seed=None, requires_grad=False)
+ts.normal_like(input, mean=0.0, stddev=1.0, dtype=None, seed=None, requires_grad=None)
+ts.randint(shape, low, high, dtype="int64", seed=None)
+ts.randint_like(input, low, high, dtype=None, seed=None)
+ts.bernoulli(shape, probability=0.5, dtype="bool", seed=None)
+ts.bernoulli_like(input, probability=0.5, dtype="bool", seed=None)
 ts.arange(start, stop=None, step=1, dtype="float32", requires_grad=False)
 ts.eye(n, m=None, dtype="float32", requires_grad=False)
 ts.linspace(start, stop, steps, dtype="float32", requires_grad=False)
@@ -163,10 +190,16 @@ Math:
 
 - `sum(axis=None, keepdims=False)`
 - `mean(axis=None, keepdims=False)`
+- `var(axis=None, keepdims=False, correction=0)`
+- `variance(axis=None, keepdims=False, correction=0)`
+- `std(axis=None, keepdims=False, correction=0)`
+- `norm(ord=2, axis=None, keepdims=False)`
 - `max(axis=None, keepdims=False)`
 - `min(axis=None, keepdims=False)`
 - `argmax(axis=None, keepdims=False)`
 - `argmin(axis=None, keepdims=False)`
+- `all(axis=None, keepdims=False)`
+- `any(axis=None, keepdims=False)`
 
 For reductions, `axis` may be `None`, an int, or a tuple/list of ints.
 Negative axes are normalized against the input rank, duplicate axes are
@@ -175,6 +208,10 @@ rejected, and `axis=()` is a no-op identity.
 For arg reductions, `axis` may be `None` or an int. All-element arg reductions
 return the flat index of the first selected value. Axis arg reductions return
 `int64` indices along that axis and are not differentiable.
+
+Tensor `var` and `std` support all-elements and single-axis reductions.
+Tuple-axis variance and standard deviation are available through
+`tensorstudio.math.variance` and `tensorstudio.math.std`.
 
 Comparisons and selection:
 
@@ -198,6 +235,9 @@ branches, not through the boolean condition.
 - `tanh()`
 - `exp()`
 - `log()`
+- `logsumexp(axis=None, keepdims=False)`
+- `softmax(axis=-1)`
+- `log_softmax(axis=-1)`
 - `log1p()`
 - `sqrt()`
 - `rsqrt()`
@@ -242,7 +282,11 @@ ts.asin(input)
 ts.acos(input)
 ts.atan(input)
 ts.log1p(input)
+ts.logsumexp(input, axis=None, keepdims=False)
+ts.softmax(input, axis=-1)
+ts.log_softmax(input, axis=-1)
 ts.rsqrt(input)
+ts.bmm(left, right)
 ts.equal(left, right)
 ts.not_equal(left, right)
 ts.less(left, right)
@@ -255,6 +299,13 @@ ts.where(condition, true_value, false_value)
 ts.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1)
 ts.max_pool2d(input, kernel_size, stride=None, padding=0, dilation=1)
 ts.avg_pool2d(input, kernel_size, stride=None, padding=0, count_include_pad=False)
+ts.all(input, axis=None, keepdims=False)
+ts.any(input, axis=None, keepdims=False)
+ts.var(input, axis=None, keepdims=False, correction=0)
+ts.variance(input, axis=None, keepdims=False, correction=0)
+ts.std(input, axis=None, keepdims=False, correction=0)
+ts.norm(input, ord=2, axis=None, keepdims=False)
+ts.einsum(pattern, *operands)
 ```
 
 Comparison functions always return `bool` tensors. `where` requires a `bool`
@@ -273,6 +324,14 @@ bias.
 `stride=None`, pooling defaults to non-overlapping windows with
 `stride=kernel_size`. `max_pool2d` supports dilation; `avg_pool2d` supports
 `count_include_pad`.
+
+`bmm` expects two 3D tensors with shapes `(batch, rows, inner)` and
+`(batch, inner, columns)`. The `@` operator dispatches to the same batched
+kernel when both operands are 3D.
+
+`softmax`, `log_softmax`, and `logsumexp` use max-shifted stable numerics.
+`einsum` supports a documented practical subset of common matrix, batched
+matrix, dot-product, transpose, and sum patterns.
 
 ```python
 ts.astype(input, dtype)
@@ -356,6 +415,12 @@ Optimizers implement `zero_grad`, `step`, `state_dict`, and `load_state_dict`.
 - `variance(input, axis=None, keepdims=False, correction=0)`
 - `std(input, axis=None, keepdims=False, correction=0)`
 - `norm(input, ord=2, axis=None, keepdims=False)`
+- `logsumexp(input, axis=None, keepdims=False)`
+- `softmax(input, axis=-1)`
+- `log_softmax(input, axis=-1)`
+- `all(input, axis=None, keepdims=False)`
+- `any(input, axis=None, keepdims=False)`
+- `einsum(pattern, *operands)`
 
 These helpers accept the same reduction axis forms as native reductions:
 `None`, an int, or a tuple/list of ints.

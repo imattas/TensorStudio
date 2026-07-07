@@ -891,6 +891,7 @@ Tensor where_impl(const Tensor& condition, const Tensor& true_value, const Tenso
 Tensor neg_impl(const Tensor& input, bool track_grad);
 Tensor pow_impl(const Tensor& input, double exponent, bool track_grad);
 Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad);
+Tensor bmm_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor conv2d_impl(
     const Tensor& input,
     const Tensor& weight,
@@ -927,15 +928,27 @@ Tensor sum_impl(const Tensor& input, bool track_grad);
 Tensor sum_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor mean_impl(const Tensor& input, bool track_grad);
 Tensor mean_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
+Tensor variance_impl(const Tensor& input, int64_t correction, bool track_grad);
+Tensor variance_axis_impl(const Tensor& input, int64_t axis, bool keepdims, int64_t correction, bool track_grad);
+Tensor stddev_impl(const Tensor& input, int64_t correction, bool track_grad);
+Tensor stddev_axis_impl(const Tensor& input, int64_t axis, bool keepdims, int64_t correction, bool track_grad);
 Tensor max_impl(const Tensor& input, bool track_grad);
 Tensor max_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor min_impl(const Tensor& input, bool track_grad);
 Tensor min_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
+Tensor all_impl(const Tensor& input, bool keepdims);
+Tensor all_axis_impl(const Tensor& input, int64_t axis, bool keepdims);
+Tensor any_impl(const Tensor& input, bool keepdims);
+Tensor any_axis_impl(const Tensor& input, int64_t axis, bool keepdims);
 Tensor relu_impl(const Tensor& input, bool track_grad);
 Tensor sigmoid_impl(const Tensor& input, bool track_grad);
 Tensor tanh_impl(const Tensor& input, bool track_grad);
 Tensor exp_impl(const Tensor& input, bool track_grad);
 Tensor log_impl(const Tensor& input, bool track_grad);
+Tensor logsumexp_impl(const Tensor& input, bool track_grad);
+Tensor logsumexp_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
+Tensor softmax_impl(const Tensor& input, int64_t axis, bool track_grad);
+Tensor log_softmax_impl(const Tensor& input, int64_t axis, bool track_grad);
 Tensor log1p_impl(const Tensor& input, bool track_grad);
 Tensor sqrt_impl(const Tensor& input, bool track_grad);
 Tensor rsqrt_impl(const Tensor& input, bool track_grad);
@@ -1162,9 +1175,12 @@ Tensor pow_impl(const Tensor& input, double exponent, bool track_grad) {
 }
 
 Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
+  if (left.ndim() == 3 && right.ndim() == 3) {
+    return bmm_impl(left, right, track_grad);
+  }
   if (left.ndim() != 2 || right.ndim() != 2) {
     throw ShapeError(
-        "matmul expects two 2D tensors, got " + shape_to_string(left.shape()) + " and " +
+        "matmul expects two 2D tensors or two 3D batched tensors, got " + shape_to_string(left.shape()) + " and " +
         shape_to_string(right.shape()));
   }
   if (left.shape()[1] != right.shape()[0]) {
@@ -1200,6 +1216,65 @@ Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
       Tensor left_grad = matmul_impl(grad, transpose_impl(right, false), false);
       Tensor right_grad = matmul_impl(transpose_impl(left, false), grad, false);
+      return std::vector<Tensor>{left_grad, right_grad};
+    });
+  }
+  return out;
+}
+
+Tensor transpose_last_two_3d(const Tensor& input) {
+  Tensor out({input.shape()[0], input.shape()[2], input.shape()[1]}, input.dtype(), false);
+  for (int64_t b = 0; b < input.shape()[0]; ++b) {
+    for (int64_t row = 0; row < input.shape()[1]; ++row) {
+      for (int64_t col = 0; col < input.shape()[2]; ++col) {
+        const int64_t input_linear = b * input.shape()[1] * input.shape()[2] + row * input.shape()[2] + col;
+        const int64_t out_linear = b * out.shape()[1] * out.shape()[2] + col * out.shape()[2] + row;
+        out.set_value_at_logical(out_linear, input.value_at_logical(input_linear));
+      }
+    }
+  }
+  return out;
+}
+
+Tensor bmm_impl(const Tensor& left, const Tensor& right, bool track_grad) {
+  if (left.ndim() != 3 || right.ndim() != 3) {
+    throw ShapeError(
+        "bmm expects two 3D tensors, got " + shape_to_string(left.shape()) + " and " +
+        shape_to_string(right.shape()));
+  }
+  if (left.shape()[0] != right.shape()[0] || left.shape()[2] != right.shape()[1]) {
+    throw ShapeError(
+        "bmm shape mismatch: " + shape_to_string(left.shape()) + " @ " + shape_to_string(right.shape()));
+  }
+
+  const int64_t batch = left.shape()[0];
+  const int64_t rows = left.shape()[1];
+  const int64_t inner = left.shape()[2];
+  const int64_t cols = right.shape()[2];
+  Tensor out({batch, rows, cols}, promote_types(left.dtype(), right.dtype()), false);
+
+  perf::parallel_for(0, batch * rows, 4, [&](int64_t begin, int64_t end) {
+    for (int64_t task = begin; task < end; ++task) {
+      const int64_t b = task / rows;
+      const int64_t r = task % rows;
+      for (int64_t c = 0; c < cols; ++c) {
+        double acc = 0.0;
+        for (int64_t k = 0; k < inner; ++k) {
+          const int64_t left_storage =
+              left.offset() + b * left.strides()[0] + r * left.strides()[1] + k * left.strides()[2];
+          const int64_t right_storage =
+              right.offset() + b * right.strides()[0] + k * right.strides()[1] + c * right.strides()[2];
+          acc += value_at_storage_unchecked(left, left_storage) * value_at_storage_unchecked(right, right_storage);
+        }
+        out.set_value_at_logical(b * rows * cols + r * cols + c, acc);
+      }
+    }
+  });
+
+  if (track_grad) {
+    set_history(out, {left, right}, [left, right](const Tensor& grad) {
+      Tensor left_grad = bmm_impl(grad, transpose_last_two_3d(right), false);
+      Tensor right_grad = bmm_impl(transpose_last_two_3d(left), grad, false);
       return std::vector<Tensor>{left_grad, right_grad};
     });
   }
@@ -2391,6 +2466,141 @@ Tensor mean_impl(const Tensor& input, bool track_grad) {
   return out;
 }
 
+Tensor variance_impl(const Tensor& input, int64_t correction, bool track_grad) {
+  if (correction < 0) {
+    throw ShapeError("variance correction must be non-negative");
+  }
+  if (input.numel() - correction <= 0) {
+    throw ShapeError("variance denominator must be positive");
+  }
+  Tensor mean_value = mean_impl(input, track_grad);
+  Tensor centered = sub_impl(input, mean_value, track_grad);
+  Tensor squared = mul_impl(centered, centered, track_grad);
+  Tensor total = sum_impl(squared, track_grad);
+  return div_impl(total, scalar_tensor(static_cast<double>(input.numel() - correction), total.dtype()), track_grad);
+}
+
+Tensor variance_axis_impl(const Tensor& input, int64_t axis, bool keepdims, int64_t correction, bool track_grad) {
+  if (correction < 0) {
+    throw ShapeError("variance correction must be non-negative");
+  }
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "variance");
+  const int64_t reduction_size = input.shape()[static_cast<std::size_t>(normalized_axis)];
+  if (reduction_size - correction <= 0) {
+    throw ShapeError("variance denominator must be positive");
+  }
+  Tensor mean_value = mean_axis_impl(input, normalized_axis, true, track_grad);
+  Tensor centered = sub_impl(input, mean_value, track_grad);
+  Tensor squared = mul_impl(centered, centered, track_grad);
+  Tensor total = sum_axis_impl(squared, normalized_axis, keepdims, track_grad);
+  return div_impl(total, scalar_tensor(static_cast<double>(reduction_size - correction), total.dtype()), track_grad);
+}
+
+Tensor stddev_impl(const Tensor& input, int64_t correction, bool track_grad) {
+  return sqrt_impl(variance_impl(input, correction, track_grad), track_grad);
+}
+
+Tensor stddev_axis_impl(const Tensor& input, int64_t axis, bool keepdims, int64_t correction, bool track_grad) {
+  return sqrt_impl(variance_axis_impl(input, axis, keepdims, correction, track_grad), track_grad);
+}
+
+Tensor truth_reduction_impl(const Tensor& input, bool keepdims, bool want_all) {
+  Shape out_shape;
+  if (keepdims) {
+    out_shape.assign(input.shape().size(), 1);
+  }
+  Tensor out(out_shape, DType::Bool, false);
+  bool result = want_all;
+  if (input.numel() == 0) {
+    result = want_all;
+  } else {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      const bool value = input.value_at_logical(i) != 0.0;
+      if (want_all) {
+        result = result && value;
+      } else {
+        result = result || value;
+      }
+    }
+  }
+  out.set_value_at_logical(0, result ? 1.0 : 0.0);
+  return out;
+}
+
+Tensor truth_reduction_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool want_all, const std::string& op_name) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), op_name);
+  const Shape out_shape = reduction_output_shape(input.shape(), normalized_axis, keepdims);
+  Tensor out(out_shape, DType::Bool, false);
+  std::vector<bool> values(static_cast<std::size_t>(out.numel()), want_all);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input.shape());
+    const int64_t out_linear =
+        reduction_output_linear(input_coords, input.shape(), out_shape, normalized_axis, keepdims);
+    const auto index = static_cast<std::size_t>(out_linear);
+    const bool value = input.value_at_logical(i) != 0.0;
+    values[index] = want_all ? (values[index] && value) : (values[index] || value);
+  }
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    out.set_value_at_logical(i, values[static_cast<std::size_t>(i)] ? 1.0 : 0.0);
+  }
+  return out;
+}
+
+Tensor all_impl(const Tensor& input, bool keepdims) {
+  return truth_reduction_impl(input, keepdims, true);
+}
+
+Tensor all_axis_impl(const Tensor& input, int64_t axis, bool keepdims) {
+  return truth_reduction_axis_impl(input, axis, keepdims, true, "all");
+}
+
+Tensor any_impl(const Tensor& input, bool keepdims) {
+  return truth_reduction_impl(input, keepdims, false);
+}
+
+Tensor any_axis_impl(const Tensor& input, int64_t axis, bool keepdims) {
+  return truth_reduction_axis_impl(input, axis, keepdims, false, "any");
+}
+
+Tensor logsumexp_impl(const Tensor& input, bool track_grad) {
+  Tensor max_value = max_impl(input, false);
+  Tensor shifted = sub_impl(input, max_value, track_grad);
+  Tensor exp_values = exp_impl(shifted, track_grad);
+  Tensor total = sum_impl(exp_values, track_grad);
+  return add_impl(log_impl(total, track_grad), max_value, track_grad);
+}
+
+Tensor logsumexp_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "logsumexp");
+  Tensor max_values = max_axis_impl(input, normalized_axis, true, false);
+  Tensor shifted = sub_impl(input, max_values, track_grad);
+  Tensor exp_values = exp_impl(shifted, track_grad);
+  Tensor totals = sum_axis_impl(exp_values, normalized_axis, true, track_grad);
+  Tensor result = add_impl(log_impl(totals, track_grad), max_values, track_grad);
+  if (keepdims) {
+    return result;
+  }
+  return squeeze_impl(result, normalized_axis, track_grad);
+}
+
+Tensor softmax_impl(const Tensor& input, int64_t axis, bool track_grad) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "softmax");
+  Tensor max_values = max_axis_impl(input, normalized_axis, true, false);
+  Tensor shifted = sub_impl(input, max_values, track_grad);
+  Tensor exp_values = exp_impl(shifted, track_grad);
+  Tensor totals = sum_axis_impl(exp_values, normalized_axis, true, track_grad);
+  return div_impl(exp_values, totals, track_grad);
+}
+
+Tensor log_softmax_impl(const Tensor& input, int64_t axis, bool track_grad) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "log_softmax");
+  Tensor max_values = max_axis_impl(input, normalized_axis, true, false);
+  Tensor shifted = sub_impl(input, max_values, track_grad);
+  Tensor exp_values = exp_impl(shifted, track_grad);
+  Tensor totals = sum_axis_impl(exp_values, normalized_axis, true, track_grad);
+  return sub_impl(shifted, log_impl(totals, track_grad), track_grad);
+}
+
 Tensor extreme_axis_grad(
     const Tensor& input,
     const Tensor& grad,
@@ -3088,6 +3298,10 @@ Tensor matmul(const Tensor& left, const Tensor& right) {
   return matmul_impl(left, right, true);
 }
 
+Tensor bmm(const Tensor& left, const Tensor& right) {
+  return bmm_impl(left, right, true);
+}
+
 Tensor conv2d(
     const Tensor& input,
     const Tensor& weight,
@@ -3145,6 +3359,22 @@ Tensor mean(const Tensor& input, int64_t axis, bool keepdims) {
   return mean_axis_impl(input, axis, keepdims, true);
 }
 
+Tensor variance(const Tensor& input, int64_t correction) {
+  return variance_impl(input, correction, true);
+}
+
+Tensor variance(const Tensor& input, int64_t axis, bool keepdims, int64_t correction) {
+  return variance_axis_impl(input, axis, keepdims, correction, true);
+}
+
+Tensor stddev(const Tensor& input, int64_t correction) {
+  return stddev_impl(input, correction, true);
+}
+
+Tensor stddev(const Tensor& input, int64_t axis, bool keepdims, int64_t correction) {
+  return stddev_axis_impl(input, axis, keepdims, correction, true);
+}
+
 Tensor max(const Tensor& input) {
   return max_impl(input, true);
 }
@@ -3177,6 +3407,22 @@ Tensor argmin(const Tensor& input, int64_t axis, bool keepdims) {
   return arg_extreme_axis_impl(input, axis, keepdims, false, "argmin");
 }
 
+Tensor all(const Tensor& input, bool keepdims) {
+  return all_impl(input, keepdims);
+}
+
+Tensor all(const Tensor& input, int64_t axis, bool keepdims) {
+  return all_axis_impl(input, axis, keepdims);
+}
+
+Tensor any(const Tensor& input, bool keepdims) {
+  return any_impl(input, keepdims);
+}
+
+Tensor any(const Tensor& input, int64_t axis, bool keepdims) {
+  return any_axis_impl(input, axis, keepdims);
+}
+
 Tensor relu(const Tensor& input) {
   return relu_impl(input, true);
 }
@@ -3195,6 +3441,22 @@ Tensor exp(const Tensor& input) {
 
 Tensor log(const Tensor& input) {
   return log_impl(input, true);
+}
+
+Tensor logsumexp(const Tensor& input) {
+  return logsumexp_impl(input, true);
+}
+
+Tensor logsumexp(const Tensor& input, int64_t axis, bool keepdims) {
+  return logsumexp_axis_impl(input, axis, keepdims, true);
+}
+
+Tensor softmax(const Tensor& input, int64_t axis) {
+  return softmax_impl(input, axis, true);
+}
+
+Tensor log_softmax(const Tensor& input, int64_t axis) {
+  return log_softmax_impl(input, axis, true);
 }
 
 Tensor log1p(const Tensor& input) {

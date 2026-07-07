@@ -37,6 +37,7 @@ void bind_ops(py::module_& module) {
   module.def("neg", &neg);
   module.def("pow", &pow, py::arg("input"), py::arg("exponent"));
   module.def("matmul", [](const Tensor& left, py::object right) { return matmul(left, ensure_tensor(right)); });
+  module.def("bmm", [](const Tensor& left, py::object right) { return bmm(left, ensure_tensor(right)); });
   module.def(
       "conv2d",
       [](const Tensor& input,
@@ -101,6 +102,33 @@ void bind_ops(py::module_& module) {
       return mean(tensor, normalized_axis, keep);
     });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("var", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+    if (axis.is_none()) {
+      return variance(input, correction);
+    }
+    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+      throw ShapeError("var axis must be None or an int; use tensorstudio.math.variance for tuple axes");
+    }
+    return variance(input, py::cast<int64_t>(axis), keepdims, correction);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
+  module.def("variance", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+    if (axis.is_none()) {
+      return variance(input, correction);
+    }
+    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+      throw ShapeError("variance axis must be None or an int; use tensorstudio.math.variance for tuple axes");
+    }
+    return variance(input, py::cast<int64_t>(axis), keepdims, correction);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
+  module.def("std", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+    if (axis.is_none()) {
+      return stddev(input, correction);
+    }
+    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+      throw ShapeError("std axis must be None or an int; use tensorstudio.math.std for tuple axes");
+    }
+    return stddev(input, py::cast<int64_t>(axis), keepdims, correction);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
   module.def("max", [](const Tensor& input, py::object axis, bool keepdims) {
     return reduce_from_py(input, std::move(axis), keepdims, "max", [](const Tensor& tensor) {
       return max(tensor);
@@ -129,11 +157,34 @@ void bind_ops(py::module_& module) {
       return argmin(tensor, normalized_axis, keep);
     });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("all", [](const Tensor& input, py::object axis, bool keepdims) {
+    return reduce_from_py(input, std::move(axis), keepdims, "all", [](const Tensor& tensor) {
+      return tensorstudio::all(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return tensorstudio::all(tensor, normalized_axis, keep);
+    });
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("any", [](const Tensor& input, py::object axis, bool keepdims) {
+    return reduce_from_py(input, std::move(axis), keepdims, "any", [](const Tensor& tensor) {
+      return tensorstudio::any(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return tensorstudio::any(tensor, normalized_axis, keep);
+    });
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("relu", &relu);
   module.def("sigmoid", &sigmoid);
   module.def("tanh", &tanh);
   module.def("exp", &exp);
   module.def("log", &log);
+  module.def("logsumexp", [](const Tensor& input, py::object axis, bool keepdims) {
+    return reduce_from_py(input, std::move(axis), keepdims, "logsumexp", [](const Tensor& tensor) {
+      return logsumexp(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return logsumexp(tensor, normalized_axis, keep);
+    });
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("softmax", &softmax, py::arg("input"), py::arg("axis") = -1);
+  module.def("log_softmax", &log_softmax, py::arg("input"), py::arg("axis") = -1);
   module.def("log1p", &log1p);
   module.def("sqrt", &sqrt);
   module.def("rsqrt", &rsqrt);

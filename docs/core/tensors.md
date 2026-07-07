@@ -104,6 +104,10 @@ ts.rand((2, 3), seed=123)
 ts.rand_like(x, seed=123)
 ts.randn((2, 3), seed=123)
 ts.randn_like(x, seed=123)
+ts.uniform((2, 3), low=-1.0, high=1.0, seed=123)
+ts.normal((2, 3), mean=5.0, stddev=0.5, seed=123)
+ts.randint((4,), low=0, high=10, seed=123)
+ts.bernoulli((4,), probability=0.25, seed=123)
 ts.arange(0, 10, 2)
 ts.eye(3)
 ts.linspace(0.0, 1.0, 5)
@@ -229,12 +233,21 @@ condition, but it does route gradients into the selected branch values.
 Matrix and reductions:
 
 - `matmul` / `@` for 2D tensors
+- `bmm` / `@` for two 3D batched tensors
 - `sum`
 - `mean`
+- `var` / `variance`
+- `std`
+- `norm`
 - `max`
 - `min`
 - `argmax`
 - `argmin`
+- `all`
+- `any`
+- `logsumexp`
+- `softmax`
+- `log_softmax`
 
 Reductions operate over all elements by default and support an int axis or a
 tuple/list of axes with `keepdims`:
@@ -247,15 +260,34 @@ x.max(axis=-1)
 x.reshape((1, 2, 3)).sum(axis=(0, 2))
 x.argmax()
 x.argmin(axis=1)
+x.softmax(axis=1)
+x.logsumexp(axis=1)
+x.var(axis=0)
+x.std(axis=1)
+x.norm(ord=2)
+```
+
+For two 3D tensors, `@` dispatches to batched matrix multiplication:
+
+```python
+left = ts.randn((2, 3, 4), seed=1)
+right = ts.randn((2, 4, 5), seed=2)
+
+left @ right       # shape (2, 3, 5)
+ts.bmm(left, right)
 ```
 
 Higher-level helpers in `tensorstudio.math` include variance, standard
-deviation, norms, square, and reciprocal:
+deviation, norms, stable probability helpers, boolean reductions, a practical
+`einsum` subset, square, and reciprocal:
 
 ```python
 ts.math.variance(x)
 ts.math.std(x, axis=0)
 ts.math.norm(x, ord=2)
+ts.math.softmax(x, axis=1)
+ts.math.logsumexp(x, axis=1)
+ts.math.einsum("ij,ij->", x, x)
 ```
 
 Image-style functional operations:

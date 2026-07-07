@@ -40,7 +40,7 @@ Calling `backward()`:
 
 ## Supported Gradient Operations
 
-`1.6.0` supports gradients for:
+`1.7.0` supports gradients for:
 
 - `add`
 - `sub`
@@ -49,8 +49,13 @@ Calling `backward()`:
 - `neg`
 - scalar `pow`
 - `matmul`
+- `bmm`
+- 3D batched `@`
 - `sum`
 - `mean`
+- `var`
+- `std`
+- `norm` through differentiable reduction paths
 - `max`
 - `min`
 - `relu`
@@ -58,6 +63,9 @@ Calling `backward()`:
 - `tanh`
 - `exp`
 - `log`
+- `logsumexp`
+- `softmax`
+- `log_softmax`
 - `log1p`
 - `sqrt`
 - `rsqrt`

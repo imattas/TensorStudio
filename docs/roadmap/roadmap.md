@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.6.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.7.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -63,14 +63,19 @@ serious runtime base.
 After the tensor semantics and CPU runtime are stronger, expand the math surface
 that models and scientific users expect.
 
-- Add `logsumexp`, `softmax`, and `log_softmax` native or optimized kernels.
-- Add `var`, `std`, `norm`, and common statistical reductions as first-class
-  Tensor methods where appropriate.
-- Add `einsum` for a practical subset of common patterns.
-- Add batched matrix multiplication.
-- Add random distributions beyond uniform and normal.
-- Add stable numerics for cross-entropy-style workloads.
-- Add `all`, `any`, and boolean reductions.
+- Completed in `1.7.0`: add `logsumexp`, `softmax`, and `log_softmax`
+  native kernels with stable max-shifted numerics.
+- Completed in `1.7.0`: add `var`, `std`, `norm`, and common statistical
+  reductions as Tensor methods or first-class Python API helpers where
+  appropriate.
+- Completed in `1.7.0`: add `einsum` for a documented practical subset of
+  common patterns.
+- Completed in `1.7.0`: add batched matrix multiplication through `bmm` and
+  3D `@` dispatch.
+- Completed in `1.7.0`: add random distributions beyond uniform and normal,
+  including `randint` and `bernoulli`.
+- Completed in `1.7.0`: add stable numerics for cross-entropy-style workloads.
+- Completed in `1.7.0`: add `all`, `any`, and boolean reductions.
 
 ## 4. Autograd Coverage And Hardening
 

@@ -159,6 +159,39 @@ def rand_like(
     )
 
 
+def uniform(
+    shape: int | tuple[int, ...] | list[int],
+    low: float = 0.0,
+    high: float = 1.0,
+    dtype: str = "float32",
+    seed: int | None = None,
+    requires_grad: bool = False,
+) -> Tensor:
+    """Create a tensor sampled from ``Uniform(low, high)``."""
+
+    return _with_requires_grad(_C.uniform(shape, low, high, dtype, seed), requires_grad)
+
+
+def uniform_like(
+    input: Tensor,
+    low: float = 0.0,
+    high: float = 1.0,
+    dtype: str | None = None,
+    seed: int | None = None,
+    requires_grad: bool | None = None,
+) -> Tensor:
+    """Create a uniform random tensor with metadata copied from another tensor."""
+
+    return uniform(
+        input.shape,
+        low=low,
+        high=high,
+        dtype=dtype or input.dtype,
+        seed=seed,
+        requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+    )
+
+
 def randn(
     shape: int | tuple[int, ...] | list[int],
     dtype: str = "float32",
@@ -184,6 +217,85 @@ def randn_like(
         seed=seed,
         requires_grad=input.requires_grad if requires_grad is None else requires_grad,
     )
+
+
+def normal(
+    shape: int | tuple[int, ...] | list[int],
+    mean: float = 0.0,
+    stddev: float = 1.0,
+    dtype: str = "float32",
+    seed: int | None = None,
+    requires_grad: bool = False,
+) -> Tensor:
+    """Create a tensor sampled from ``Normal(mean, stddev)``."""
+
+    return _with_requires_grad(_C.normal(shape, mean, stddev, dtype, seed), requires_grad)
+
+
+def normal_like(
+    input: Tensor,
+    mean: float = 0.0,
+    stddev: float = 1.0,
+    dtype: str | None = None,
+    seed: int | None = None,
+    requires_grad: bool | None = None,
+) -> Tensor:
+    """Create a normal random tensor with metadata copied from another tensor."""
+
+    return normal(
+        input.shape,
+        mean=mean,
+        stddev=stddev,
+        dtype=dtype or input.dtype,
+        seed=seed,
+        requires_grad=input.requires_grad if requires_grad is None else requires_grad,
+    )
+
+
+def randint(
+    shape: int | tuple[int, ...] | list[int],
+    low: int,
+    high: int,
+    dtype: str = "int64",
+    seed: int | None = None,
+) -> Tensor:
+    """Create an integer tensor sampled uniformly from ``[low, high)``."""
+
+    return _C.randint(shape, low, high, dtype, seed)
+
+
+def randint_like(
+    input: Tensor,
+    low: int,
+    high: int,
+    dtype: str | None = None,
+    seed: int | None = None,
+) -> Tensor:
+    """Create an integer random tensor with shape copied from another tensor."""
+
+    return randint(input.shape, low=low, high=high, dtype=dtype or "int64", seed=seed)
+
+
+def bernoulli(
+    shape: int | tuple[int, ...] | list[int],
+    probability: float = 0.5,
+    dtype: str = "bool",
+    seed: int | None = None,
+) -> Tensor:
+    """Create a tensor sampled from a Bernoulli distribution."""
+
+    return _C.bernoulli(shape, probability, dtype, seed)
+
+
+def bernoulli_like(
+    input: Tensor,
+    probability: float = 0.5,
+    dtype: str = "bool",
+    seed: int | None = None,
+) -> Tensor:
+    """Create a Bernoulli random tensor with shape copied from another tensor."""
+
+    return bernoulli(input.shape, probability=probability, dtype=dtype, seed=seed)
 
 
 def arange(
@@ -230,6 +342,8 @@ def manual_seed(seed: int) -> None:
 __all__ = [
     "Tensor",
     "arange",
+    "bernoulli",
+    "bernoulli_like",
     "empty",
     "empty_like",
     "eye",
@@ -238,13 +352,19 @@ __all__ = [
     "full_like",
     "linspace",
     "manual_seed",
+    "normal",
+    "normal_like",
     "ones",
     "ones_like",
     "rand",
     "rand_like",
+    "randint",
+    "randint_like",
     "randn",
     "randn_like",
     "tensor",
+    "uniform",
+    "uniform_like",
     "zeros",
     "zeros_like",
 ]

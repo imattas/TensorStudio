@@ -50,6 +50,7 @@ Tensor where(const Tensor& condition, const Tensor& true_value, const Tensor& fa
 Tensor neg(const Tensor& input);
 Tensor pow(const Tensor& input, double exponent);
 Tensor matmul(const Tensor& left, const Tensor& right);
+Tensor bmm(const Tensor& left, const Tensor& right);
 Tensor conv2d(
     const Tensor& input,
     const Tensor& weight,
@@ -83,6 +84,10 @@ Tensor sum(const Tensor& input);
 Tensor sum(const Tensor& input, int64_t axis, bool keepdims = false);
 Tensor mean(const Tensor& input);
 Tensor mean(const Tensor& input, int64_t axis, bool keepdims = false);
+Tensor variance(const Tensor& input, int64_t correction = 0);
+Tensor variance(const Tensor& input, int64_t axis, bool keepdims, int64_t correction = 0);
+Tensor stddev(const Tensor& input, int64_t correction = 0);
+Tensor stddev(const Tensor& input, int64_t axis, bool keepdims, int64_t correction = 0);
 Tensor max(const Tensor& input);
 Tensor max(const Tensor& input, int64_t axis, bool keepdims = false);
 Tensor min(const Tensor& input);
@@ -91,11 +96,19 @@ Tensor argmax(const Tensor& input, bool keepdims = false);
 Tensor argmax(const Tensor& input, int64_t axis, bool keepdims = false);
 Tensor argmin(const Tensor& input, bool keepdims = false);
 Tensor argmin(const Tensor& input, int64_t axis, bool keepdims = false);
+Tensor all(const Tensor& input, bool keepdims = false);
+Tensor all(const Tensor& input, int64_t axis, bool keepdims = false);
+Tensor any(const Tensor& input, bool keepdims = false);
+Tensor any(const Tensor& input, int64_t axis, bool keepdims = false);
 Tensor relu(const Tensor& input);
 Tensor sigmoid(const Tensor& input);
 Tensor tanh(const Tensor& input);
 Tensor exp(const Tensor& input);
 Tensor log(const Tensor& input);
+Tensor logsumexp(const Tensor& input);
+Tensor logsumexp(const Tensor& input, int64_t axis, bool keepdims = false);
+Tensor softmax(const Tensor& input, int64_t axis = -1);
+Tensor log_softmax(const Tensor& input, int64_t axis = -1);
 Tensor log1p(const Tensor& input);
 Tensor sqrt(const Tensor& input);
 Tensor rsqrt(const Tensor& input);
