@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.3.5` is a CPU-only stable API foundation for the tensor, autograd,
+`1.3.6` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -26,11 +26,12 @@ TensorStudio is:
   `empty`, `rand`, `randn`, `arange`, `eye`, `linspace`, and matching
   `*_like` helpers.
 - NumPy-style broadcasting for binary elementwise operations.
-- Arithmetic, comparisons, matrix multiplication, all-element, single-axis, and
-  tuple-axis reductions, arg reductions, common activations, trigonometric
-  functions, inverse trigonometric functions, `log1p`, `sqrt`, `rsqrt`, `abs`,
-  `clamp`, CPU NCHW `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten,
-  and 2D transpose.
+- Arithmetic, comparison helpers, `where`, `maximum`, `minimum`, matrix
+  multiplication, all-element, single-axis, and tuple-axis reductions, arg
+  reductions, common activations, trigonometric functions, inverse
+  trigonometric functions, `log1p`, `sqrt`, `rsqrt`, `abs`, `clamp`/`clip`,
+  CPU NCHW `conv2d`, `max_pool2d`, `avg_pool2d`, reshape, flatten, and 2D
+  transpose.
 - Higher-level `tensorstudio.math` helpers for variance, standard deviation,
   norms, square, and reciprocal.
 - Basic dtype casting plus native `concat` and `stack`.
@@ -73,12 +74,12 @@ Pickle serialization is available for trusted internal objects. Prefer
 
 ## Next Steps
 
-- Start with [Quickstart](quickstart.md).
-- Learn tensor semantics in [Tensors](Usage/tensors.md).
-- Understand gradients in [Autograd](Autograde/autograd.md).
-- Build small models with [Neural Networks](Neural%20Networks/nn.md).
-- Organize complete runs with [Projects](Projects/index.md).
-- Build image classifiers with [Vision](Vision/index.md).
-- Export supported module stacks with [ONNX Interchange](Usage/interchange.md).
-- Use small datasets with [Data](Usage/data.md).
-- Read [Publishing](publishing.md) before release work.
+- Start with [Quickstart](getting-started/quickstart.md).
+- Learn tensor semantics in [Tensors](core/tensors.md).
+- Understand gradients in [Autograd](autograd/overview.md).
+- Build small models with [Neural Networks](nn/overview.md).
+- Organize complete runs with [Projects](project/workflows.md).
+- Build image classifiers with [Vision](vision/overview.md).
+- Export supported module stacks with [ONNX](interchange/onnx.md).
+- Use small datasets with [Data](data/datasets-and-dataloaders.md).
+- Read [Publishing](release/publishing.md) before release work.

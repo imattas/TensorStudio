@@ -1,0 +1,17 @@
+# Keep GitHub language statistics focused on maintained implementation code.
+# The Python package remains counted; docs, examples, tests, and generated
+# outputs are supporting material for release quality rather than core runtime.
+*.md linguist-documentation
+docs/** linguist-documentation
+examples/** linguist-documentation
+tests/** linguist-documentation
+benchmarks/** linguist-documentation
+benchmark_all.py linguist-documentation
+test_all.py linguist-documentation
+site/** linguist-generated
+build/** linguist-generated
+dist/** linguist-generated
+*.egg-info/** linguist-generated
+
+include/** linguist-language=C++
+src/** linguist-language=C++

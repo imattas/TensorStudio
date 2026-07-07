@@ -461,6 +461,17 @@ void bind_tensor(py::module_& module) {
       .def("zero_grad", &Tensor::zero_grad)
       .def("_assign", &Tensor::copy_from)
       .def("_add_scaled_", &Tensor::add_scaled_)
+      .def("equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, equal); }, py::arg("other"))
+      .def("not_equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, not_equal); }, py::arg("other"))
+      .def("less", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, less); }, py::arg("other"))
+      .def("less_equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, less_equal); }, py::arg("other"))
+      .def("greater", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, greater); }, py::arg("other"))
+      .def("greater_equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, greater_equal); }, py::arg("other"))
+      .def("maximum", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, maximum); }, py::arg("other"))
+      .def("minimum", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, minimum); }, py::arg("other"))
+      .def("where", [](const Tensor& self, py::object true_value, py::object false_value) {
+        return where(self, ensure_tensor(std::move(true_value)), ensure_tensor(std::move(false_value)));
+      }, py::arg("true_value"), py::arg("false_value"))
       .def("__add__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, add); }, py::is_operator())
       .def("__radd__", [](const Tensor& self, py::object other) { return reverse_binary_tensor_op(other, self, add); }, py::is_operator())
       .def("__sub__", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, sub); }, py::is_operator())

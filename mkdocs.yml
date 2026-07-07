@@ -16,32 +16,47 @@ markdown_extensions:
       permalink: true
 nav:
   - Home: index.md
-  - Quickstart: quickstart.md
-  - Tensors: Usage/tensors.md
-  - Usage:
-      - Tensor API: Usage/tensors.md
-      - NumPy Interop: Usage/numpy-interop.md
-      - Serialization: Usage/serialization.md
-      - ONNX Interchange: Usage/interchange.md
-  - Autograd: Autograde/autograd.md
-  - Autograd Coverage: Autograde/index.md
-  - Neural Networks: Neural Networks/nn.md
-  - Neural Network Guides:
-      - Modules: Neural Networks/modules.md
-      - Training: Neural Networks/training.md
-  - Projects: Projects/index.md
-  - Vision: Vision/index.md
-  - Optimizers: Usage/optim.md
-  - Data: Usage/data.md
-  - Serialization: serialization.md
-  - Benchmarks: Benchmarks/index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quickstart: getting-started/quickstart.md
+      - Build From Source: getting-started/source-build.md
+  - Core Tensor Engine:
+      - Tensor API: core/tensors.md
+      - Broadcasting: core/broadcasting.md
+      - Native C++ Core: core/native-cpp-core.md
+      - API Reference: core/api-reference.md
+  - Autograd:
+      - Overview: autograd/overview.md
+      - Gradient Notes: autograd/gradient-notes.md
+      - Coverage Matrix: autograd/coverage.md
+  - Neural Networks:
+      - Overview: nn/overview.md
+      - Modules: nn/modules.md
+      - Optimizers: nn/optimizers.md
+      - Training: nn/training.md
+  - Data:
+      - Datasets And DataLoaders: data/datasets-and-dataloaders.md
+  - Vision:
+      - Overview: vision/overview.md
+      - Dataset Creation: vision/dataset-creation.md
+  - Project Workflows:
+      - Local Projects: project/workflows.md
+  - Interchange And Serialization:
+      - NumPy Interop: interchange/numpy-interop.md
+      - TensorStudio Serialization: interchange/serialization.md
+      - Trusted Pickle Guide: interchange/trusted-serialization.md
+      - ONNX: interchange/onnx.md
+      - Model Formats: interchange/model-formats.md
+  - Performance:
+      - Benchmarks: performance/benchmarks.md
   - Hardware:
-      - CPU Backend: Hardware/cpu-backend.md
-  - Platform Guides:
-      - Windows: Hardware/windows.md
-      - Linux: Hardware/linux.md
-      - macOS: Hardware/macos.md
-  - Roadmap: Roadmap/index.md
-  - API: Usage/api.md
-  - Development: development.md
-  - Publishing: publishing.md
+      - CPU Backend: hardware/cpu-backend.md
+      - Windows: hardware/windows.md
+      - Linux: hardware/linux.md
+      - macOS: hardware/macos.md
+  - Development:
+      - Contributing: development/contributing.md
+      - C++ First Policy: development/cpp-first.md
+  - Release:
+      - Publishing: release/publishing.md
+  - Roadmap: roadmap/roadmap.md

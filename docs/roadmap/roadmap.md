@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.3.5` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.3.6` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -24,7 +24,8 @@ tensor semantics.
 - Completed in `1.3.4`: add tuple-axis reductions for `sum`, `mean`,
   `max`, and `min`.
 - Completed in `1.3.5`: add arg reductions: `argmax` and `argmin`.
-- Add `where`, `maximum`, `minimum`, `clip`, and richer comparison helpers.
+- Completed in `1.3.6`: add `where`, `maximum`, `minimum`, `clip`, and richer
+  comparison helpers.
 - Add full NumPy-style indexing and slicing for common cases.
 - Add more view/layout operations: `squeeze`, `unsqueeze`, `permute`, and
   general N-dimensional transpose.

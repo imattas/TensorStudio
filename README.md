@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.3.5` is a CPU-only stable API foundation. It is eager-only,
+TensorStudio `1.3.6` is a CPU-only stable API foundation. It is eager-only,
 intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -412,6 +412,8 @@ tokens or print secrets.
   for `sum`, `mean`, `max`, and `min`.
 - Arg reductions support all-element flat indices or one axis at a time for
   `argmax` and `argmin`.
+- Selection helpers `where`, `maximum`, and `minimum` are native C++ tensor ops
+  with broadcasting and autograd support for floating-point branches.
 - No sparse tensors or advanced indexing.
 - Dtype casting is basic and does not include a full promotion/casting policy.
 - Experimental performance; benchmarks are local references only.

@@ -20,6 +20,19 @@ void bind_ops(py::module_& module) {
   module.def("less_equal", [](const Tensor& left, py::object right) { return less_equal(left, ensure_tensor(right)); });
   module.def("greater", [](const Tensor& left, py::object right) { return greater(left, ensure_tensor(right)); });
   module.def("greater_equal", [](const Tensor& left, py::object right) { return greater_equal(left, ensure_tensor(right)); });
+  module.def("maximum", [](const Tensor& left, py::object right) { return maximum(left, ensure_tensor(right)); });
+  module.def("minimum", [](const Tensor& left, py::object right) { return minimum(left, ensure_tensor(right)); });
+  module.def(
+      "where",
+      [](py::object condition, py::object true_value, py::object false_value) {
+        return where(
+            ensure_tensor(std::move(condition)),
+            ensure_tensor(std::move(true_value)),
+            ensure_tensor(std::move(false_value)));
+      },
+      py::arg("condition"),
+      py::arg("true_value"),
+      py::arg("false_value"));
   module.def("neg", &neg);
   module.def("pow", &pow, py::arg("input"), py::arg("exponent"));
   module.def("matmul", [](const Tensor& left, py::object right) { return matmul(left, ensure_tensor(right)); });

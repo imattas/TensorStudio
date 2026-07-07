@@ -585,6 +585,9 @@ Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor sub_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor mul_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor div_impl(const Tensor& left, const Tensor& right, bool track_grad);
+Tensor maximum_impl(const Tensor& left, const Tensor& right, bool track_grad);
+Tensor minimum_impl(const Tensor& left, const Tensor& right, bool track_grad);
+Tensor where_impl(const Tensor& condition, const Tensor& true_value, const Tensor& false_value, bool track_grad);
 Tensor neg_impl(const Tensor& input, bool track_grad);
 Tensor pow_impl(const Tensor& input, double exponent, bool track_grad);
 Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad);
@@ -697,6 +700,137 @@ Tensor div_impl(const Tensor& left, const Tensor& right, bool track_grad) {
       Tensor right_grad = unbroadcast(neg_impl(div_impl(mul_impl(grad, left, false), denom, false), false), right.shape());
       return std::vector<Tensor>{left_grad, right_grad};
     });
+  }
+  return out;
+}
+
+Tensor comparison_mask_impl(
+    const Tensor& left,
+    const Tensor& right,
+    DType dtype,
+    bool is_max,
+    bool for_left) {
+  const Shape out_shape = broadcast_shapes(left.shape(), right.shape());
+  Tensor out(out_shape, dtype, false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    const auto left_storage =
+        logical_to_storage_offset(i, out_shape, left.shape(), left.strides(), left.offset());
+    const auto right_storage =
+        logical_to_storage_offset(i, out_shape, right.shape(), right.strides(), right.offset());
+    const double a = value_at_storage_unchecked(left, left_storage);
+    const double b = value_at_storage_unchecked(right, right_storage);
+    double value = 0.0;
+    if (a == b) {
+      value = 0.5;
+    } else if (is_max) {
+      value = for_left ? (a > b ? 1.0 : 0.0) : (b > a ? 1.0 : 0.0);
+    } else {
+      value = for_left ? (a < b ? 1.0 : 0.0) : (b < a ? 1.0 : 0.0);
+    }
+    out.set_value_at_logical(i, value);
+  }
+  return out;
+}
+
+Tensor maximum_impl(const Tensor& left, const Tensor& right, bool track_grad) {
+  Tensor out = elementwise_binary_impl(
+      left,
+      right,
+      promote_types(left.dtype(), right.dtype()),
+      [](double a, double b) { return std::max(a, b); },
+      track_grad);
+  if (track_grad) {
+    set_history(out, {left, right}, [left, right](const Tensor& grad) {
+      Tensor left_mask = comparison_mask_impl(left, right, grad.dtype(), true, true);
+      Tensor right_mask = comparison_mask_impl(left, right, grad.dtype(), true, false);
+      Tensor left_grad = unbroadcast(mul_impl(grad, left_mask, false), left.shape());
+      Tensor right_grad = unbroadcast(mul_impl(grad, right_mask, false), right.shape());
+      return std::vector<Tensor>{left_grad, right_grad};
+    });
+  }
+  return out;
+}
+
+Tensor minimum_impl(const Tensor& left, const Tensor& right, bool track_grad) {
+  Tensor out = elementwise_binary_impl(
+      left,
+      right,
+      promote_types(left.dtype(), right.dtype()),
+      [](double a, double b) { return std::min(a, b); },
+      track_grad);
+  if (track_grad) {
+    set_history(out, {left, right}, [left, right](const Tensor& grad) {
+      Tensor left_mask = comparison_mask_impl(left, right, grad.dtype(), false, true);
+      Tensor right_mask = comparison_mask_impl(left, right, grad.dtype(), false, false);
+      Tensor left_grad = unbroadcast(mul_impl(grad, left_mask, false), left.shape());
+      Tensor right_grad = unbroadcast(mul_impl(grad, right_mask, false), right.shape());
+      return std::vector<Tensor>{left_grad, right_grad};
+    });
+  }
+  return out;
+}
+
+Tensor condition_mask_impl(
+    const Tensor& condition,
+    const Shape& out_shape,
+    bool selected_when_true,
+    DType dtype) {
+  Tensor out(out_shape, dtype, false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    const auto condition_storage =
+        logical_to_storage_offset(
+            i,
+            out_shape,
+            condition.shape(),
+            condition.strides(),
+            condition.offset());
+    const bool selected = value_at_storage_unchecked(condition, condition_storage) != 0.0;
+    out.set_value_at_logical(i, selected == selected_when_true ? 1.0 : 0.0);
+  }
+  return out;
+}
+
+Tensor where_impl(
+    const Tensor& condition,
+    const Tensor& true_value,
+    const Tensor& false_value,
+    bool track_grad) {
+  if (condition.dtype() != DType::Bool) {
+    throw DTypeError("where condition must have dtype bool, got " + dtype_name(condition.dtype()));
+  }
+  const Shape branch_shape = broadcast_shapes(true_value.shape(), false_value.shape());
+  const Shape out_shape = broadcast_shapes(condition.shape(), branch_shape);
+  Tensor out(out_shape, promote_types(true_value.dtype(), false_value.dtype()), false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    const auto condition_storage =
+        logical_to_storage_offset(
+            i,
+            out_shape,
+            condition.shape(),
+            condition.strides(),
+            condition.offset());
+    const auto true_storage =
+        logical_to_storage_offset(i, out_shape, true_value.shape(), true_value.strides(), true_value.offset());
+    const auto false_storage =
+        logical_to_storage_offset(i, out_shape, false_value.shape(), false_value.strides(), false_value.offset());
+    const bool selected = value_at_storage_unchecked(condition, condition_storage) != 0.0;
+    out.set_value_at_logical(
+        i,
+        selected ? value_at_storage_unchecked(true_value, true_storage)
+                 : value_at_storage_unchecked(false_value, false_storage));
+  }
+  if (track_grad) {
+    set_history(
+        out,
+        {true_value, false_value},
+        [condition, true_shape = true_value.shape(), false_shape = false_value.shape()](
+            const Tensor& grad) {
+          Tensor true_mask = condition_mask_impl(condition, grad.shape(), true, grad.dtype());
+          Tensor false_mask = condition_mask_impl(condition, grad.shape(), false, grad.dtype());
+          Tensor true_grad = unbroadcast(mul_impl(grad, true_mask, false), true_shape);
+          Tensor false_grad = unbroadcast(mul_impl(grad, false_mask, false), false_shape);
+          return std::vector<Tensor>{true_grad, false_grad};
+        });
   }
   return out;
 }
@@ -2344,6 +2478,18 @@ Tensor greater(const Tensor& left, const Tensor& right) {
 
 Tensor greater_equal(const Tensor& left, const Tensor& right) {
   return elementwise_binary_impl(left, right, DType::Bool, [](double a, double b) { return a >= b ? 1.0 : 0.0; }, false);
+}
+
+Tensor maximum(const Tensor& left, const Tensor& right) {
+  return maximum_impl(left, right, true);
+}
+
+Tensor minimum(const Tensor& left, const Tensor& right) {
+  return minimum_impl(left, right, true);
+}
+
+Tensor where(const Tensor& condition, const Tensor& true_value, const Tensor& false_value) {
+  return where_impl(condition, true_value, false_value, true);
 }
 
 Tensor neg(const Tensor& input) {

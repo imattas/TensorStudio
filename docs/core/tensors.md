@@ -171,11 +171,31 @@ Elementwise:
 - `exp`, `log`, `log1p`, `sqrt`, `rsqrt`, `abs`
 - `sin`, `cos`, `tan`
 - `asin`, `acos`, `atan`
+- `maximum` and `minimum`
+- `where`
 - `clamp` and `clip`
 
 Comparisons:
 
 - `==`, `!=`, `<`, `<=`, `>`, `>=`
+- `equal`, `not_equal`, `less`, `less_equal`, `greater`, `greater_equal`
+
+Selection ops are native C++ tensor kernels. They accept Python scalars or
+tensors, use NumPy-style broadcasting, and keep gradients for floating point
+branches:
+
+```python
+x = ts.tensor([[-2.0, 0.5, 3.0]], requires_grad=True)
+floor = ts.maximum(x, 0.0)
+capped = floor.minimum(2.0)
+positive_or_zero = ts.where(x.greater(0.0), x, 0.0)
+
+loss = (capped + positive_or_zero).sum()
+loss.backward()
+```
+
+`where` requires a boolean condition. It does not differentiate through that
+condition, but it does route gradients into the selected branch values.
 
 Matrix and reductions:
 

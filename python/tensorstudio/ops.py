@@ -60,6 +60,18 @@ def greater_equal(left: Tensor, right: Any) -> Tensor:
     return _C.greater_equal(left, right)
 
 
+def maximum(left: Tensor, right: Any) -> Tensor:
+    return _C.maximum(left, right)
+
+
+def minimum(left: Tensor, right: Any) -> Tensor:
+    return _C.minimum(left, right)
+
+
+def where(condition: Any, true_value: Any, false_value: Any) -> Tensor:
+    return _C.where(condition, true_value, false_value)
+
+
 def neg(input: Tensor) -> Tensor:
     return _C.neg(input)
 
@@ -292,8 +304,10 @@ __all__ = [
     "matmul",
     "max",
     "max_pool2d",
+    "maximum",
     "mean",
     "min",
+    "minimum",
     "mul",
     "neg",
     "not_equal",
@@ -310,4 +324,5 @@ __all__ = [
     "tan",
     "tanh",
     "transpose",
+    "where",
 ]

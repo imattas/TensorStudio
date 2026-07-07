@@ -130,6 +130,29 @@ def test_tuple_axis_reduction_autograd() -> None:
     )
 
 
+def test_where_maximum_minimum_autograd() -> None:
+    x = ts.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    y = ts.tensor([[10.0, 20.0], [30.0, 40.0]], requires_grad=True)
+    mask = ts.tensor([[True, False], [False, True]])
+    weights = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+
+    (ts.where(mask, x, y) * weights).sum().backward()
+    np.testing.assert_allclose(x.grad.numpy(), np.array([[1.0, 0.0], [0.0, 4.0]]), rtol=1e-6)
+    np.testing.assert_allclose(y.grad.numpy(), np.array([[0.0, 2.0], [3.0, 0.0]]), rtol=1e-6)
+
+    left = ts.tensor([1.0, 3.0, 3.0], requires_grad=True)
+    right = ts.tensor([2.0, 3.0, 1.0], requires_grad=True)
+    ts.maximum(left, right).sum().backward()
+    np.testing.assert_allclose(left.grad.numpy(), np.array([0.0, 0.5, 1.0]), rtol=1e-6)
+    np.testing.assert_allclose(right.grad.numpy(), np.array([1.0, 0.5, 0.0]), rtol=1e-6)
+
+    a = ts.tensor([1.0, 3.0, 3.0], requires_grad=True)
+    b = ts.tensor([2.0, 3.0, 1.0], requires_grad=True)
+    ts.minimum(a, b).sum().backward()
+    np.testing.assert_allclose(a.grad.numpy(), np.array([1.0, 0.5, 0.0]), rtol=1e-6)
+    np.testing.assert_allclose(b.grad.numpy(), np.array([0.0, 0.5, 1.0]), rtol=1e-6)
+
+
 def test_cast_concat_stack_autograd() -> None:
     x = ts.tensor([1.0, 2.0], requires_grad=True)
     x.astype("float64").sum().backward()

@@ -42,6 +42,15 @@ modules, optimizers, data utilities, and serialization helpers.
 - `atan`
 - `log1p`
 - `rsqrt`
+- `equal`
+- `not_equal`
+- `less`
+- `less_equal`
+- `greater`
+- `greater_equal`
+- `maximum`
+- `minimum`
+- `where`
 - `conv2d`
 - `max_pool2d`
 - `avg_pool2d`
@@ -156,6 +165,24 @@ rejected, and `axis=()` is a no-op identity.
 For arg reductions, `axis` may be `None` or an int. All-element arg reductions
 return the flat index of the first selected value. Axis arg reductions return
 `int64` indices along that axis and are not differentiable.
+
+Comparisons and selection:
+
+- `equal(other)`
+- `not_equal(other)`
+- `less(other)`
+- `less_equal(other)`
+- `greater(other)`
+- `greater_equal(other)`
+- `maximum(other)`
+- `minimum(other)`
+- `where(true_value, false_value)`
+
+`maximum` and `minimum` broadcast like other binary elementwise operations.
+`where` treats the tensor it is called on as a boolean condition tensor and
+routes values from the two branch tensors. Gradients flow through floating point
+branches, not through the boolean condition.
+
 - `relu()`
 - `sigmoid()`
 - `tanh()`
@@ -205,10 +232,24 @@ ts.acos(input)
 ts.atan(input)
 ts.log1p(input)
 ts.rsqrt(input)
+ts.equal(left, right)
+ts.not_equal(left, right)
+ts.less(left, right)
+ts.less_equal(left, right)
+ts.greater(left, right)
+ts.greater_equal(left, right)
+ts.maximum(left, right)
+ts.minimum(left, right)
+ts.where(condition, true_value, false_value)
 ts.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1)
 ts.max_pool2d(input, kernel_size, stride=None, padding=0, dilation=1)
 ts.avg_pool2d(input, kernel_size, stride=None, padding=0, count_include_pad=False)
 ```
+
+Comparison functions always return `bool` tensors. `where` requires a `bool`
+condition and broadcasts condition, true branch, and false branch together.
+The branch dtype is promoted with the same compact promotion order used by
+arithmetic ops.
 
 `conv2d` expects NCHW input with shape `(batch, in_channels, height, width)`
 and weight shape `(out_channels, in_channels, kernel_h, kernel_w)`. Stride,

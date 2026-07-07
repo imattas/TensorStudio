@@ -135,6 +135,33 @@ def test_comparison_ops_match_numpy() -> None:
     np.testing.assert_array_equal((a <= b).numpy(), a.numpy() <= b.numpy())
     np.testing.assert_array_equal((a > b).numpy(), a.numpy() > b.numpy())
     np.testing.assert_array_equal((a >= b).numpy(), a.numpy() >= b.numpy())
+    np.testing.assert_array_equal(a.equal(b).numpy(), a.numpy() == b.numpy())
+    np.testing.assert_array_equal(ts.not_equal(a, b).numpy(), a.numpy() != b.numpy())
+    np.testing.assert_array_equal(ts.less(a, b).numpy(), a.numpy() < b.numpy())
+    np.testing.assert_array_equal(a.less_equal(b).numpy(), a.numpy() <= b.numpy())
+    np.testing.assert_array_equal(ts.greater(a, b).numpy(), a.numpy() > b.numpy())
+    np.testing.assert_array_equal(a.greater_equal(b).numpy(), a.numpy() >= b.numpy())
+
+
+def test_where_maximum_and_minimum_match_numpy() -> None:
+    values = np.array([[1.0, 4.0, -2.0], [7.0, 0.0, 3.0]], dtype=np.float32)
+    other = np.array([2.0, 4.0, 1.0], dtype=np.float32)
+    condition = np.array([[True, False, True], [False, True, False]])
+    x = ts.from_numpy(values)
+    y = ts.from_numpy(other)
+    mask = ts.from_numpy(condition)
+
+    np.testing.assert_allclose(ts.maximum(x, y).numpy(), np.maximum(values, other))
+    np.testing.assert_allclose(x.maximum(y).numpy(), np.maximum(values, other))
+    np.testing.assert_allclose(ts.minimum(x, y).numpy(), np.minimum(values, other))
+    np.testing.assert_allclose(x.minimum(y).numpy(), np.minimum(values, other))
+    np.testing.assert_allclose(ts.where(mask, x, y).numpy(), np.where(condition, values, other))
+    np.testing.assert_allclose(mask.where(x, y).numpy(), np.where(condition, values, other))
+    np.testing.assert_allclose(ts.clip(x, -1.0, 4.0).numpy(), np.clip(values, -1.0, 4.0))
+    np.testing.assert_allclose(ts.clamp(x, -1.0, 4.0).numpy(), np.clip(values, -1.0, 4.0))
+
+    with pytest.raises(Exception, match="condition must have dtype bool"):
+        ts.where(x, x, y)
 
 
 def test_broadcast_error() -> None:

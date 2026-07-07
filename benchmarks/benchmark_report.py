@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import io
 import os
 import platform
 import statistics
 import sys
 import time
 from collections.abc import Callable, Iterable
-from contextlib import suppress
+from contextlib import redirect_stderr, redirect_stdout, suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ import numpy as np
 import tensorstudio as ts
 
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
+os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 
 
 ArrayFactory = Callable[[np.ndarray], Any]
@@ -59,7 +61,8 @@ class Stats:
 
 def _optional_import(module_name: str) -> Any | None:
     try:
-        return importlib.import_module(module_name)
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            return importlib.import_module(module_name)
     except Exception:
         return None
 

@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 1.3.6 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with native C++
+  `where`, `maximum`, and `minimum` operations.
+- Exposed top-level comparison helpers, `clamp`/`clip`, selection helpers, and
+  Tensor method helpers through the Python API while keeping kernels in C++.
+- Added NumPy parity and autograd tests for `where`, `maximum`, and `minimum`,
+  including broadcasting and tie-gradient behavior.
+- Reorganized the MkDocs tree into categorized sections and added deeper docs
+  for installation, source builds, native C++ architecture, broadcasting,
+  gradient behavior, model formats, dataset creation, and the C++-first policy.
+- Added GitHub Linguist attributes so language statistics emphasize the native
+  C++ library and do not count docs, examples, tests, generated site output, or
+  benchmark scripts as implementation code.
+
 ## 1.3.5 - 2026-07-07
 
 - Completed the next ordered correctness-roadmap item with native C++
