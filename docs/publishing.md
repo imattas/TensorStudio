@@ -1,8 +1,9 @@
 # Publishing
 
-TensorStudio release publishing should use GitHub Actions and PyPI trusted
-publishing. Do not hardcode PyPI tokens in workflows, docs examples, or source
-files.
+TensorStudio release publishing should use GitHub Actions. PyPI Trusted
+Publishing is preferred; when a repository-level `PYPI_TOKEN` secret is
+configured, the release workflow can use that token as an explicit fallback. Do
+not hardcode PyPI tokens in workflows, docs examples, or source files.
 
 ## Release Candidate Flow
 
@@ -37,7 +38,9 @@ Workflows:
   example on Windows, Linux, and macOS.
 - `wheels.yml`: cibuildwheel artifacts for Windows first, Linux second, macOS
   third, plus sdist.
-- `publish.yml`: trusted publishing through `pypa/gh-action-pypi-publish`.
+- `publish.yml`: artifact verification plus PyPI publishing through
+  `pypa/gh-action-pypi-publish`; it uses `PYPI_TOKEN` when configured and
+  otherwise falls back to Trusted Publishing.
 
 The publish workflow must include:
 
