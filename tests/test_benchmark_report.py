@@ -6,9 +6,10 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.benchmark_report import BenchmarkCase, Library, Stats, _render_report
-
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from benchmarks.benchmark_report import BenchmarkCase, Library, Stats, _render_report  # noqa: E402
 
 
 def _factory(array: np.ndarray) -> np.ndarray:
