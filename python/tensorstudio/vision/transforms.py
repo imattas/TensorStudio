@@ -278,7 +278,7 @@ def resize_bilinear(image: Any, size: int | tuple[int, int]) -> np.ndarray | Ten
     height_axis, width_axis = _spatial_axes(array)
     height = array.shape[height_axis]
     width = array.shape[width_axis]
-    working = np.moveaxis(array, (height_axis, width_axis), (0, 1)).astype(np.float64)
+    working: np.ndarray = np.moveaxis(array, (height_axis, width_axis), (0, 1)).astype(np.float64)
 
     y_coords = np.zeros(out_h) if out_h == 1 else np.linspace(0, height - 1, out_h)
     x_coords = np.zeros(out_w) if out_w == 1 else np.linspace(0, width - 1, out_w)
@@ -365,7 +365,7 @@ def rgb_to_grayscale(image: Any) -> np.ndarray | Tensor:
         return _same_kind(image, array)
     if array.shape[channel_axis] < 3:
         raise ValueError("RGB grayscale conversion requires at least three channels")
-    moved = np.moveaxis(array, channel_axis, -1).astype(np.float64)
+    moved: np.ndarray = np.moveaxis(array, channel_axis, -1).astype(np.float64)
     gray = (
         moved[..., 0] * 0.299
         + moved[..., 1] * 0.587

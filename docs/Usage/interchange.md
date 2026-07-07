@@ -1,6 +1,6 @@
 # ONNX Interchange
 
-TensorStudio `1.3.2` includes a limited ONNX exporter for supported
+TensorStudio `1.3.3` includes a limited ONNX exporter for supported
 TensorStudio module stacks.
 
 Install the optional dependency:

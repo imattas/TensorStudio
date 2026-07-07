@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.3.2` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.3.3` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems

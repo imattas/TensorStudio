@@ -36,7 +36,10 @@ def draw_bounding_boxes(
         array = np.clip(array, 0, 255).astype(np.uint8)
     pil_image = Image.fromarray(array)
     draw = ImageDraw.Draw(pil_image)
-    box_array = np.asarray(boxes.numpy() if isinstance(boxes, Tensor) else boxes, dtype=np.float64)
+    box_array: np.ndarray = np.asarray(
+        boxes.numpy() if isinstance(boxes, Tensor) else boxes,
+        dtype=np.float64,
+    )
     if box_array.ndim != 2 or box_array.shape[1] != 4:
         raise ValueError("boxes must have shape (N, 4)")
     if labels is not None and len(labels) != box_array.shape[0]:

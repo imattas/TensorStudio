@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 1.3.3 - 2026-07-07
+
+- Hardened CI type checks for newer Python/mypy combinations by annotating
+  NumPy temporaries in vision transform and visualization helpers.
+- This patch does not change runtime behavior.
+
 ## 1.3.2 - 2026-07-07
 
 - Completed the second ordered roadmap item with exhaustive binary
