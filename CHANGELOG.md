@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 1.5.1 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with clearer native
+  shape, dtype, and indexing error messages.
+- Broadcasting errors now include the mismatched axis and dimensions.
+- Reshape errors now include requested element counts and inferred-shape
+  context.
+- DType errors now validate Python dtype inputs and list supported dtype names
+  and aliases.
+- Indexing errors now include tensor shape/rank context and the unsupported
+  Python index type/value where practical.
+- Added focused regression tests for the improved diagnostics.
+
 ## 1.5.0 - 2026-07-07
 
 - Completed the next ordered correctness-roadmap item with native C++ view and

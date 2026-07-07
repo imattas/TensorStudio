@@ -303,7 +303,9 @@ bool Tensor::requires_grad() const {
 void Tensor::set_requires_grad(bool value) {
   ensure_defined();
   if (value && !dtype_is_floating(impl_->dtype)) {
-    throw DTypeError("requires_grad is only supported for floating point tensors");
+    throw DTypeError(
+        "requires_grad is only supported for floating point tensors, got dtype " +
+        dtype_name(impl_->dtype));
   }
   if (!impl_->autograd) {
     impl_->autograd = std::make_shared<AutogradMeta>();

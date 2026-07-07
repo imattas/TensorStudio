@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.5.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.5.1` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -31,7 +31,8 @@ tensor semantics.
   scalar-output cases, with clear rejections for unsupported advanced indexing.
 - Completed in `1.5.0`: add more view/layout operations: `squeeze`,
   `unsqueeze`, `permute`, and general N-dimensional transpose.
-- Add clearer shape, dtype, and indexing error messages.
+- Completed in `1.5.1`: add clearer shape, dtype, and indexing error
+  messages.
 - Expand numerical tests against NumPy for all new semantics.
 
 ## 2. CPU Performance Core

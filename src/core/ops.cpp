@@ -1842,10 +1842,16 @@ void validate_concat_inputs(const std::vector<Tensor>& tensors, int64_t axis) {
   for (std::size_t i = 1; i < tensors.size(); ++i) {
     const Tensor& tensor = tensors[i];
     if (tensor.dtype() != tensors.front().dtype()) {
-      throw DTypeError("concat requires all tensors to have the same dtype");
+      throw DTypeError(
+          "concat requires all tensors to have the same dtype: tensor 0 has dtype " +
+          dtype_name(tensors.front().dtype()) + ", tensor " + std::to_string(i) +
+          " has dtype " + dtype_name(tensor.dtype()));
     }
     if (tensor.shape().size() != base_shape.size()) {
-      throw ShapeError("concat requires tensors with the same rank");
+      throw ShapeError(
+          "concat requires tensors with the same rank: tensor 0 has shape " +
+          shape_to_string(base_shape) + ", tensor " + std::to_string(i) +
+          " has shape " + shape_to_string(tensor.shape()));
     }
     for (std::size_t dim = 0; dim < base_shape.size(); ++dim) {
       if (static_cast<int64_t>(dim) == axis) {
@@ -1925,7 +1931,10 @@ void validate_stack_inputs(const std::vector<Tensor>& tensors) {
   for (std::size_t i = 1; i < tensors.size(); ++i) {
     const Tensor& tensor = tensors[i];
     if (tensor.dtype() != tensors.front().dtype()) {
-      throw DTypeError("stack requires all tensors to have the same dtype");
+      throw DTypeError(
+          "stack requires all tensors to have the same dtype: tensor 0 has dtype " +
+          dtype_name(tensors.front().dtype()) + ", tensor " + std::to_string(i) +
+          " has dtype " + dtype_name(tensor.dtype()));
     }
     if (tensor.shape() != base_shape) {
       throw ShapeError(

@@ -36,6 +36,14 @@ bool is_sequence_like(py::handle object) {
   return PySequence_Check(object.ptr()) != 0 && !py::isinstance<py::array>(object);
 }
 
+std::string py_type_name(py::handle object) {
+  return py::cast<std::string>(object.get_type().attr("__name__"));
+}
+
+std::string py_repr_string(py::handle object) {
+  return py::cast<std::string>(py::repr(object));
+}
+
 void parse_nested(py::handle object, std::size_t depth, ParsedData& parsed) {
   if (is_sequence_like(object)) {
     py::sequence sequence = py::reinterpret_borrow<py::sequence>(object);
@@ -66,7 +74,9 @@ void parse_nested(py::handle object, std::size_t depth, ParsedData& parsed) {
     parsed.values.push_back(static_cast<double>(py::cast<int64_t>(object)));
     return;
   }
-  throw DTypeError("tensor data must contain numeric Python scalars");
+  throw DTypeError(
+      "tensor data must contain numeric Python scalars, got " + py_type_name(object) +
+      " value " + py_repr_string(object));
 }
 
 DType infer_dtype(const ParsedData& parsed) {
@@ -213,18 +223,26 @@ DType dtype_from_py(py::object object, DType fallback) {
   if (object.is_none()) {
     return fallback;
   }
+  if (!py::isinstance<py::str>(object)) {
+    throw DTypeError("dtype must be a string or None, got " + py_type_name(object));
+  }
   return dtype_from_string(py::cast<std::string>(object));
 }
 
 Shape shape_from_py(py::object object) {
-  if (py::isinstance<py::int_>(object)) {
+  if (py::isinstance<py::int_>(object) && !py::isinstance<py::bool_>(object)) {
     return Shape{py::cast<int64_t>(object)};
   }
   if (!is_sequence_like(object)) {
-    throw ShapeError("shape must be an int or a sequence of ints");
+    throw ShapeError("shape must be an int or a sequence of ints, got " + py_type_name(object));
   }
   Shape shape;
   for (py::handle item : py::reinterpret_borrow<py::sequence>(object)) {
+    if (!py::isinstance<py::int_>(item) || py::isinstance<py::bool_>(item)) {
+      throw ShapeError(
+          "shape entries must be integers, got " + py_type_name(item) + " value " +
+          py_repr_string(item));
+    }
     shape.push_back(py::cast<int64_t>(item));
   }
   validate_shape(shape);
@@ -377,21 +395,29 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
       continue;
     }
     if (py::isinstance<py::bool_>(item)) {
-      throw ShapeError("boolean tensor indexing is not supported; use comparison masks with where");
+      throw ShapeError(
+          "boolean tensor indexing is not supported: boolean scalar indexing for tensor shape " +
+          shape_to_string(input.shape()) + "; use comparison masks with where");
     }
     if (py::isinstance<py::int_>(item) || is_slice(item)) {
       ++consuming_count;
       continue;
     }
-    throw ShapeError("unsupported tensor index type; use integers, slices, ellipsis, or None/newaxis");
+    throw ShapeError(
+        "unsupported tensor index type " + py_type_name(item) + " value " +
+        py_repr_string(item) + "; use integers, slices, ellipsis, or None/newaxis");
   }
 
   if (ellipsis_count > 1) {
-    throw ShapeError("an index can contain at most one ellipsis");
+    throw ShapeError(
+        "an index can contain at most one ellipsis for tensor shape " +
+        shape_to_string(input.shape()));
   }
   if (consuming_count > input.ndim()) {
     throw ShapeError(
-        "too many indices for tensor with shape " + shape_to_string(input.shape()));
+        "too many indices: got " + std::to_string(consuming_count) +
+        " indexing entries for rank " + std::to_string(input.ndim()) +
+        " tensor with shape " + shape_to_string(input.shape()));
   }
 
   std::vector<TensorIndex> indices;
@@ -412,7 +438,10 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
     }
     if (py::isinstance<py::int_>(item) && !py::isinstance<py::bool_>(item)) {
       if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+        throw ShapeError(
+            "too many indices: got more indexing entries than rank " +
+            std::to_string(input.ndim()) + " for tensor with shape " +
+            shape_to_string(input.shape()));
       }
       indices.push_back(TensorIndex::at(py::cast<int64_t>(item)));
       ++input_dim;
@@ -420,7 +449,10 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
     }
     if (is_slice(item)) {
       if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+        throw ShapeError(
+            "too many indices: got more indexing entries than rank " +
+            std::to_string(input.ndim()) + " for tensor with shape " +
+            shape_to_string(input.shape()));
       }
       const auto dim_size = static_cast<Py_ssize_t>(input.shape()[static_cast<std::size_t>(input_dim)]);
       Py_ssize_t start = 0;
@@ -429,7 +461,10 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
       Py_ssize_t length = 0;
       if (PySlice_GetIndicesEx(item.ptr(), dim_size, &start, &stop, &step, &length) != 0) {
         PyErr_Clear();
-        throw ShapeError("invalid slice for tensor axis " + std::to_string(input_dim));
+        throw ShapeError(
+            "invalid slice " + py_repr_string(item) + " for axis " +
+            std::to_string(input_dim) + " with size " + std::to_string(dim_size) +
+            " in tensor shape " + shape_to_string(input.shape()));
       }
       indices.push_back(TensorIndex::slice(
           static_cast<int64_t>(start),

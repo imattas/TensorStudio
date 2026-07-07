@@ -55,7 +55,7 @@ equivalents where available.
 ## Interpreting Results
 
 Expect NumPy and PyTorch to be faster for many medium and large operations
-because they use highly optimized native kernels. TensorStudio `1.5.0` still
+because they use highly optimized native kernels. TensorStudio `1.5.1` still
 favors clarity, portability, and a compact C++ implementation over full kernel
 library performance.
 

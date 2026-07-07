@@ -1,6 +1,6 @@
 # ONNX Interchange
 
-TensorStudio `1.5.0` includes a limited ONNX exporter for supported
+TensorStudio `1.5.1` includes a limited ONNX exporter for supported
 TensorStudio module stacks.
 
 Install the optional dependency:

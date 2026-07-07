@@ -386,6 +386,11 @@ Import native exception aliases from `tensorstudio.errors`:
 - `DeviceError`
 - `AutogradError`
 
+Shape, dtype, and indexing errors are intended to be actionable. Common
+messages include tensor shapes, ranks, mismatched broadcast axes, requested
+reshape element counts, unsupported dtype names, and unsupported Python index
+types where that context is available from the C++/binding layer.
+
 ## Serialization
 
 ```python
