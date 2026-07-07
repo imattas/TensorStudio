@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.0.0` is a CPU-only stable API foundation. It is eager-only,
+TensorStudio `1.0.1` is a CPU-only stable API foundation. It is eager-only,
 intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -169,13 +169,18 @@ performance is still experimental. Benchmarks live in `benchmarks/` and can be
 run locally:
 
 ```bash
+python benchmark_all.py
 python benchmarks/benchmark_report.py
 ```
 
-On one Windows CPython 3.10 run for `1.0.0`, TensorStudio beat NumPy on 13
+`benchmark_all.py` writes `benchmarks/results.md` and includes explicit win
+columns for NumPy, TensorFlow, PyTorch, and JAX when those libraries are
+available locally.
+
+On one Windows CPython 3.10 run for `1.0.1`, TensorStudio beat NumPy on 13
 small activation/reduction benchmark cases and lost on 76 NumPy-comparable
-cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 68 local cases and
-lost 26. The strongest local wins were small eager operations where framework
+cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 71 local cases and
+lost 23. The strongest local wins were small eager operations where framework
 dispatch overhead dominates; larger matrix multiplication, larger transcendental
 activations, and larger autograd workloads remain faster in PyTorch and NumPy.
 See `benchmarks/results.md` for the full table, platform details, and exact
@@ -185,11 +190,11 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | PyTorch CPU | TS vs NumPy | TS vs PyTorch |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0018 ms | 0.0049 ms | 0.0638 ms | 2.7548x | 35.6408x |
-| `mean` | `(32,)` | 0.0016 ms | 0.0071 ms | 0.0110 ms | 4.3608x | 6.7855x |
-| `chain_relu` | `(128,)` | 0.0089 ms | 0.0039 ms | 0.0545 ms | 0.4410x | 6.1384x |
-| `matmul` | `(256, 256)` | 3.0180 ms | 0.4115 ms | 0.1392 ms | 0.1363x | 0.0461x |
-| `elementwise_backward` | `(1024,)` | 2.3844 ms | n/a | 0.1830 ms | n/a | 0.0767x |
+| `sigmoid` | `(32,)` | 0.0018 ms | 0.0036 ms | 0.0575 ms | 2.0414x | 32.2110x |
+| `mean` | `(32,)` | 0.0016 ms | 0.0069 ms | 0.0112 ms | 4.4051x | 7.1262x |
+| `chain_relu` | `(128,)` | 0.0086 ms | 0.0039 ms | 0.0567 ms | 0.4488x | 6.5977x |
+| `matmul` | `(256, 256)` | 2.4215 ms | 0.4027 ms | 0.0832 ms | 0.1663x | 0.0343x |
+| `elementwise_backward` | `(1024,)` | 2.3527 ms | n/a | 0.1887 ms | n/a | 0.0802x |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -215,6 +220,7 @@ unsafe because pickle can execute arbitrary code.
 
 ```bash
 python -m pip install -e ".[dev,docs]"
+python test_all.py --skip-build
 ruff check .
 mypy python/tensorstudio
 pytest -q
@@ -227,6 +233,7 @@ scikit-build-core, and C++20.
 
 ## Release Checklist
 
+- `python test_all.py` passes locally.
 - `ruff check .` passes.
 - `mypy python/tensorstudio` passes.
 - `pytest -q` passes on Windows, Linux, and macOS.
@@ -251,6 +258,7 @@ tokens or print secrets.
 - CPU backend only.
 - Eager execution only.
 - No CUDA or Metal backend yet.
+- No BLAS-backed matrix multiplication yet.
 - No graph compiler or distributed runtime.
 - No convolution layers yet.
 - No sparse tensors or advanced indexing.

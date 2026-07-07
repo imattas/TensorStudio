@@ -40,6 +40,7 @@ python -m pip install -e ".[dev,docs]"
 ruff check .
 mypy python/tensorstudio
 pytest -q
+python test_all.py --skip-build
 python -m build
 python -m twine check dist/*
 ```
@@ -118,3 +119,9 @@ Use `np.testing.assert_allclose` for numerical comparisons.
 For release work, keep documentation and benchmark claims aligned with measured
 results. A stable API release is not the same thing as a performance-superiority
 claim.
+
+`python test_all.py` runs the local release gate. Use `--skip-build` or
+`--skip-docs` while iterating, then run it without skips before a release.
+
+`python benchmark_all.py` regenerates `benchmarks/results.md` with all benchmark
+sections and explicit per-framework win columns.

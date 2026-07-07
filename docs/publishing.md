@@ -13,16 +13,16 @@ git tag v1.0.0rc2
 git push origin v1.0.0rc2
 ```
 
-The final `v1.0.0` tag should only be created after the release checklist passes
-on Windows, Linux, and macOS.
+Stable tags should only be created after the release checklist passes on
+Windows, Linux, and macOS.
 
 ## Stable Release Flow
 
 After the release checklist passes, tag the stable release:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 Stable release notes must avoid unsupported performance claims. Publish measured
@@ -60,7 +60,7 @@ clean environment:
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.1
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -71,7 +71,7 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.1
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -90,8 +90,10 @@ Promote to real PyPI only after TestPyPI install and runtime checks pass.
 `CMakeLists.txt` uses a numeric project version. Keep the public Python/C++
 version strings in package metadata and the version header synchronized.
 
-## Required Checks Before Final `1.0.0`
+## Required Checks Before A Release
 
+- `python test_all.py` passes locally.
+- `python benchmark_all.py` regenerates current benchmark tables.
 - `ruff check .` passes.
 - `mypy python/tensorstudio` passes.
 - `pytest -q` passes on Windows.

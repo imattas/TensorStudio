@@ -8,7 +8,7 @@ TensorStudio is compared on CPU only and uses the same shapes and dtype.
 - Platform: `Windows-10-10.0.26200-SP0`
 - Processor: `Intel64 Family 6 Model 158 Stepping 10, GenuineIntel`
 - Python: `3.10.11`
-- TensorStudio: `1.0.0`
+- TensorStudio: `1.0.1`
 - NumPy: `2.2.6`
 - TensorFlow CPU eager: unavailable (not installed)
 - PyTorch CPU: available (2.12.1+cpu)
@@ -25,20 +25,21 @@ TensorStudio did not beat NumPy on this machine for the available benchmark set.
 
 ## Detailed Results
 
-| category | operation | shape | library | median ms | mean ms | min ms | max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | result |
-|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| matmul | matmul | `(16, 16)` | TensorStudio | 0.0030 | 0.0030 | 0.0030 | 0.0031 | 0.0000 | 0.6483 | n/a | 1.3297 | n/a | loss vs NumPy |
-| matmul | matmul | `(16, 16)` | NumPy | 0.0019 | 0.0020 | 0.0019 | 0.0020 | 0.0000 | 0.6483 | n/a | 1.3297 | n/a | NumPy baseline |
-| matmul | matmul | `(16, 16)` | PyTorch CPU | 0.0040 | 0.0040 | 0.0040 | 0.0041 | 0.0000 | 0.6483 | n/a | 1.3297 | n/a | reference |
-| matmul | matmul | `(64, 64)` | TensorStudio | 0.0339 | 0.0341 | 0.0336 | 0.0351 | 0.0005 | 0.3074 | n/a | 0.5671 | n/a | loss vs NumPy |
-| matmul | matmul | `(64, 64)` | NumPy | 0.0104 | 0.0105 | 0.0104 | 0.0109 | 0.0002 | 0.3074 | n/a | 0.5671 | n/a | NumPy baseline |
-| matmul | matmul | `(64, 64)` | PyTorch CPU | 0.0192 | 0.0215 | 0.0136 | 0.0349 | 0.0081 | 0.3074 | n/a | 0.5671 | n/a | reference |
-| matmul | matmul | `(128, 128)` | TensorStudio | 0.4751 | 0.4846 | 0.4662 | 0.5125 | 0.0170 | 0.4157 | n/a | 0.0629 | n/a | loss vs NumPy |
-| matmul | matmul | `(128, 128)` | NumPy | 0.1975 | 0.1931 | 0.1666 | 0.2256 | 0.0210 | 0.4157 | n/a | 0.0629 | n/a | NumPy baseline |
-| matmul | matmul | `(128, 128)` | PyTorch CPU | 0.0299 | 0.0306 | 0.0293 | 0.0338 | 0.0017 | 0.4157 | n/a | 0.0629 | n/a | reference |
-| matmul | matmul | `(256, 256)` | TensorStudio | 3.0180 | 3.4004 | 2.4239 | 4.5115 | 0.8689 | 0.1363 | n/a | 0.0461 | n/a | loss vs NumPy |
-| matmul | matmul | `(256, 256)` | NumPy | 0.4115 | 0.4334 | 0.3622 | 0.5482 | 0.0628 | 0.1363 | n/a | 0.0461 | n/a | NumPy baseline |
-| matmul | matmul | `(256, 256)` | PyTorch CPU | 0.1392 | 0.1879 | 0.1264 | 0.2735 | 0.0700 | 0.1363 | n/a | 0.0461 | n/a | reference |
+| category | operation | shape | library | median ms | mean ms | min ms | max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | win vs NumPy | win vs TensorFlow | win vs PyTorch | win vs JAX | fastest library | result |
+|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|
+| matmul | matmul | `(16, 16)` | TensorStudio | 0.0033 | 0.0033 | 0.0031 | 0.0037 | 0.0002 | 0.6632 | n/a | 1.5897 | n/a | no | n/a | yes | n/a | NumPy | loss vs NumPy |
+| matmul | matmul | `(16, 16)` | NumPy | 0.0022 | 0.0021 | 0.0019 | 0.0024 | 0.0002 | 0.6632 | n/a | 1.5897 | n/a | no | n/a | yes | n/a | NumPy | NumPy baseline |
+| matmul | matmul | `(16, 16)` | PyTorch CPU | 0.0052 | 0.0052 | 0.0045 | 0.0068 | 0.0008 | 0.6632 | n/a | 1.5897 | n/a | no | n/a | yes | n/a | NumPy | reference |
+| matmul | matmul | `(64, 64)` | TensorStudio | 0.0360 | 0.0368 | 0.0339 | 0.0439 | 0.0037 | 0.4481 | n/a | 0.3681 | n/a | no | n/a | no | n/a | PyTorch CPU | loss vs NumPy |
+| matmul | matmul | `(64, 64)` | NumPy | 0.0161 | 0.0169 | 0.0156 | 0.0194 | 0.0014 | 0.4481 | n/a | 0.3681 | n/a | no | n/a | no | n/a | PyTorch CPU | NumPy baseline |
+| matmul | matmul | `(64, 64)` | PyTorch CPU | 0.0132 | 0.0129 | 0.0108 | 0.0141 | 0.0011 | 0.4481 | n/a | 0.3681 | n/a | no | n/a | no | n/a | PyTorch CPU | reference |
+| matmul | matmul | `(128, 128)` | TensorStudio | 0.3792 | 0.4161 | 0.2906 | 0.5590 | 0.1139 | 0.4682 | n/a | 0.0938 | n/a | no | n/a | no | n/a | PyTorch CPU | loss vs NumPy |
+| matmul | matmul | `(128, 128)` | NumPy | 0.1775 | 0.1787 | 0.1519 | 0.2087 | 0.0188 | 0.4682 | n/a | 0.0938 | n/a | no | n/a | no | n/a | PyTorch CPU | NumPy baseline |
+| matmul | matmul | `(128, 128)` | PyTorch CPU | 0.0356 | 0.0347 | 0.0289 | 0.0385 | 0.0032 | 0.4682 | n/a | 0.0938 | n/a | no | n/a | no | n/a | PyTorch CPU | reference |
+| matmul | matmul | `(256, 256)` | TensorStudio | 4.4976 | 4.5300 | 4.2643 | 4.9701 | 0.2543 | 0.0987 | n/a | 0.0360 | n/a | no | n/a | no | n/a | PyTorch CPU | loss vs NumPy |
+| matmul | matmul | `(256, 256)` | NumPy | 0.4437 | 0.4068 | 0.3054 | 0.4530 | 0.0567 | 0.0987 | n/a | 0.0360 | n/a | no | n/a | no | n/a | PyTorch CPU | NumPy baseline |
+| matmul | matmul | `(256, 256)` | PyTorch CPU | 0.1617 | 0.2005 | 0.1373 | 0.3023 | 0.0677 | 0.0987 | n/a | 0.0360 | n/a | no | n/a | no | n/a | PyTorch CPU | reference |
 
 Speedup columns are `competitor median / TensorStudio median`; values above 1.0 mean
 TensorStudio was faster for that specific case.
+Win columns say whether that same speedup is above 1.0 for the competitor.

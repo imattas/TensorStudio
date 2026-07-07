@@ -539,10 +539,22 @@ def _format_float(value: float | None) -> str:
     return f"{value:.4f}"
 
 
+def _format_win(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return "yes" if value > 1.0 else "no"
+
+
 def _speedup(ts_ms: float | None, competitor_ms: float | None) -> float | None:
     if ts_ms is None or competitor_ms is None or ts_ms <= 0:
         return None
     return competitor_ms / ts_ms
+
+
+def _fastest_library(medians: dict[str, float]) -> str:
+    if not medians:
+        return "n/a"
+    return min(medians.items(), key=lambda item: item[1])[0]
 
 
 def _run_cases(cases: Iterable[BenchmarkCase], libraries: list[Library]) -> dict[str, Stats]:
@@ -640,10 +652,13 @@ def _render_report(
     lines.append("")
     lines.append(
         "| category | operation | shape | library | median ms | mean ms | min ms | "
-        "max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | result |"
+        "max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | "
+        "win vs NumPy | win vs TensorFlow | win vs PyTorch | win vs JAX | "
+        "fastest library | result |"
     )
     lines.append(
-        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|"
+        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"
+        "---|---|---|---|---|---|"
     )
 
     for case in cases:
@@ -668,6 +683,7 @@ def _render_report(
                 medians.get("JAX CPU dispatch"),
             ),
         }
+        fastest = _fastest_library(medians)
         for library in libraries:
             stats = results.get(_result_key(case, library.name))
             if stats is None:
@@ -692,13 +708,19 @@ def _render_report(
                 f"{_format_float(speedups['NumPy'])} | "
                 f"{_format_float(speedups['TensorFlow CPU eager'])} | "
                 f"{_format_float(speedups['PyTorch CPU'])} | "
-                f"{_format_float(speedups['JAX CPU dispatch'])} | {result} |"
+                f"{_format_float(speedups['JAX CPU dispatch'])} | "
+                f"{_format_win(speedups['NumPy'])} | "
+                f"{_format_win(speedups['TensorFlow CPU eager'])} | "
+                f"{_format_win(speedups['PyTorch CPU'])} | "
+                f"{_format_win(speedups['JAX CPU dispatch'])} | "
+                f"{fastest} | {result} |"
             )
     lines.append("")
     lines.append(
         "Speedup columns are `competitor median / TensorStudio median`; values above 1.0 mean"
     )
     lines.append("TensorStudio was faster for that specific case.")
+    lines.append("Win columns say whether that same speedup is above 1.0 for the competitor.")
     lines.append("")
     return "\n".join(lines)
 

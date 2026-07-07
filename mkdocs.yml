@@ -18,15 +18,27 @@ nav:
   - Home: index.md
   - Quickstart: quickstart.md
   - Tensors: tensors.md
+  - Usage:
+      - Tensor API: Usage/tensors.md
+      - NumPy Interop: Usage/numpy-interop.md
+      - Serialization: Usage/serialization.md
   - Autograd: autograd.md
+  - Autograd Coverage: Autograde/index.md
   - Neural Networks: nn.md
+  - Neural Network Guides:
+      - Modules: Neural Networks/modules.md
+      - Training: Neural Networks/training.md
   - Optimizers: optim.md
   - Data: data.md
   - Serialization: serialization.md
+  - Benchmarks: Benchmarks/index.md
+  - Hardware:
+      - CPU Backend: Hardware/cpu-backend.md
   - Platform Guides:
       - Windows: windows.md
       - Linux: linux.md
       - macOS: macos.md
+  - Roadmap: Roadmap/index.md
   - API: api.md
   - Development: development.md
   - Publishing: publishing.md

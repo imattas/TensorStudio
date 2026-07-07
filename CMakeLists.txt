@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(tensorstudio VERSION 1.0.0 LANGUAGES CXX)
+project(tensorstudio VERSION 1.0.1 LANGUAGES CXX)
 
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 set(PYBIND11_FINDPYTHON ON)

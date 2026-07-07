@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.0.0` is a CPU-first foundation. This roadmap describes likely
+TensorStudio `1.0.1` is a CPU-first foundation. This roadmap describes likely
 directions without promising dates.
 
 ## Backend And Performance

@@ -30,6 +30,10 @@ jobs:
         run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
+      - name: Runner scripts
+        run: |
+          python test_all.py --help
+          python benchmark_all.py --help
       - name: Example
         run: python examples/basic_tensor_ops.py
 
@@ -59,6 +63,10 @@ jobs:
         run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
+      - name: Runner scripts
+        run: |
+          python test_all.py --help
+          python benchmark_all.py --help
       - name: Example
         run: python examples/basic_tensor_ops.py
 
@@ -88,5 +96,9 @@ jobs:
         run: mypy --python-version ${{ matrix.python-version }} python/tensorstudio
       - name: Tests
         run: pytest -q
+      - name: Runner scripts
+        run: |
+          python test_all.py --help
+          python benchmark_all.py --help
       - name: Example
         run: python examples/basic_tensor_ops.py

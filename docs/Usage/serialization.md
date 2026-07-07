@@ -1,6 +1,6 @@
 # Serialization
 
-TensorStudio `1.0.0` provides simple Python-level serialization:
+TensorStudio `1.0.1` provides simple Python-level serialization:
 
 ```python
 import tensorstudio as ts

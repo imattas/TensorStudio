@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.1
+
+- Added `test_all.py` for one-command local release checks covering lint,
+  typing, tests, examples, docs, build, and package metadata validation.
+- Added `benchmark_all.py` for one-command full benchmark report generation.
+- Added explicit benchmark win columns for NumPy, TensorFlow, PyTorch, and JAX,
+  plus fastest-library reporting for each benchmark case.
+- Hardened release publishing triggers so future `v*` tags are eligible for
+  the publish workflow instead of only `v1.0.0`.
+- Updated docs to describe benchmark interpretation, local release checks, and
+  site navigation for benchmark, hardware, roadmap, and usage pages.
+
 ## 1.0.0
 
 - Promoted the CPU-only stable API foundation from release candidate status.
