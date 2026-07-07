@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import data, dtypes, interchange, math, nn, optim, project, vision
+from . import data, dtypes, interchange, math, metrics, nn, optim, project, vision
 from ._version import __version__
 from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
@@ -137,6 +137,7 @@ __all__ = [
     "max_pool2d",
     "minimum",
     "math",
+    "metrics",
     "nn",
     "no_grad",
     "norm",

@@ -39,6 +39,7 @@ nav:
       - Training: nn/training.md
   - Data:
       - Datasets And DataLoaders: data/datasets-and-dataloaders.md
+      - Dataset Creation: data/dataset-creation.md
       - Tensor Datasets: data/tensor-datasets.md
       - DataLoader Patterns: data/dataloader-patterns.md
   - Vision:
@@ -47,6 +48,9 @@ nav:
   - Project Workflows:
       - Local Projects: project/workflows.md
       - Project Layout: project/project-layout.md
+      - Trainer And Callbacks: project/trainer-and-callbacks.md
+      - Metrics: project/metrics.md
+      - Configs And Templates: project/configs-and-templates.md
       - Checkpoints: project/checkpoints.md
   - Interchange And Serialization:
       - NumPy Interop: interchange/numpy-interop.md

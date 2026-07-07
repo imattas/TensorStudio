@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 1.10.0 - 2026-07-07
+
+- Completed the ordered Training And Project Workflows roadmap section as one
+  release batch.
+- Added `ArrayDataset`, tensor/array/image-folder dataset factories,
+  deterministic train/validation splitting, and dataset metadata summaries.
+- Added `tensorstudio.metrics` with regression, classification, and multilabel
+  metrics for small supervised workflows.
+- Added trainer validation loops, scheduler stepping, callback context support,
+  learning-rate logging, CSV logging, checkpoint callbacks, and early stopping.
+- Added JSON, TOML, and YAML project config loading plus deterministic seeding
+  across TensorStudio, NumPy, and Python random.
+- Expanded full checkpoints with scheduler and epoch state and added
+  `resume_checkpoint()` for continuing training runs.
+- Added generated regression, classification, and vision project templates.
+- Expanded tests and docs for project workflows, metrics, dataset creation,
+  callbacks, configs, templates, and checkpoint resume.
+
 ## 1.9.0 - 2026-07-07
 
 - Completed the ordered Neural Network Building Blocks roadmap section as one

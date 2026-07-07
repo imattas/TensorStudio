@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.9.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.10.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -48,9 +48,13 @@ TensorStudio is:
   and common losses including multiclass cross entropy.
 - Python `optim.SGD`, `optim.Adam`, `optim.AdamW`, gradient clipping helpers,
   and small learning-rate schedulers.
-- Minimal Windows-friendly `Dataset`, `TensorDataset`, and `DataLoader`.
-- Project utilities for JSON configs, run folders, reusable trainers, safe NPZ
-  state-dict checkpoints, and trusted full checkpoints.
+- Minimal Windows-friendly `Dataset`, `TensorDataset`, array/image dataset
+  factories, deterministic train/validation splitting, metadata summaries, and
+  `DataLoader`.
+- Project utilities for JSON/TOML/YAML configs, deterministic seeding, run
+  folders, reusable train/validation trainers, callbacks, metrics, safe NPZ
+  state-dict checkpoints, trusted full checkpoints, resume helpers, and starter
+  templates.
 - NumPy copy interop, pickle-based internal serialization, non-pickle NPZ
   tensor/state_dict files, limited ONNX export, vision IO, transforms, datasets,
   metrics, visualization, compact CNN helpers, examples, tests, benchmarks, and
@@ -69,12 +73,12 @@ TensorStudio prioritizes:
 ## Boundaries
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
-graph compilation, grouped convolution, adaptive/global pooling, advanced
-advanced list/tensor/boolean indexing, sparse tensors, mixed precision, a high
-performance kernel library, pretrained vision model zoo, detection/segmentation
-training stack, video IO, an ONNX runtime, or ONNX import. Benchmarks are rough
-local references only; TensorStudio wins some small eager CPU cases but is not
-faster than PyTorch, NumPy, TensorFlow, or JAX overall.
+graph compilation, advanced list/tensor/boolean indexing, sparse tensors, mixed
+precision, a high performance kernel library, pretrained vision model zoo,
+detection/segmentation training stack, video IO, an ONNX runtime, or ONNX
+import. Benchmarks are rough local references only; TensorStudio wins some
+small eager CPU cases but is not faster than PyTorch, NumPy, TensorFlow, or JAX
+overall.
 
 Pickle serialization is available for trusted internal objects. Prefer
 `save_npz`/`load_npz` for portable tensor and state_dict files.
@@ -105,9 +109,11 @@ The docs are organized as multi-page sections:
 - `core`: tensor semantics, broadcasting, native C++ design, and API reference.
 - `autograd`: engine overview, gradient notes, and coverage matrix.
 - `nn`: modules, optimizers, and training workflows.
-- `data`: dataset contracts, tensor datasets, and DataLoader usage.
+- `data`: dataset contracts, dataset creation, tensor datasets, and DataLoader
+  usage.
 - `vision`: image utilities and dataset creation.
-- `project`: local project structure, workflow helpers, and checkpoints.
+- `project`: local project structure, workflow helpers, callbacks, metrics,
+  configs, templates, and checkpoints.
 - `interchange`: NumPy, serialization, trusted pickle notes, ONNX, and formats.
 - `performance`: benchmark results, profiling guidance, and optimization notes.
 - `hardware`: CPU backend plus platform build notes.

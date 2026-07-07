@@ -35,21 +35,33 @@ numbers can change, but the order should stay foundation-first.
   expanded activations, expanded losses, BatchNorm buffers, and model summary
   utilities.
 
-## Milestone D: Vision Workloads
+## Milestone D: Training And Project Workflows
+
+- Add dataset creation helpers for arrays, tensors, labels, and images.
+- Add train/validation loop support.
+- Add callback and resume workflows.
+- Add metric helpers for common supervised tasks.
+- Completed in `1.10.0`: added array/tensor/image dataset factories,
+  deterministic train/validation splitting, metadata summaries, callbacks,
+  regression/classification/multilabel metrics, JSON/TOML/YAML config loading,
+  checkpoint resume helpers, trainer validation loops, deterministic seeding,
+  and starter project templates.
+
+## Milestone E: Vision Workloads
 
 - Expand image transforms.
 - Add dataset metadata helpers.
 - Add more CNN building blocks.
 - Benchmark convolution and pooling improvements.
 
-## Milestone E: Interchange
+## Milestone F: Interchange
 
 - Improve ONNX export coverage.
 - Add ONNX metadata extraction where reliable.
 - Add import for supported operator subsets.
 - Reject unsupported graphs clearly.
 
-## Milestone F: Hardware And Scale
+## Milestone G: Hardware And Scale
 
 - Introduce a backend interface.
 - Add CPU threading.

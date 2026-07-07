@@ -2,7 +2,9 @@
 
 `tensorstudio.project` provides a small workflow layer for complete local model
 projects. It does not hide TensorStudio's eager training loop; it packages the
-common pieces needed for repeatable experiments.
+common pieces needed for repeatable experiments: project folders, config
+loading, deterministic seeding, validation-aware training, callbacks, metrics,
+and checkpoints.
 
 ## Workspace Layout
 
@@ -26,12 +28,15 @@ Creating a project writes `tensorstudio.json` and creates:
 - `artifacts/`
 - `logs/`
 
-The config is plain JSON and can be loaded later:
+The config saved by `Project` is JSON and can be loaded later:
 
 ```python
 loaded = Project.load("runs/linear")
 print(loaded.config.name)
 ```
+
+Use `load_project_config` when you want to read `.json`, `.toml`, `.yaml`, or
+`.yml` project configs outside an existing project folder.
 
 ## Trainer
 
@@ -44,23 +49,33 @@ zero_grad -> forward -> loss -> backward -> optimizer step
 ```python
 import tensorstudio as ts
 from tensorstudio import nn, optim
-from tensorstudio.data import DataLoader, TensorDataset
-from tensorstudio.project import Trainer
+from tensorstudio.data import DataLoader, from_arrays, train_val_split
+from tensorstudio.project import CSVLogger, LrLogger, Trainer, seed_everything
 
-x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
-y = ts.tensor([[1.0], [3.0], [5.0], [7.0]])
-loader = DataLoader(TensorDataset(x, y), batch_size=2)
+seed_everything(7)
+dataset = from_arrays(
+    [[0.0], [1.0], [2.0], [3.0]],
+    [[1.0], [3.0], [5.0], [7.0]],
+)
+train_data, val_data = train_val_split(dataset, val_fraction=0.25, seed=7)
 
 model = nn.Linear(1, 1)
-trainer = Trainer(model, optim.SGD(model.parameters(), lr=0.05), nn.MSELoss())
-history = trainer.fit(loader, epochs=50)
+optimizer = optim.SGD(model.parameters(), lr=0.05)
+trainer = Trainer(model, optimizer, nn.MSELoss(), metric_fn=ts.metrics.mean_squared_error)
+history = trainer.fit(
+    DataLoader(train_data, batch_size=2),
+    epochs=50,
+    validation_loader=DataLoader(val_data, batch_size=1),
+    callbacks=[LrLogger(), CSVLogger("runs/linear/logs/history.csv")],
+)
 
 print(history.last)
-print(trainer.evaluate(loader))
+print(trainer.evaluate(DataLoader(val_data, batch_size=1)))
 ```
 
-`History.records` stores one dictionary per epoch. Callbacks receive the same
-epoch record:
+`History.records` stores one dictionary per epoch. Validation keys are prefixed
+with `val_`. Simple function callbacks receive an epoch record, and object
+callbacks can inspect the richer trainer context:
 
 ```python
 def log(record: dict[str, float]) -> None:
@@ -68,6 +83,8 @@ def log(record: dict[str, float]) -> None:
 
 trainer.fit(loader, epochs=3, callbacks=[log])
 ```
+
+For built-in callbacks, see [Trainer And Callbacks](trainer-and-callbacks.md).
 
 ## Checkpoints
 
@@ -85,10 +102,11 @@ For trusted internal training resumes, full checkpoints can include optimizer
 state and metadata:
 
 ```python
-from tensorstudio.project import load_checkpoint, save_checkpoint
+from tensorstudio.project import load_checkpoint, resume_checkpoint, save_checkpoint
 
-save_checkpoint(model, "checkpoint.tsmodel", optimizer=optimizer, metadata={"epoch": 10})
+save_checkpoint(model, "checkpoint.tsmodel", optimizer=optimizer, epoch=10)
 checkpoint = load_checkpoint(model, "checkpoint.tsmodel", optimizer=optimizer)
+next_epoch = resume_checkpoint(model, "checkpoint.tsmodel", optimizer=optimizer)
 ```
 
 Full checkpoints use pickle through `tensorstudio.save` and must only be loaded

@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.9.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.10.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -125,19 +125,19 @@ families.
 The project utilities should evolve into a clean small-project workflow without
 becoming an opaque training framework.
 
-- Add dataset creation helpers for images, tabular arrays, labels, and
+- Completed in `1.10.0`: add dataset creation helpers for images, tabular arrays, labels, and
   TensorStudio tensors, with deterministic train/validation splitting and
   metadata summaries.
-- Add callbacks for checkpointing, early stopping, CSV logging, and learning
+- Completed in `1.10.0`: add callbacks for checkpointing, early stopping, CSV logging, and learning
   rate logging.
-- Add a metrics package for regression, classification, and multilabel tasks.
-- Add JSON, TOML, and YAML project config loading.
-- Add checkpoint resume helpers that restore model, optimizer, scheduler, and
+- Completed in `1.10.0`: add a metrics package for regression, classification, and multilabel tasks.
+- Completed in `1.10.0`: add JSON, TOML, and YAML project config loading.
+- Completed in `1.10.0`: add checkpoint resume helpers that restore model, optimizer, scheduler, and
   epoch state.
-- Add train/validation loop support in `Trainer`.
-- Add deterministic seeding helpers across TensorStudio, NumPy, and Python
+- Completed in `1.10.0`: add train/validation loop support in `Trainer`.
+- Completed in `1.10.0`: add deterministic seeding helpers across TensorStudio, NumPy, and Python
   random.
-- Add generated project templates for classification, regression, and vision.
+- Completed in `1.10.0`: add generated project templates for classification, regression, and vision.
 
 ## 7. Computer Vision Depth
 

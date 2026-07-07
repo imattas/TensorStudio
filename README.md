@@ -7,15 +7,18 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.9.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.10.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
 boolean reductions, seeded random distributions, and a hardened eager autograd
 lifecycle. The neural-network layer now includes grouped/depthwise/1D/
 transposed convolution, normalization layers, embeddings, richer activations,
-initializers, additional losses, and model summaries. It is eager-only,
-intentionally compact, and not a replacement for mature ML frameworks.
+initializers, additional losses, and model summaries. The project layer adds
+dataset factories, deterministic train/validation splitting, metrics, callbacks,
+multi-format configs, checkpoint resume helpers, and starter project templates.
+It is eager-only, intentionally compact, and not a replacement for mature ML
+frameworks.
 
 ## Install
 
@@ -225,7 +228,7 @@ print(model.state_dict().keys())
 print(model.parameter_count())
 ```
 
-The `1.9.0` neural-network surface also includes initialization helpers,
+The neural-network surface also includes initialization helpers,
 normalization layers, embeddings, grouped/depthwise/1D/transposed convolution,
 adaptive/global pooling, richer activations, and model summaries:
 
@@ -276,17 +279,22 @@ optimizer.step()
 print(ts.vision.accuracy(model(x), target))
 ```
 
-## DataLoader
+## Data And Metrics
 
 ```python
 import tensorstudio as ts
-from tensorstudio.data import DataLoader, TensorDataset
+from tensorstudio.data import DataLoader, from_arrays, train_val_split
 
-dataset = TensorDataset(ts.arange(6).reshape((6, 1)), ts.arange(6))
-loader = DataLoader(dataset, batch_size=2, shuffle=True, seed=42)
+dataset = from_arrays([[0.0], [1.0], [2.0], [3.0]], [[1.0], [3.0], [5.0], [7.0]])
+train_data, val_data = train_val_split(dataset, val_fraction=0.25, seed=42)
+loader = DataLoader(train_data, batch_size=2, shuffle=True, seed=42)
 
 for features, targets in loader:
     print(features.shape, targets.shape)
+
+prediction = ts.tensor([[0.2, 0.8], [0.7, 0.3]])
+target = ts.tensor([1, 0], dtype="int64")
+print(ts.metrics.accuracy(prediction, target))
 ```
 
 The v1 DataLoader is intentionally single-process so it works cleanly on
@@ -294,24 +302,44 @@ Windows without multiprocessing setup.
 
 ## Projects And Training
 
-`tensorstudio.project` provides project folders, JSON config, reusable trainers,
-safe NPZ weight files, and trusted full checkpoints:
+`tensorstudio.project` provides project folders, JSON/TOML/YAML config loading,
+deterministic seeding, reusable trainers, validation loops, callbacks, safe NPZ
+weight files, trusted full checkpoints, and generated starter templates:
 
 ```python
 import tensorstudio as ts
 from tensorstudio import nn, optim
-from tensorstudio.data import DataLoader, TensorDataset
-from tensorstudio.project import Project, ProjectConfig, Trainer, save_state_dict
+from tensorstudio.data import DataLoader, from_arrays, train_val_split
+from tensorstudio.project import (
+    CSVLogger,
+    CheckpointCallback,
+    LrLogger,
+    Project,
+    ProjectConfig,
+    Trainer,
+    save_state_dict,
+    seed_everything,
+)
 
-x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
-y = ts.tensor([[1.0], [3.0], [5.0], [7.0]])
+seed_everything(7)
+dataset = from_arrays([[0.0], [1.0], [2.0], [3.0]], [[1.0], [3.0], [5.0], [7.0]])
+train_data, val_data = train_val_split(dataset, val_fraction=0.25, seed=7)
 
 model = nn.Linear(1, 1)
-loader = DataLoader(TensorDataset(x, y), batch_size=2)
-trainer = Trainer(model, optim.SGD(model.parameters(), lr=0.05), nn.MSELoss())
+optimizer = optim.SGD(model.parameters(), lr=0.05)
+trainer = Trainer(model, optimizer, nn.MSELoss(), metric_fn=ts.metrics.mean_squared_error)
 project = Project("runs/linear", ProjectConfig(name="linear-regression", seed=7))
 
-history = trainer.fit(loader, epochs=50)
+history = trainer.fit(
+    DataLoader(train_data, batch_size=2),
+    epochs=50,
+    validation_loader=DataLoader(val_data, batch_size=1),
+    callbacks=[
+        LrLogger(),
+        CSVLogger(project.logs_dir / "history.csv"),
+        CheckpointCallback(project.checkpoints_dir / "best.tsmodel", save_best_only=True),
+    ],
+)
 save_state_dict(model, project.checkpoint_path("weights"))
 print(history.last)
 ```
@@ -346,11 +374,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.9.0`, with
+On one Windows CPython 3.10 development run reporting `1.10.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
 benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 55 local cases and lost 43. The
+available on that machine; TensorStudio won 38 local cases and lost 60. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -362,15 +390,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0154 ms | 0.0048 ms | 0.0855 ms | 0.3098x | 5.5404x |
-| `mean` | `(32,)` | 0.0187 ms | 0.0104 ms | 0.0143 ms | 0.5575x | 0.7616x |
-| `sum_axis1` | `(16, 16)` | 0.0172 ms | 0.0027 ms | 0.0136 ms | 0.1551x | 0.7942x |
-| `chain_relu` | `(128,)` | 0.0957 ms | 0.0057 ms | 0.1030 ms | 0.0596x | 1.0768x |
-| `matmul` | `(256, 256)` | 2.3777 ms | 0.4328 ms | 0.2489 ms | 0.1820x | 0.1047x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2216 ms | 1.3908 ms | 0.1073 ms | 6.2770x | 0.4841x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0280 ms | 0.1846 ms | n/a | 6.5816x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0281 ms | 0.5595 ms | n/a | 19.8874x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.8255 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0150 ms | 0.0046 ms | 0.0723 ms | 0.3056x | 4.8092x |
+| `mean` | `(32,)` | 0.0154 ms | 0.0078 ms | 0.0111 ms | 0.5097x | 0.7198x |
+| `sum_axis1` | `(16, 16)` | 0.0159 ms | 0.0030 ms | 0.0129 ms | 0.1904x | 0.8133x |
+| `chain_relu` | `(128,)` | 0.0859 ms | 0.0056 ms | 0.0888 ms | 0.0647x | 1.0337x |
+| `matmul` | `(256, 256)` | 2.0731 ms | 0.4017 ms | 0.2497 ms | 0.1938x | 0.1204x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2028 ms | 1.3615 ms | 0.1219 ms | 6.7128x | 0.6012x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0279 ms | 0.1740 ms | n/a | 6.2464x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0275 ms | 0.5906 ms | n/a | 21.4893x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7546 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
