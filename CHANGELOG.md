@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 1.11.0 - 2026-07-07
+
+- Completed the ordered Computer Vision Depth roadmap section as one release
+  batch.
+- Added batch-aware resize/crop/normalize helpers plus color jitter, random
+  resized crop, random rotation, affine transforms, cutout, mixup, and CutMix.
+- Added detection utilities for box areas, IoU variants, NMS, box
+  encode/decode, coordinate conversion, and anchor generation.
+- Added segmentation helpers for mask IoU, one-hot conversion, masks-to-boxes,
+  nearest mask resize, and deterministic mask crops.
+- Added `DetectionFolder` and `SegmentationFolder` datasets plus
+  `tensorstudio.data` factory aliases for detection and segmentation folders.
+- Added `ResidualBlock`, `DepthwiseSeparableBlock`, `CompactUNet`, and
+  `make_unet()` vision model helpers using the native-backed neural-network
+  layer stack.
+- Added prediction drawing, mask overlay, and feature-map grid visualization
+  helpers.
+- Expanded vision tests and documentation for transforms, detection,
+  segmentation, model blocks, and visualization.
+
 ## 1.10.0 - 2026-07-07
 
 - Completed the ordered Training And Project Workflows roadmap section as one

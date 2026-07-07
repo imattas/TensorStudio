@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.10.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.11.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -144,17 +144,17 @@ becoming an opaque training framework.
 Vision should grow from classification utilities into a compact practical CV
 toolkit.
 
-- Add batched image transforms for tensor batches.
-- Add color jitter, random resized crop, random rotation, affine transforms,
+- Completed in `1.11.0`: add batched image transforms for tensor batches.
+- Completed in `1.11.0`: add color jitter, random resized crop, random rotation, affine transforms,
   cutout, mixup, and cutmix.
-- Add detection utilities: NMS, box encode/decode, IoU variants, and anchor
+- Completed in `1.11.0`: add detection utilities: NMS, box encode/decode, IoU variants, and anchor
   helpers.
-- Add segmentation helpers: masks, mask IoU, and simple mask transforms.
-- Add reusable model blocks: ResNet-style blocks, MobileNet-style depthwise
+- Completed in `1.11.0`: add segmentation helpers: masks, mask IoU, and simple mask transforms.
+- Completed in `1.11.0`: add reusable model blocks: ResNet-style blocks, MobileNet-style depthwise
   blocks, and a compact UNet.
-- Add dataset helpers for classification, detection, and segmentation folder
+- Completed in `1.11.0`: add dataset helpers for classification, detection, and segmentation folder
   layouts.
-- Add more visualization tools for predictions, masks, and feature maps.
+- Completed in `1.11.0`: add more visualization tools for predictions, masks, and feature maps.
 
 ## 8. Serialization And Interchange
 

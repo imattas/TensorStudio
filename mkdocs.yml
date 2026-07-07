@@ -45,6 +45,10 @@ nav:
   - Vision:
       - Overview: vision/overview.md
       - Dataset Creation: vision/dataset-creation.md
+      - Transforms: vision/transforms.md
+      - Detection: vision/detection.md
+      - Segmentation: vision/segmentation.md
+      - Models And Visualization: vision/models-and-visualization.md
   - Project Workflows:
       - Local Projects: project/workflows.md
       - Project Layout: project/project-layout.md

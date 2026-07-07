@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.10.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.11.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
@@ -252,6 +252,11 @@ classification workflows: Pillow-backed image IO, transform pipelines,
 deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
 bounding-box drawing, and compact CNN classifiers running through native
 Conv2d/pooling kernels.
+The `1.11.0` vision surface adds batch-aware transforms, color jitter, random
+resized crop, rotation, affine transforms, cutout, mixup, CutMix, detection
+helpers, segmentation mask helpers, detection/segmentation folder datasets,
+ResNet-style blocks, MobileNet-style depthwise blocks, a compact UNet, and
+prediction/mask/feature-map visualization helpers.
 
 ```python
 import numpy as np
@@ -374,11 +379,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.10.0`, with
+On one Windows CPython 3.10 development run reporting `1.11.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
 benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 38 local cases and lost 60. The
+available on that machine; TensorStudio won 42 local cases and lost 56. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -390,15 +395,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0150 ms | 0.0046 ms | 0.0723 ms | 0.3056x | 4.8092x |
-| `mean` | `(32,)` | 0.0154 ms | 0.0078 ms | 0.0111 ms | 0.5097x | 0.7198x |
-| `sum_axis1` | `(16, 16)` | 0.0159 ms | 0.0030 ms | 0.0129 ms | 0.1904x | 0.8133x |
-| `chain_relu` | `(128,)` | 0.0859 ms | 0.0056 ms | 0.0888 ms | 0.0647x | 1.0337x |
-| `matmul` | `(256, 256)` | 2.0731 ms | 0.4017 ms | 0.2497 ms | 0.1938x | 0.1204x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2028 ms | 1.3615 ms | 0.1219 ms | 6.7128x | 0.6012x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0279 ms | 0.1740 ms | n/a | 6.2464x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0275 ms | 0.5906 ms | n/a | 21.4893x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7546 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0151 ms | 0.0085 ms | 0.0788 ms | 0.5609x | 5.2163x |
+| `mean` | `(32,)` | 0.0162 ms | 0.0085 ms | 0.0160 ms | 0.5228x | 0.9868x |
+| `sum_axis1` | `(16, 16)` | 0.0162 ms | 0.0027 ms | 0.0148 ms | 0.1645x | 0.9159x |
+| `chain_relu` | `(128,)` | 0.0908 ms | 0.0063 ms | 0.0964 ms | 0.0699x | 1.0613x |
+| `matmul` | `(256, 256)` | 2.5442 ms | 0.4174 ms | 0.2867 ms | 0.1641x | 0.1127x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2048 ms | 1.4268 ms | 0.1191 ms | 6.9654x | 0.5814x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0278 ms | 0.1944 ms | n/a | 6.9988x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0286 ms | 0.6478 ms | n/a | 22.6805x | n/a |
+| `elementwise_backward` | `(1024,)` | 3.0411 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.

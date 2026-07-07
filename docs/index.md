@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.10.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.11.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, and wheel workflows.
 
@@ -56,9 +56,10 @@ TensorStudio is:
   state-dict checkpoints, trusted full checkpoints, resume helpers, and starter
   templates.
 - NumPy copy interop, pickle-based internal serialization, non-pickle NPZ
-  tensor/state_dict files, limited ONNX export, vision IO, transforms, datasets,
-  metrics, visualization, compact CNN helpers, examples, tests, benchmarks, and
-  GitHub Actions release workflows.
+  tensor/state_dict files, limited ONNX export, vision IO, batch transforms,
+  image augmentations, detection utilities, segmentation helpers, vision
+  datasets, metrics, visualization, compact CNN/UNet helpers, examples, tests,
+  benchmarks, and GitHub Actions release workflows.
 
 ## Design Goals
 
@@ -111,7 +112,8 @@ The docs are organized as multi-page sections:
 - `nn`: modules, optimizers, and training workflows.
 - `data`: dataset contracts, dataset creation, tensor datasets, and DataLoader
   usage.
-- `vision`: image utilities and dataset creation.
+- `vision`: image utilities, transforms, detection, segmentation, model blocks,
+  visualization, and dataset creation.
 - `project`: local project structure, workflow helpers, callbacks, metrics,
   configs, templates, and checkpoints.
 - `interchange`: NumPy, serialization, trusted pickle notes, ONNX, and formats.

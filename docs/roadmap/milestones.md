@@ -53,6 +53,11 @@ numbers can change, but the order should stay foundation-first.
 - Add dataset metadata helpers.
 - Add more CNN building blocks.
 - Benchmark convolution and pooling improvements.
+- Completed in `1.11.0`: added batch-aware image transforms, color jitter,
+  random resized crop, rotation, affine transforms, cutout, mixup, CutMix,
+  detection utilities, segmentation mask helpers, detection/segmentation folder
+  datasets, ResNet-style blocks, MobileNet-style blocks, CompactUNet, and
+  prediction/mask/feature-map visualization helpers.
 
 ## Milestone F: Interchange
 

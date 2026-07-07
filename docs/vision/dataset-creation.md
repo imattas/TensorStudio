@@ -43,16 +43,56 @@ items = [
 dataset = ts.vision.ImageList(items, transform=transform)
 ```
 
-## Planned Dataset Builders
+## DetectionFolder Layout
 
-The roadmap includes helpers that create datasets from:
+Detection datasets can use matching image and JSON annotation folders:
 
-- Image folders.
-- Explicit image path lists.
-- Tensor/label pairs.
-- NumPy arrays.
-- Tabular arrays with labels.
+```text
+dataset/
+  images/
+    frame-001.png
+  annotations/
+    frame-001.json
+```
 
-These builders should produce metadata summaries such as sample counts, class
-names, shape hints, and deterministic train/validation splits.
+```json
+{
+  "boxes": [[0, 0, 32, 32]],
+  "labels": [1]
+}
+```
 
+```python
+dataset = ts.vision.DetectionFolder("dataset")
+image, target = dataset[0]
+print(target["boxes"], target["labels"])
+```
+
+`tensorstudio.data.from_detection_folder()` provides the same dataset through
+the data factory namespace.
+
+## SegmentationFolder Layout
+
+Segmentation datasets use matching image and mask stems:
+
+```text
+dataset/
+  images/
+    sample.png
+  masks/
+    sample.png
+```
+
+```python
+dataset = ts.vision.SegmentationFolder("dataset")
+image, mask = dataset[0]
+```
+
+`tensorstudio.data.from_segmentation_folder()` provides the same dataset through
+the data factory namespace.
+
+## Metadata And Splits
+
+All dataset types work with `tensorstudio.data.dataset_summary()` where the
+dataset exposes metadata and with deterministic `train_val_split()` for local
+experiments.
