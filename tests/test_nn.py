@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import tensorstudio as ts
 from tensorstudio import nn, optim
 
@@ -14,6 +15,66 @@ def test_linear_forward_shape() -> None:
 
     assert y.shape == (4, 2)
     assert len(layer.parameters()) == 2
+
+
+def test_conv2d_forward_shape_and_parameters() -> None:
+    ts.manual_seed(0)
+    layer = nn.Conv2d(1, 2, kernel_size=3, padding=1)
+    x = ts.ones((4, 1, 5, 5))
+
+    y = layer(x)
+
+    assert y.shape == (4, 2, 5, 5)
+    assert [parameter.shape for parameter in layer.parameters()] == [(2, 1, 3, 3), (2,)]
+    assert "Conv2d" in repr(layer)
+
+
+def test_functional_conv2d_backward_through_module() -> None:
+    ts.manual_seed(0)
+    layer = nn.Conv2d(1, 1, kernel_size=(2, 2), bias=True)
+    x = ts.ones((1, 1, 3, 3), requires_grad=True)
+
+    loss = layer(x).sum()
+    loss.backward()
+
+    assert x.grad is not None
+    assert layer.weight.grad is not None
+    assert layer.bias is not None
+    assert layer.bias.grad is not None
+    assert x.grad.shape == x.shape
+    assert layer.weight.grad.shape == layer.weight.shape
+    assert layer.bias.grad.shape == layer.bias.shape
+
+
+def test_pool2d_modules_are_parameter_free_and_shape_correct() -> None:
+    x = ts.arange(1, 17).reshape((1, 1, 4, 4))
+    max_pool = nn.MaxPool2d(kernel_size=2)
+    avg_pool = nn.AvgPool2d(kernel_size=2)
+
+    max_out = max_pool(x)
+    avg_out = avg_pool(x)
+
+    np.testing.assert_allclose(max_out.numpy(), np.array([[[[6.0, 8.0], [14.0, 16.0]]]]))
+    np.testing.assert_allclose(avg_out.numpy(), np.array([[[[3.5, 5.5], [11.5, 13.5]]]]))
+    assert max_pool.parameters() == []
+    assert avg_pool.parameters() == []
+    assert "MaxPool2d" in repr(max_pool)
+    assert "AvgPool2d" in repr(avg_pool)
+
+
+def test_conv_pool_sequential_shape() -> None:
+    ts.manual_seed(0)
+    model = nn.Sequential(
+        nn.Conv2d(1, 2, kernel_size=3, padding=1),
+        nn.ReLU(),
+        nn.MaxPool2d(kernel_size=2),
+        nn.Flatten(),
+        nn.Linear(2 * 2 * 2, 3),
+    )
+
+    y = model(ts.ones((4, 1, 4, 4)))
+
+    assert y.shape == (4, 3)
 
 
 def test_tiny_training_loop_reduces_loss() -> None:
@@ -106,6 +167,42 @@ def test_identity_leaky_relu_softplus_and_new_losses() -> None:
     prediction = ts.tensor([0.0, 2.0, 4.0])
     expected = ts.tensor([0.0, 0.0, 1.0])
     assert nn.HuberLoss(delta=1.0)(prediction, expected).item() > 0.0
+
+
+def test_softmax_log_softmax_and_cross_entropy() -> None:
+    logits_np = np.array([[1.0, 2.0, 3.0], [1.5, -0.5, 0.25]], dtype=np.float64)
+    labels_np = np.array([2, 0], dtype=np.int64)
+    logits = ts.tensor(logits_np.tolist(), dtype="float64", requires_grad=True)
+    labels = ts.from_numpy(labels_np)
+
+    shifted = logits_np - logits_np.max(axis=1, keepdims=True)
+    expected_probs = np.exp(shifted) / np.exp(shifted).sum(axis=1, keepdims=True)
+    expected_log_probs = shifted - np.log(np.exp(shifted).sum(axis=1, keepdims=True))
+
+    np.testing.assert_allclose(nn.softmax(logits, axis=1).numpy(), expected_probs, rtol=1e-6)
+    np.testing.assert_allclose(
+        nn.log_softmax(logits, axis=1).numpy(),
+        expected_log_probs,
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        nn.softmax(logits, axis=1).sum(axis=1).numpy(),
+        np.ones(2),
+        rtol=1e-6,
+    )
+
+    loss = nn.CrossEntropyLoss()(logits, labels)
+    expected_loss = -np.mean(expected_log_probs[np.arange(labels_np.size), labels_np])
+    assert loss.item() == pytest.approx(expected_loss)
+
+    loss.backward()
+    expected_grad = expected_probs.copy()
+    expected_grad[np.arange(labels_np.size), labels_np] -= 1.0
+    expected_grad /= labels_np.size
+    np.testing.assert_allclose(logits.grad.numpy(), expected_grad, rtol=1e-6, atol=1e-6)
+
+    per_sample = nn.functional.cross_entropy(logits.detach(), labels, reduction="none")
+    assert per_sample.shape == (2,)
 
 
 def test_dropout_flatten_and_losses() -> None:

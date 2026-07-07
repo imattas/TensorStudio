@@ -5,6 +5,7 @@ from __future__ import annotations
 from . import data, nn, optim
 from ._version import __version__
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
+from .ops import astype, avg_pool2d, concat, conv2d, max_pool2d, stack
 from .serialization import load, save
 from .tensor import (
     Tensor,
@@ -32,6 +33,10 @@ __all__ = [
     "Tensor",
     "__version__",
     "arange",
+    "astype",
+    "avg_pool2d",
+    "concat",
+    "conv2d",
     "data",
     "empty",
     "empty_like",
@@ -43,6 +48,7 @@ __all__ = [
     "linspace",
     "load",
     "manual_seed",
+    "max_pool2d",
     "nn",
     "no_grad",
     "ones",
@@ -54,6 +60,7 @@ __all__ = [
     "randn_like",
     "save",
     "set_grad_enabled",
+    "stack",
     "tensor",
     "zeros",
     "zeros_like",

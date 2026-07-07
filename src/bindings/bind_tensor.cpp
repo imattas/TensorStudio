@@ -307,10 +307,30 @@ void bind_tensor(py::module_& module) {
       })
       .def("flatten", &flatten)
       .def("transpose", &transpose)
-      .def("sum", &sum)
-      .def("mean", &mean)
-      .def("max", &max)
-      .def("min", &min)
+      .def("sum", [](const Tensor& self, py::object axis, bool keepdims) {
+        if (axis.is_none()) {
+          return sum(self);
+        }
+        return sum(self, py::cast<int64_t>(axis), keepdims);
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("mean", [](const Tensor& self, py::object axis, bool keepdims) {
+        if (axis.is_none()) {
+          return mean(self);
+        }
+        return mean(self, py::cast<int64_t>(axis), keepdims);
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("max", [](const Tensor& self, py::object axis, bool keepdims) {
+        if (axis.is_none()) {
+          return max(self);
+        }
+        return max(self, py::cast<int64_t>(axis), keepdims);
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("min", [](const Tensor& self, py::object axis, bool keepdims) {
+        if (axis.is_none()) {
+          return min(self);
+        }
+        return min(self, py::cast<int64_t>(axis), keepdims);
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("relu", &relu)
       .def("sigmoid", &sigmoid)
       .def("tanh", &tanh)
@@ -320,6 +340,12 @@ void bind_tensor(py::module_& module) {
       .def("abs", &abs)
       .def("clamp", &clamp, py::arg("min_value"), py::arg("max_value"))
       .def("clip", &clamp, py::arg("min_value"), py::arg("max_value"))
+      .def("astype", [](const Tensor& self, py::object dtype) {
+        return astype(self, dtype_from_py(dtype, self.dtype()));
+      }, py::arg("dtype"))
+      .def("to", [](const Tensor& self, py::object dtype) {
+        return astype(self, dtype_from_py(dtype, self.dtype()));
+      }, py::arg("dtype"))
       .def("backward", [](Tensor& self, py::object gradient) {
         if (gradient.is_none()) {
           backward(self);

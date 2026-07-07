@@ -48,4 +48,4 @@ Use TensorStudio serialization only for files you created or otherwise trust.
 ## Future Work
 
 Future releases may add a structured non-executable tensor checkpoint format.
-For `1.0.1`, pickle keeps the implementation small and clear.
+For `1.1.0`, pickle keeps the implementation small and clear.

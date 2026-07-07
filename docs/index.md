@@ -3,7 +3,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.0.1` is a CPU-only stable API foundation for the tensor, autograd,
+`1.1.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, docs, packaging, and wheel workflows.
 
 ## Status
@@ -25,11 +25,14 @@ TensorStudio is:
   `empty`, `rand`, `randn`, `arange`, `eye`, `linspace`, and matching
   `*_like` helpers.
 - NumPy-style broadcasting for binary elementwise operations.
-- Arithmetic, comparisons, matrix multiplication, all-element reductions, common
-  activations, `sqrt`, `abs`, `clamp`, reshape, flatten, and 2D transpose.
+- Arithmetic, comparisons, matrix multiplication, all-element and single-axis
+  reductions, common activations, `sqrt`, `abs`, `clamp`, CPU NCHW `conv2d`,
+  `max_pool2d`, `avg_pool2d`, reshape, flatten, and 2D transpose.
+- Basic dtype casting plus native `concat` and `stack`.
 - Reverse-mode autograd for the v1 operation set.
-- Python `nn.Module`, parameters, linear layers, sequential models, activation
-  modules, dropout, flatten, module introspection, and common losses.
+- Python `nn.Module`, parameters, linear, convolution, and pooling layers,
+  sequential models, activation modules, dropout, flatten, module introspection,
+  and common losses including multiclass cross entropy.
 - Python `optim.SGD`, `optim.Adam`, `optim.AdamW`, gradient clipping helpers,
   and small learning-rate schedulers.
 - Minimal Windows-friendly `Dataset`, `TensorDataset`, and `DataLoader`.
@@ -49,10 +52,11 @@ TensorStudio prioritizes:
 ## Boundaries
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
-graph compilation, convolution layers, advanced indexing, sparse tensors, mixed
-precision, or a high-performance kernel library. Benchmarks are rough local
-references only; TensorStudio wins some small eager CPU cases but is not faster
-than PyTorch, NumPy, TensorFlow, or JAX overall.
+graph compilation, grouped convolution, adaptive/global pooling, advanced
+indexing, sparse tensors, mixed precision, tuple-axis reductions, or a
+high-performance kernel library. Benchmarks are rough local references only;
+TensorStudio wins some small eager CPU cases but is not faster than PyTorch,
+NumPy, TensorFlow, or JAX overall.
 
 Serialization uses pickle. Loading pickle files from untrusted sources is
 unsafe.
@@ -60,8 +64,8 @@ unsafe.
 ## Next Steps
 
 - Start with [Quickstart](quickstart.md).
-- Learn tensor semantics in [Tensors](tensors.md).
-- Understand gradients in [Autograd](autograd.md).
-- Build small models with [Neural Networks](nn.md).
-- Use small datasets with [Data](data.md).
+- Learn tensor semantics in [Tensors](Usage/tensors.md).
+- Understand gradients in [Autograd](Autograde/autograd.md).
+- Build small models with [Neural Networks](Neural%20Networks/nn.md).
+- Use small datasets with [Data](Usage/data.md).
 - Read [Publishing](publishing.md) before release work.

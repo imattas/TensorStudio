@@ -7,6 +7,17 @@ from typing import Any
 from . import _C
 from .tensor import Tensor
 
+PairLike = int | tuple[int, int] | list[int]
+
+
+def _pair(value: PairLike, name: str) -> tuple[int, int]:
+    if isinstance(value, int):
+        return (value, value)
+    if len(value) != 2:
+        raise ValueError(f"{name} must be an int or a pair of ints")
+    left, right = int(value[0]), int(value[1])
+    return (left, right)
+
 
 def add(left: Tensor, right: Any) -> Tensor:
     return _C.add(left, right)
@@ -60,20 +71,96 @@ def matmul(left: Tensor, right: Any) -> Tensor:
     return _C.matmul(left, right)
 
 
-def sum(input: Tensor) -> Tensor:  # noqa: A001
-    return _C.sum(input)
+def conv2d(
+    input: Tensor,
+    weight: Tensor,
+    bias: Tensor | None = None,
+    stride: PairLike = 1,
+    padding: PairLike = 0,
+    dilation: PairLike = 1,
+) -> Tensor:
+    """Apply a 2D NCHW convolution with CPU kernels and autograd support."""
+
+    stride_h, stride_w = _pair(stride, "stride")
+    padding_h, padding_w = _pair(padding, "padding")
+    dilation_h, dilation_w = _pair(dilation, "dilation")
+    return _C.conv2d(
+        input,
+        weight,
+        bias,
+        stride_h,
+        stride_w,
+        padding_h,
+        padding_w,
+        dilation_h,
+        dilation_w,
+    )
 
 
-def mean(input: Tensor) -> Tensor:
-    return _C.mean(input)
+def max_pool2d(
+    input: Tensor,
+    kernel_size: PairLike,
+    stride: PairLike | None = None,
+    padding: PairLike = 0,
+    dilation: PairLike = 1,
+) -> Tensor:
+    """Apply 2D NCHW max pooling with CPU kernels and autograd support."""
+
+    kernel_h, kernel_w = _pair(kernel_size, "kernel_size")
+    stride_h, stride_w = _pair(kernel_size if stride is None else stride, "stride")
+    padding_h, padding_w = _pair(padding, "padding")
+    dilation_h, dilation_w = _pair(dilation, "dilation")
+    return _C.max_pool2d(
+        input,
+        kernel_h,
+        kernel_w,
+        stride_h,
+        stride_w,
+        padding_h,
+        padding_w,
+        dilation_h,
+        dilation_w,
+    )
 
 
-def max(input: Tensor) -> Tensor:  # noqa: A001
-    return _C.max(input)
+def avg_pool2d(
+    input: Tensor,
+    kernel_size: PairLike,
+    stride: PairLike | None = None,
+    padding: PairLike = 0,
+    count_include_pad: bool = False,
+) -> Tensor:
+    """Apply 2D NCHW average pooling with CPU kernels and autograd support."""
+
+    kernel_h, kernel_w = _pair(kernel_size, "kernel_size")
+    stride_h, stride_w = _pair(kernel_size if stride is None else stride, "stride")
+    padding_h, padding_w = _pair(padding, "padding")
+    return _C.avg_pool2d(
+        input,
+        kernel_h,
+        kernel_w,
+        stride_h,
+        stride_w,
+        padding_h,
+        padding_w,
+        count_include_pad,
+    )
 
 
-def min(input: Tensor) -> Tensor:  # noqa: A001
-    return _C.min(input)
+def sum(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+    return _C.sum(input, axis, keepdims)
+
+
+def mean(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return _C.mean(input, axis, keepdims)
+
+
+def max(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+    return _C.max(input, axis, keepdims)
+
+
+def min(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:  # noqa: A001
+    return _C.min(input, axis, keepdims)
 
 
 def relu(input: Tensor) -> Tensor:
@@ -112,6 +199,18 @@ def clip(input: Tensor, min_value: float, max_value: float) -> Tensor:
     return _C.clamp(input, min_value, max_value)
 
 
+def astype(input: Tensor, dtype: str) -> Tensor:
+    return _C.astype(input, dtype)
+
+
+def concat(tensors: list[Tensor] | tuple[Tensor, ...], axis: int = 0) -> Tensor:
+    return _C.concat(list(tensors), axis)
+
+
+def stack(tensors: list[Tensor] | tuple[Tensor, ...], axis: int = 0) -> Tensor:
+    return _C.stack(list(tensors), axis)
+
+
 def reshape(input: Tensor, shape: int | tuple[int, ...] | list[int]) -> Tensor:
     return _C.reshape(input, shape)
 
@@ -127,8 +226,12 @@ def transpose(input: Tensor) -> Tensor:
 __all__ = [
     "add",
     "abs",
+    "astype",
+    "avg_pool2d",
     "clamp",
     "clip",
+    "concat",
+    "conv2d",
     "div",
     "equal",
     "exp",
@@ -140,6 +243,7 @@ __all__ = [
     "log",
     "matmul",
     "max",
+    "max_pool2d",
     "mean",
     "min",
     "mul",
@@ -149,6 +253,7 @@ __all__ = [
     "relu",
     "reshape",
     "sigmoid",
+    "stack",
     "sub",
     "sum",
     "sqrt",

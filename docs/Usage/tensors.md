@@ -1,27 +1,37 @@
-# Tensor Basics
+# Tensors
 
-TensorStudio tensors are eager CPU tensors backed by C++ storage. A tensor owns
-or views shared storage and carries metadata that describes how to interpret the
-values.
+TensorStudio tensors are eager CPU tensors backed by C++ storage. A tensor can
+own storage or view existing storage through shape, stride, and offset metadata.
 
-## Tensor Metadata
+## Metadata
 
-Each tensor stores:
+Each tensor tracks:
 
-- shared storage
-- dtype
-- shape
-- strides
-- offset
-- CPU device descriptor
-- `requires_grad`
-- optional gradient
-- optional autograd metadata
+- Shared storage.
+- DType.
+- Shape.
+- Strides.
+- Offset.
+- Device descriptor.
+- `requires_grad`.
+- Optional gradient.
+- Optional autograd metadata.
 
-This is the same broad model used by larger tensor frameworks: storage holds
-bytes, while shape and stride metadata describe the logical tensor.
+```python
+import tensorstudio as ts
 
-## Dtypes
+x = ts.arange(6).reshape((2, 3))
+
+print(x.shape)          # (2, 3)
+print(x.strides)        # (3, 1)
+print(x.device)         # cpu
+print(x.is_contiguous)  # True
+```
+
+The v1 release exposes a CPU device abstraction only. Unsupported
+devices raise errors instead of silently falling back.
+
+## DTypes
 
 Supported dtypes:
 
@@ -34,50 +44,44 @@ Supported dtypes:
 Autograd is supported for floating point tensors only.
 
 ```python
-import tensorstudio as ts
-
-ts.tensor([1, 2, 3]).dtype          # int64
-ts.tensor([1.0, 2.0]).dtype         # float32
-ts.tensor([1.0], dtype="float64")   # float64
+ts.tensor([1, 2, 3]).dtype
+ts.tensor([1.0, 2.0]).dtype
+ts.tensor([True, False]).dtype
+ts.tensor([1.0], dtype="float64").dtype
 ```
 
-## Shapes
-
-Shapes are tuples of non-negative dimensions.
+## Creation
 
 ```python
-x = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
-
-print(x.shape)  # (2, 2)
-print(x.ndim)   # 2
-print(x.size)   # 4
-```
-
-A scalar tensor has shape `()`.
-
-```python
-s = ts.tensor(3.14)
-print(s.shape)
-print(s.item())
-```
-
-## Creation Functions
-
-```python
+ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+ts.from_numpy(array)
 ts.zeros((2, 3))
-ts.ones((2, 3), dtype="float64")
-ts.full((2, 3), 5.0)
 ts.zeros_like(x)
+ts.empty((2, 3))
+ts.ones((2, 3))
 ts.ones_like(x)
+ts.full((2, 3), 5.0)
 ts.full_like(x, 5.0)
-ts.empty_like(x)
+ts.rand((2, 3), seed=123)
 ts.rand_like(x, seed=123)
-ts.randn_like(x, seed=123)
 ts.randn((2, 3), seed=123)
+ts.randn_like(x, seed=123)
 ts.arange(0, 10, 2)
+ts.eye(3)
+ts.linspace(0.0, 1.0, 5)
 ```
 
-Random helpers accept a seed for deterministic examples and tests.
+`empty` does not guarantee any particular values. Current storage may appear
+zeroed on some platforms, but code should fill it before use.
+
+The `*_like` helpers copy shape, dtype, and the default `requires_grad` flag
+from an existing tensor unless an override is provided:
+
+```python
+base = ts.ones((2, 3), dtype="float64", requires_grad=True)
+ts.zeros_like(base)
+ts.full_like(base, 5.0, requires_grad=False)
+```
 
 ## Broadcasting
 
@@ -94,46 +98,99 @@ Rules:
 
 - Dimensions are matched from the end.
 - Equal dimensions are compatible.
-- Dimension `1` broadcasts to the other size.
+- A dimension of `1` can broadcast to the other size.
 - Missing leading dimensions behave like `1`.
 - Incompatible shapes raise `ShapeError`.
 
+Broadcasting is also reduced correctly in autograd for supported operations.
+
 ## Views
 
-TensorStudio `1.0.1` supports:
+Supported views:
 
 - `reshape`
 - `flatten`
 - 2D `transpose`
-- `T` as a transpose property
+- 2D `T` property
 
 ```python
 x = ts.arange(6).reshape((2, 3))
 print(x.flatten().tolist())
-print(x.T.tolist())
+print(x.T.shape)
 ```
 
-Reshape currently requires a contiguous tensor. Transpose creates a strided view.
+`reshape` currently requires a contiguous tensor. `transpose` returns a strided
+view.
 
-## Reductions
+## Math
 
-Reductions operate over all elements and return scalar tensors.
+Elementwise:
+
+- `add`, `sub`, `mul`, `div`
+- `neg`
+- scalar `pow`
+- `relu`, `sigmoid`, `tanh`
+- `exp`, `log`, `sqrt`, `abs`
+- `clamp` and `clip`
+
+Comparisons:
+
+- `==`, `!=`, `<`, `<=`, `>`, `>=`
+
+Matrix and reductions:
+
+- `matmul` / `@` for 2D tensors
+- `sum`
+- `mean`
+- `max`
+- `min`
+
+Reductions operate over all elements by default and support one axis at a time
+with `keepdims`:
 
 ```python
-x = ts.tensor([1.0, 2.0, 3.0])
-print(x.sum().item())
-print(x.mean().item())
+x = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+x.sum(axis=1)
+x.mean(axis=0, keepdims=True)
+x.max(axis=-1)
 ```
 
-Axis-specific reductions are future work.
+Image-style functional operations:
+
+- `conv2d`
+- `max_pool2d`
+- `avg_pool2d`
+
+These functions expect CPU NCHW tensors. The current implementation focuses on
+portable eager kernels rather than CUDA/cuDNN-style throughput.
+
+## Casting And Combining
+
+```python
+x = ts.tensor([[1.2, 2.8]])
+x.astype("int32")
+x.to("float64")
+
+ts.concat([x, x], axis=0)
+ts.stack([x, x], axis=1)
+```
+
+`concat` requires tensors with the same dtype and compatible non-concatenated
+dimensions. `stack` requires identical shapes and inserts a new axis.
 
 ## Conversion
 
 ```python
-array = x.numpy()   # NumPy copy
+array = x.numpy()
 values = x.tolist()
 scalar = x.sum().item()
 ```
 
 NumPy interop copies data in both directions. Mutating the NumPy array returned
 by `numpy()` does not mutate the TensorStudio tensor.
+
+## Mutation
+
+General in-place tensor math is intentionally limited in v1.
+`+=` raises a clear error. Optimizers use private assignment helpers to update
+parameters after gradients are computed.

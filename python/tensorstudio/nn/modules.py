@@ -8,6 +8,16 @@ from typing import Any, cast
 
 from tensorstudio.tensor import Tensor, rand, randn, tensor, zeros
 
+PairLike = int | tuple[int, int] | list[int]
+
+
+def _pair(value: PairLike, name: str) -> tuple[int, int]:
+    if isinstance(value, int):
+        return (value, value)
+    if len(value) != 2:
+        raise ValueError(f"{name} must be an int or a pair of ints")
+    return (int(value[0]), int(value[1]))
+
 
 class Parameter:
     """Factory class that creates tensors with ``requires_grad=True``."""
@@ -218,6 +228,158 @@ class Linear(Module):
         )
 
 
+class Conv2d(Module):
+    """2D NCHW convolution layer backed by TensorStudio's native CPU kernel."""
+
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: PairLike,
+        stride: PairLike = 1,
+        padding: PairLike = 0,
+        dilation: PairLike = 1,
+        bias: bool = True,
+    ) -> None:
+        super().__init__()
+        if in_channels <= 0 or out_channels <= 0:
+            raise ValueError("in_channels and out_channels must be positive")
+        kernel_h, kernel_w = _pair(kernel_size, "kernel_size")
+        if kernel_h <= 0 or kernel_w <= 0:
+            raise ValueError("kernel_size values must be positive")
+        stride_h, stride_w = _pair(stride, "stride")
+        padding_h, padding_w = _pair(padding, "padding")
+        dilation_h, dilation_w = _pair(dilation, "dilation")
+        if stride_h <= 0 or stride_w <= 0:
+            raise ValueError("stride values must be positive")
+        if padding_h < 0 or padding_w < 0:
+            raise ValueError("padding values must be non-negative")
+        if dilation_h <= 0 or dilation_w <= 0:
+            raise ValueError("dilation values must be positive")
+
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = (kernel_h, kernel_w)
+        self.stride = (stride_h, stride_w)
+        self.padding = (padding_h, padding_w)
+        self.dilation = (dilation_h, dilation_w)
+
+        scale = 1.0 / math.sqrt(in_channels * kernel_h * kernel_w)
+        self.weight = cast(
+            Tensor,
+            Parameter(randn((out_channels, in_channels, kernel_h, kernel_w)) * scale),
+        )
+        self.bias = cast(Tensor, Parameter(zeros((out_channels,)))) if bias else None
+
+    def forward(self, input: Tensor) -> Tensor:
+        from .functional import conv2d
+
+        return conv2d(
+            input,
+            self.weight,
+            self.bias,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+        )
+
+    def extra_repr(self) -> str:
+        return (
+            f"in_channels={self.in_channels}, out_channels={self.out_channels}, "
+            f"kernel_size={self.kernel_size}, stride={self.stride}, "
+            f"padding={self.padding}, dilation={self.dilation}, bias={self.bias is not None}"
+        )
+
+
+class MaxPool2d(Module):
+    """2D NCHW max pooling layer backed by TensorStudio's native CPU kernel."""
+
+    def __init__(
+        self,
+        kernel_size: PairLike,
+        stride: PairLike | None = None,
+        padding: PairLike = 0,
+        dilation: PairLike = 1,
+    ) -> None:
+        super().__init__()
+        kernel_h, kernel_w = _pair(kernel_size, "kernel_size")
+        if kernel_h <= 0 or kernel_w <= 0:
+            raise ValueError("kernel_size values must be positive")
+        stride_h, stride_w = _pair(kernel_size if stride is None else stride, "stride")
+        padding_h, padding_w = _pair(padding, "padding")
+        dilation_h, dilation_w = _pair(dilation, "dilation")
+        if stride_h <= 0 or stride_w <= 0:
+            raise ValueError("stride values must be positive")
+        if padding_h < 0 or padding_w < 0:
+            raise ValueError("padding values must be non-negative")
+        if dilation_h <= 0 or dilation_w <= 0:
+            raise ValueError("dilation values must be positive")
+        self.kernel_size = (kernel_h, kernel_w)
+        self.stride = (stride_h, stride_w)
+        self.padding = (padding_h, padding_w)
+        self.dilation = (dilation_h, dilation_w)
+
+    def forward(self, input: Tensor) -> Tensor:
+        from .functional import max_pool2d
+
+        return max_pool2d(
+            input,
+            self.kernel_size,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+        )
+
+    def extra_repr(self) -> str:
+        return (
+            f"kernel_size={self.kernel_size}, stride={self.stride}, "
+            f"padding={self.padding}, dilation={self.dilation}"
+        )
+
+
+class AvgPool2d(Module):
+    """2D NCHW average pooling layer backed by TensorStudio's native CPU kernel."""
+
+    def __init__(
+        self,
+        kernel_size: PairLike,
+        stride: PairLike | None = None,
+        padding: PairLike = 0,
+        count_include_pad: bool = False,
+    ) -> None:
+        super().__init__()
+        kernel_h, kernel_w = _pair(kernel_size, "kernel_size")
+        if kernel_h <= 0 or kernel_w <= 0:
+            raise ValueError("kernel_size values must be positive")
+        stride_h, stride_w = _pair(kernel_size if stride is None else stride, "stride")
+        padding_h, padding_w = _pair(padding, "padding")
+        if stride_h <= 0 or stride_w <= 0:
+            raise ValueError("stride values must be positive")
+        if padding_h < 0 or padding_w < 0:
+            raise ValueError("padding values must be non-negative")
+        self.kernel_size = (kernel_h, kernel_w)
+        self.stride = (stride_h, stride_w)
+        self.padding = (padding_h, padding_w)
+        self.count_include_pad = count_include_pad
+
+    def forward(self, input: Tensor) -> Tensor:
+        from .functional import avg_pool2d
+
+        return avg_pool2d(
+            input,
+            self.kernel_size,
+            stride=self.stride,
+            padding=self.padding,
+            count_include_pad=self.count_include_pad,
+        )
+
+    def extra_repr(self) -> str:
+        return (
+            f"kernel_size={self.kernel_size}, stride={self.stride}, "
+            f"padding={self.padding}, count_include_pad={self.count_include_pad}"
+        )
+
+
 class Sequential(Module):
     """A simple ordered container of modules."""
 
@@ -331,11 +493,14 @@ class Flatten(Module):
 
 
 __all__ = [
+    "AvgPool2d",
+    "Conv2d",
     "Dropout",
     "Flatten",
     "Identity",
     "LeakyReLU",
     "Linear",
+    "MaxPool2d",
     "Module",
     "Parameter",
     "ReLU",

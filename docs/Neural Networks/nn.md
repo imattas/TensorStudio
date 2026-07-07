@@ -87,6 +87,9 @@ model.load_state_dict(state)
 Available modules:
 
 - `nn.Linear`
+- `nn.Conv2d`
+- `nn.MaxPool2d`
+- `nn.AvgPool2d`
 - `nn.Sequential`
 - `nn.Identity`
 - `nn.ReLU`
@@ -108,6 +111,32 @@ model = nn.Sequential(
 
 `Dropout` uses inverted dropout in training mode and is a no-op in eval mode.
 
+`Conv2d` expects NCHW input and stores weights as
+`(out_channels, in_channels, kernel_h, kernel_w)`.
+
+```python
+conv = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1)
+x = ts.ones((8, 1, 28, 28))
+y = conv(x)
+assert y.shape == (8, 4, 28, 28)
+```
+
+The initial convolution implementation is CPU-only and supports autograd for
+the input, weight, and optional bias.
+
+Pooling layers expect NCHW input and are parameter-free.
+
+```python
+pool = nn.MaxPool2d(kernel_size=2)
+x = ts.ones((8, 4, 28, 28))
+y = pool(x)
+assert y.shape == (8, 4, 14, 14)
+```
+
+`nn.MaxPool2d` supports `kernel_size`, `stride`, `padding`, and `dilation`.
+`nn.AvgPool2d` supports `kernel_size`, `stride`, `padding`, and
+`count_include_pad`.
+
 ```python
 model.train()
 model.eval()
@@ -121,20 +150,27 @@ Available loss modules:
 - `nn.L1Loss`
 - `nn.BCELoss`
 - `nn.BCEWithLogitsLoss`
+- `nn.CrossEntropyLoss`
 - `nn.HuberLoss`
 
 Functional equivalents live in `tensorstudio.nn.functional`:
 
 - `linear`
+- `conv2d`
+- `max_pool2d`
+- `avg_pool2d`
 - `relu`
 - `leaky_relu`
 - `sigmoid`
 - `tanh`
+- `softmax`
+- `log_softmax`
 - `softplus`
 - `mse_loss`
 - `l1_loss`
 - `binary_cross_entropy`
 - `binary_cross_entropy_with_logits`
+- `cross_entropy`
 - `huber_loss`
 
 `BCELoss` expects probabilities, not logits. Inputs are clamped with a small
@@ -143,6 +179,15 @@ epsilon for numerical stability.
 `BCEWithLogitsLoss` applies sigmoid before binary cross entropy. `HuberLoss` is
 useful for regression tasks where large residuals should be less aggressive
 than mean squared error.
+
+`CrossEntropyLoss` expects logits with shape `(batch, classes)` and integer
+class targets with shape `(batch,)`.
+
+```python
+logits = ts.tensor([[1.0, 2.0, 3.0], [1.5, -0.5, 0.25]])
+target = ts.tensor([2, 0])
+loss = nn.CrossEntropyLoss()(logits, target)
+```
 
 ## Training Loop
 

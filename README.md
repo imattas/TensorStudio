@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.0.1` is a CPU-only stable API foundation. It is eager-only,
+TensorStudio `1.1.0` is a CPU-only stable API foundation. It is eager-only,
 intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -94,6 +94,8 @@ d = ts.linspace(0.0, 1.0, 5)
 
 print(a.shape, a.strides, a.device, a.is_contiguous)
 print((b.clamp(0.2, 0.8) + 1).mean().item())
+print(b.sum(axis=1).tolist())
+print(ts.concat([b, b], axis=0).shape, b.astype("float64").dtype)
 print(c.tolist(), d.tolist())
 print(ts.zeros_like(b).shape, ts.randn_like(b, seed=11).dtype)
 ```
@@ -177,12 +179,15 @@ python benchmarks/benchmark_report.py
 columns for NumPy, TensorFlow, PyTorch, and JAX when those libraries are
 available locally.
 
-On one Windows CPython 3.10 run for `1.0.1`, TensorStudio beat NumPy on 13
-small activation/reduction benchmark cases and lost on 76 NumPy-comparable
-cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 71 local cases and
-lost 23. The strongest local wins were small eager operations where framework
-dispatch overhead dominates; larger matrix multiplication, larger transcendental
-activations, and larger autograd workloads remain faster in PyTorch and NumPy.
+On one Windows CPython 3.10 development run reporting `1.1.0`, TensorStudio
+beat NumPy on 23 small operation benchmark cases and lost on 80
+NumPy-comparable cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 74
+local cases and lost 34. The strongest local wins were small eager operations,
+small contiguous axis reductions, and the simple NumPy convolution/pooling
+references where framework dispatch or Python loops dominate; larger matrix
+multiplication, PyTorch convolution and pooling, larger axis reductions, larger
+transcendental activations, and larger autograd workloads remain faster in
+PyTorch and NumPy.
 See `benchmarks/results.md` for the full table, platform details, and exact
 timings.
 
@@ -190,11 +195,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | PyTorch CPU | TS vs NumPy | TS vs PyTorch |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0018 ms | 0.0036 ms | 0.0575 ms | 2.0414x | 32.2110x |
-| `mean` | `(32,)` | 0.0016 ms | 0.0069 ms | 0.0112 ms | 4.4051x | 7.1262x |
-| `chain_relu` | `(128,)` | 0.0086 ms | 0.0039 ms | 0.0567 ms | 0.4488x | 6.5977x |
-| `matmul` | `(256, 256)` | 2.4215 ms | 0.4027 ms | 0.0832 ms | 0.1663x | 0.0343x |
-| `elementwise_backward` | `(1024,)` | 2.3527 ms | n/a | 0.1887 ms | n/a | 0.0802x |
+| `sigmoid` | `(32,)` | 0.0017 ms | 0.0036 ms | 0.0580 ms | 2.1201x | 33.8536x |
+| `mean` | `(32,)` | 0.0018 ms | 0.0078 ms | 0.0127 ms | 4.2927x | 7.0047x |
+| `sum_axis1` | `(16, 16)` | 0.0021 ms | 0.0029 ms | 0.0068 ms | 1.3727x | 3.2193x |
+| `chain_relu` | `(128,)` | 0.0086 ms | 0.0039 ms | 0.0559 ms | 0.4478x | 6.5042x |
+| `matmul` | `(256, 256)` | 4.1154 ms | 0.3679 ms | 0.0931 ms | 0.0894x | 0.0226x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1788 ms | 1.2241 ms | 0.0131 ms | 6.8478x | 0.0731x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0146 ms | 0.2649 ms | 0.0062 ms | 18.1659x | 0.4242x |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0139 ms | 0.5486 ms | 0.0052 ms | 39.5974x | 0.3748x |
+| `elementwise_backward` | `(1024,)` | 2.3885 ms | n/a | 0.1947 ms | n/a | 0.0815x |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -260,9 +269,12 @@ tokens or print secrets.
 - No CUDA or Metal backend yet.
 - No BLAS-backed matrix multiplication yet.
 - No graph compiler or distributed runtime.
-- No convolution layers yet.
+- Convolution and pooling support are currently limited to CPU NCHW
+  `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
+- Reductions support all-element or single-axis reductions, not tuple-axis
+  reductions yet.
 - No sparse tensors or advanced indexing.
-- Limited dtype casting.
+- Dtype casting is basic and does not include a full promotion/casting policy.
 - Experimental performance; benchmarks are local references only.
 - Pickle serialization is for trusted TensorStudio objects only.
 
@@ -270,8 +282,8 @@ tokens or print secrets.
 
 - CUDA backend
 - Graph/JIT mode
-- Convolution ops
-- Dataset utilities
+- Broader convolution ops, adaptive/global pooling, and image-model examples
+- Richer dataset utilities
 - Model zoo examples
 - ONNX import/export
 - Improved memory allocator

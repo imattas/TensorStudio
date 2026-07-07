@@ -44,6 +44,19 @@ class BCEWithLogitsLoss(Module):
         return F.binary_cross_entropy_with_logits(input, target, eps=self.eps)
 
 
+class CrossEntropyLoss(Module):
+    """Multiclass cross entropy over unnormalized logits."""
+
+    def __init__(self, reduction: str = "mean") -> None:
+        super().__init__()
+        if reduction not in {"mean", "sum", "none"}:
+            raise ValueError("reduction must be 'mean', 'sum', or 'none'")
+        self.reduction = reduction
+
+    def forward(self, input: Tensor, target: Tensor) -> Tensor:
+        return F.cross_entropy(input, target, reduction=self.reduction)
+
+
 class HuberLoss(Module):
     """Huber loss with configurable transition point."""
 
@@ -57,4 +70,4 @@ class HuberLoss(Module):
         return F.huber_loss(input, target, delta=self.delta)
 
 
-__all__ = ["BCELoss", "BCEWithLogitsLoss", "HuberLoss", "L1Loss", "MSELoss"]
+__all__ = ["BCELoss", "BCEWithLogitsLoss", "CrossEntropyLoss", "HuberLoss", "L1Loss", "MSELoss"]

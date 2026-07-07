@@ -1,5 +1,29 @@
 # Changelog
 
+## Unreleased
+
+## 1.1.0 - 2026-07-07
+
+- Added native CPU NCHW `conv2d` with stride, padding, dilation, optional bias,
+  and reverse-mode gradients for input, weight, and bias.
+- Added `tensorstudio.conv2d`, `tensorstudio.ops.conv2d`,
+  `tensorstudio.nn.functional.conv2d`, and `tensorstudio.nn.Conv2d`.
+- Added convolution tests, finite-difference autograd coverage, and a
+  standalone convolution benchmark script.
+- Added convolution rows to the full benchmark report and updated docs to mark
+  convolution as partially implemented rather than missing.
+- Added native CPU NCHW `max_pool2d` and `avg_pool2d` operations with autograd,
+  Python top-level and functional APIs, `nn.MaxPool2d`, `nn.AvgPool2d`, tests,
+  docs, and benchmark coverage.
+- Added native single-axis `sum`, `mean`, `max`, and `min` reductions with
+  `keepdims` and reverse-mode gradients.
+- Added a typed contiguous 2D fast path for common axis `sum`/`mean`
+  reductions.
+- Added `nn.softmax`, `nn.log_softmax`, `nn.cross_entropy`, and
+  `nn.CrossEntropyLoss` for small multiclass classification workloads.
+- Added native `astype`, `concat`, and `stack` operations with Python wrappers,
+  Tensor methods for casting, and autograd support for floating tensors.
+
 ## 1.0.1
 
 - Added `test_all.py` for one-command local release checks covering lint,

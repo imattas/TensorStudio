@@ -372,6 +372,52 @@ double sum_contiguous_fast_path(const Tensor& input) {
   throw DTypeError("unknown dtype");
 }
 
+template <typename T>
+void sum_axis2d_contiguous_kernel(std::vector<double>& values, const Tensor& input, int64_t axis) {
+  const auto* data = raw_data<T>(input) + input.offset();
+  const int64_t rows = input.shape()[0];
+  const int64_t cols = input.shape()[1];
+  if (axis == 1) {
+    for (int64_t row = 0; row < rows; ++row) {
+      double acc = 0.0;
+      const int64_t row_offset = row * cols;
+      for (int64_t col = 0; col < cols; ++col) {
+        acc += to_double(data[row_offset + col]);
+      }
+      values[static_cast<std::size_t>(row)] = acc;
+    }
+    return;
+  }
+
+  for (int64_t row = 0; row < rows; ++row) {
+    const int64_t row_offset = row * cols;
+    for (int64_t col = 0; col < cols; ++col) {
+      values[static_cast<std::size_t>(col)] += to_double(data[row_offset + col]);
+    }
+  }
+}
+
+void sum_axis2d_contiguous_values(std::vector<double>& values, const Tensor& input, int64_t axis) {
+  switch (input.dtype()) {
+    case DType::Float32:
+      sum_axis2d_contiguous_kernel<float>(values, input, axis);
+      return;
+    case DType::Float64:
+      sum_axis2d_contiguous_kernel<double>(values, input, axis);
+      return;
+    case DType::Int32:
+      sum_axis2d_contiguous_kernel<int32_t>(values, input, axis);
+      return;
+    case DType::Int64:
+      sum_axis2d_contiguous_kernel<int64_t>(values, input, axis);
+      return;
+    case DType::Bool:
+      sum_axis2d_contiguous_kernel<bool>(values, input, axis);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
 template <typename Op>
 Tensor elementwise_binary_impl(
     const Tensor& left,
@@ -542,10 +588,46 @@ Tensor div_impl(const Tensor& left, const Tensor& right, bool track_grad);
 Tensor neg_impl(const Tensor& input, bool track_grad);
 Tensor pow_impl(const Tensor& input, double exponent, bool track_grad);
 Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad);
+Tensor conv2d_impl(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    bool track_grad);
+Tensor max_pool2d_impl(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    bool track_grad);
+Tensor avg_pool2d_impl(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    bool count_include_pad,
+    bool track_grad);
 Tensor sum_impl(const Tensor& input, bool track_grad);
+Tensor sum_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor mean_impl(const Tensor& input, bool track_grad);
+Tensor mean_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor max_impl(const Tensor& input, bool track_grad);
+Tensor max_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor min_impl(const Tensor& input, bool track_grad);
+Tensor min_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad);
 Tensor relu_impl(const Tensor& input, bool track_grad);
 Tensor sigmoid_impl(const Tensor& input, bool track_grad);
 Tensor tanh_impl(const Tensor& input, bool track_grad);
@@ -554,6 +636,9 @@ Tensor log_impl(const Tensor& input, bool track_grad);
 Tensor sqrt_impl(const Tensor& input, bool track_grad);
 Tensor abs_impl(const Tensor& input, bool track_grad);
 Tensor clamp_impl(const Tensor& input, double min_value, double max_value, bool track_grad);
+Tensor astype_impl(const Tensor& input, DType dtype, bool track_grad);
+Tensor concat_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad);
+Tensor stack_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad);
 Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad);
 Tensor transpose_impl(const Tensor& input, bool track_grad);
 
@@ -671,6 +756,966 @@ Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   return out;
 }
 
+int64_t storage_offset_1d(const Tensor& tensor, int64_t i0) {
+  return tensor.offset() + i0 * tensor.strides()[0];
+}
+
+int64_t storage_offset_4d(
+    const Tensor& tensor,
+    int64_t i0,
+    int64_t i1,
+    int64_t i2,
+    int64_t i3) {
+  return tensor.offset() + i0 * tensor.strides()[0] + i1 * tensor.strides()[1] +
+         i2 * tensor.strides()[2] + i3 * tensor.strides()[3];
+}
+
+void validate_conv2d_inputs(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  if (input.ndim() != 4) {
+    throw ShapeError("conv2d input must be NCHW with rank 4, got " + shape_to_string(input.shape()));
+  }
+  if (weight.ndim() != 4) {
+    throw ShapeError("conv2d weight must have shape (out_channels, in_channels, kernel_h, kernel_w), got " +
+                     shape_to_string(weight.shape()));
+  }
+  if (stride_h <= 0 || stride_w <= 0) {
+    throw ShapeError("conv2d stride values must be positive");
+  }
+  if (padding_h < 0 || padding_w < 0) {
+    throw ShapeError("conv2d padding values must be non-negative");
+  }
+  if (dilation_h <= 0 || dilation_w <= 0) {
+    throw ShapeError("conv2d dilation values must be positive");
+  }
+  if (input.shape()[1] != weight.shape()[1]) {
+    throw ShapeError(
+        "conv2d channel mismatch: input shape " + shape_to_string(input.shape()) +
+        " and weight shape " + shape_to_string(weight.shape()));
+  }
+  if (weight.shape()[2] <= 0 || weight.shape()[3] <= 0) {
+    throw ShapeError("conv2d kernel dimensions must be positive");
+  }
+  if (bias.has_value()) {
+    const Tensor& bias_tensor = *bias;
+    if (bias_tensor.ndim() != 1 || bias_tensor.shape()[0] != weight.shape()[0]) {
+      throw ShapeError(
+          "conv2d bias must have shape (" + std::to_string(weight.shape()[0]) +
+          ",), got " + shape_to_string(bias_tensor.shape()));
+    }
+  }
+}
+
+Shape conv2d_output_shape(
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  const int64_t batch = input.shape()[0];
+  const int64_t out_channels = weight.shape()[0];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t effective_h = dilation_h * (kernel_h - 1) + 1;
+  const int64_t effective_w = dilation_w * (kernel_w - 1) + 1;
+  const int64_t out_h = (input_h + 2 * padding_h - effective_h) / stride_h + 1;
+  const int64_t out_w = (input_w + 2 * padding_w - effective_w) / stride_w + 1;
+  if (out_h <= 0 || out_w <= 0) {
+    throw ShapeError(
+        "conv2d calculated non-positive output shape from input " + shape_to_string(input.shape()) +
+        ", weight " + shape_to_string(weight.shape()) + ", stride=(" + std::to_string(stride_h) +
+        ", " + std::to_string(stride_w) + "), padding=(" + std::to_string(padding_h) +
+        ", " + std::to_string(padding_w) + "), dilation=(" + std::to_string(dilation_h) +
+        ", " + std::to_string(dilation_w) + ")");
+  }
+  return Shape{batch, out_channels, out_h, out_w};
+}
+
+void conv2d_forward_kernel(
+    Tensor& out,
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  const int64_t batch = input.shape()[0];
+  const int64_t in_channels = input.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t out_channels = weight.shape()[0];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t out_h = out.shape()[2];
+  const int64_t out_w = out.shape()[3];
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t oc = 0; oc < out_channels; ++oc) {
+      const double bias_value =
+          bias.has_value() ? value_at_storage_unchecked(*bias, storage_offset_1d(*bias, oc)) : 0.0;
+      for (int64_t oh = 0; oh < out_h; ++oh) {
+        for (int64_t ow = 0; ow < out_w; ++ow) {
+          double acc = bias_value;
+          for (int64_t ic = 0; ic < in_channels; ++ic) {
+            for (int64_t kh = 0; kh < kernel_h; ++kh) {
+              const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+              if (ih < 0 || ih >= input_h) {
+                continue;
+              }
+              for (int64_t kw = 0; kw < kernel_w; ++kw) {
+                const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+                if (iw < 0 || iw >= input_w) {
+                  continue;
+                }
+                const double input_value =
+                    value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+                const double weight_value =
+                    value_at_storage_unchecked(weight, storage_offset_4d(weight, oc, ic, kh, kw));
+                acc += input_value * weight_value;
+              }
+            }
+          }
+          set_value_at_storage_unchecked(out, storage_offset_4d(out, n, oc, oh, ow), acc);
+        }
+      }
+    }
+  }
+}
+
+Tensor conv2d_input_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  Tensor input_grad(input.shape(), grad.dtype(), false);
+  fill_storage_unchecked(input_grad, 0.0);
+
+  const int64_t batch = input.shape()[0];
+  const int64_t in_channels = input.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t out_channels = weight.shape()[0];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t out_h = grad.shape()[2];
+  const int64_t out_w = grad.shape()[3];
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t oc = 0; oc < out_channels; ++oc) {
+      for (int64_t oh = 0; oh < out_h; ++oh) {
+        for (int64_t ow = 0; ow < out_w; ++ow) {
+          const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
+          for (int64_t ic = 0; ic < in_channels; ++ic) {
+            for (int64_t kh = 0; kh < kernel_h; ++kh) {
+              const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+              if (ih < 0 || ih >= input_h) {
+                continue;
+              }
+              for (int64_t kw = 0; kw < kernel_w; ++kw) {
+                const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+                if (iw < 0 || iw >= input_w) {
+                  continue;
+                }
+                const int64_t input_grad_offset = storage_offset_4d(input_grad, n, ic, ih, iw);
+                const double current = value_at_storage_unchecked(input_grad, input_grad_offset);
+                const double weight_value =
+                    value_at_storage_unchecked(weight, storage_offset_4d(weight, oc, ic, kh, kw));
+                set_value_at_storage_unchecked(input_grad, input_grad_offset, current + grad_value * weight_value);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  return input_grad;
+}
+
+Tensor conv2d_weight_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  Tensor weight_grad(weight.shape(), grad.dtype(), false);
+
+  const int64_t batch = input.shape()[0];
+  const int64_t in_channels = input.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t out_channels = weight.shape()[0];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t out_h = grad.shape()[2];
+  const int64_t out_w = grad.shape()[3];
+
+  for (int64_t oc = 0; oc < out_channels; ++oc) {
+    for (int64_t ic = 0; ic < in_channels; ++ic) {
+      for (int64_t kh = 0; kh < kernel_h; ++kh) {
+        for (int64_t kw = 0; kw < kernel_w; ++kw) {
+          double acc = 0.0;
+          for (int64_t n = 0; n < batch; ++n) {
+            for (int64_t oh = 0; oh < out_h; ++oh) {
+              const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+              if (ih < 0 || ih >= input_h) {
+                continue;
+              }
+              for (int64_t ow = 0; ow < out_w; ++ow) {
+                const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+                if (iw < 0 || iw >= input_w) {
+                  continue;
+                }
+                const double input_value =
+                    value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+                const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
+                acc += input_value * grad_value;
+              }
+            }
+          }
+          set_value_at_storage_unchecked(weight_grad, storage_offset_4d(weight_grad, oc, ic, kh, kw), acc);
+        }
+      }
+    }
+  }
+  return weight_grad;
+}
+
+Tensor conv2d_bias_grad(const Tensor& grad) {
+  Tensor bias_grad({grad.shape()[1]}, grad.dtype(), false);
+  for (int64_t oc = 0; oc < grad.shape()[1]; ++oc) {
+    double acc = 0.0;
+    for (int64_t n = 0; n < grad.shape()[0]; ++n) {
+      for (int64_t oh = 0; oh < grad.shape()[2]; ++oh) {
+        for (int64_t ow = 0; ow < grad.shape()[3]; ++ow) {
+          acc += value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
+        }
+      }
+    }
+    set_value_at_storage_unchecked(bias_grad, storage_offset_1d(bias_grad, oc), acc);
+  }
+  return bias_grad;
+}
+
+Tensor conv2d_impl(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    bool track_grad) {
+  validate_conv2d_inputs(input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+  DType out_dtype = promote_types(input.dtype(), weight.dtype());
+  if (bias.has_value()) {
+    out_dtype = promote_types(out_dtype, bias->dtype());
+  }
+  Tensor out(conv2d_output_shape(input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
+             out_dtype,
+             false);
+  conv2d_forward_kernel(out, input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+
+  if (track_grad) {
+    std::vector<Tensor> parents{input, weight};
+    if (bias.has_value()) {
+      parents.push_back(*bias);
+    }
+    set_history(
+        out,
+        parents,
+        [input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w](
+            const Tensor& grad) {
+          std::vector<Tensor> gradients{
+              conv2d_input_grad(grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
+              conv2d_weight_grad(grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
+          };
+          if (bias.has_value()) {
+            gradients.push_back(conv2d_bias_grad(grad));
+          }
+          return gradients;
+        });
+  }
+  return out;
+}
+
+void validate_pool2d_inputs(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    const std::string& op_name) {
+  if (input.ndim() != 4) {
+    throw ShapeError(op_name + " input must be NCHW with rank 4, got " + shape_to_string(input.shape()));
+  }
+  if (kernel_h <= 0 || kernel_w <= 0) {
+    throw ShapeError(op_name + " kernel_size values must be positive");
+  }
+  if (stride_h <= 0 || stride_w <= 0) {
+    throw ShapeError(op_name + " stride values must be positive");
+  }
+  if (padding_h < 0 || padding_w < 0) {
+    throw ShapeError(op_name + " padding values must be non-negative");
+  }
+  if (dilation_h <= 0 || dilation_w <= 0) {
+    throw ShapeError(op_name + " dilation values must be positive");
+  }
+  const int64_t effective_h = dilation_h * (kernel_h - 1) + 1;
+  const int64_t effective_w = dilation_w * (kernel_w - 1) + 1;
+  if (padding_h >= effective_h || padding_w >= effective_w) {
+    throw ShapeError(op_name + " padding must be smaller than the effective kernel size");
+  }
+}
+
+Shape pool2d_output_shape(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    const std::string& op_name) {
+  const int64_t effective_h = dilation_h * (kernel_h - 1) + 1;
+  const int64_t effective_w = dilation_w * (kernel_w - 1) + 1;
+  const int64_t out_h = (input.shape()[2] + 2 * padding_h - effective_h) / stride_h + 1;
+  const int64_t out_w = (input.shape()[3] + 2 * padding_w - effective_w) / stride_w + 1;
+  if (out_h <= 0 || out_w <= 0) {
+    throw ShapeError(
+        op_name + " calculated non-positive output shape from input " + shape_to_string(input.shape()) +
+        ", kernel_size=(" + std::to_string(kernel_h) + ", " + std::to_string(kernel_w) +
+        "), stride=(" + std::to_string(stride_h) + ", " + std::to_string(stride_w) +
+        "), padding=(" + std::to_string(padding_h) + ", " + std::to_string(padding_w) +
+        "), dilation=(" + std::to_string(dilation_h) + ", " + std::to_string(dilation_w) + ")");
+  }
+  return Shape{input.shape()[0], input.shape()[1], out_h, out_w};
+}
+
+void max_pool2d_forward_kernel(
+    Tensor& out,
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  const int64_t batch = input.shape()[0];
+  const int64_t channels = input.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t out_h = out.shape()[2];
+  const int64_t out_w = out.shape()[3];
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t c = 0; c < channels; ++c) {
+      for (int64_t oh = 0; oh < out_h; ++oh) {
+        for (int64_t ow = 0; ow < out_w; ++ow) {
+          double max_value = -std::numeric_limits<double>::infinity();
+          bool found = false;
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+            if (ih < 0 || ih >= input_h) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+              if (iw < 0 || iw >= input_w) {
+                continue;
+              }
+              const double value = value_at_storage_unchecked(input, storage_offset_4d(input, n, c, ih, iw));
+              max_value = found ? std::max(max_value, value) : value;
+              found = true;
+            }
+          }
+          if (!found) {
+            throw ShapeError("max_pool2d window did not overlap input");
+          }
+          set_value_at_storage_unchecked(out, storage_offset_4d(out, n, c, oh, ow), max_value);
+        }
+      }
+    }
+  }
+}
+
+void avg_pool2d_forward_kernel(
+    Tensor& out,
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    bool count_include_pad) {
+  const int64_t batch = input.shape()[0];
+  const int64_t channels = input.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t out_h = out.shape()[2];
+  const int64_t out_w = out.shape()[3];
+  const double padded_window_count = static_cast<double>(kernel_h * kernel_w);
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t c = 0; c < channels; ++c) {
+      for (int64_t oh = 0; oh < out_h; ++oh) {
+        for (int64_t ow = 0; ow < out_w; ++ow) {
+          double acc = 0.0;
+          int64_t valid_count = 0;
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh;
+            if (ih < 0 || ih >= input_h) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw;
+              if (iw < 0 || iw >= input_w) {
+                continue;
+              }
+              acc += value_at_storage_unchecked(input, storage_offset_4d(input, n, c, ih, iw));
+              ++valid_count;
+            }
+          }
+          if (valid_count == 0) {
+            throw ShapeError("avg_pool2d window did not overlap input");
+          }
+          const double denom = count_include_pad ? padded_window_count : static_cast<double>(valid_count);
+          set_value_at_storage_unchecked(out, storage_offset_4d(out, n, c, oh, ow), acc / denom);
+        }
+      }
+    }
+  }
+}
+
+Tensor max_pool2d_input_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  Tensor input_grad(input.shape(), grad.dtype(), false);
+  fill_storage_unchecked(input_grad, 0.0);
+
+  for (int64_t n = 0; n < input.shape()[0]; ++n) {
+    for (int64_t c = 0; c < input.shape()[1]; ++c) {
+      for (int64_t oh = 0; oh < grad.shape()[2]; ++oh) {
+        for (int64_t ow = 0; ow < grad.shape()[3]; ++ow) {
+          double max_value = -std::numeric_limits<double>::infinity();
+          int64_t tie_count = 0;
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+            if (ih < 0 || ih >= input.shape()[2]) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+              if (iw < 0 || iw >= input.shape()[3]) {
+                continue;
+              }
+              const double value = value_at_storage_unchecked(input, storage_offset_4d(input, n, c, ih, iw));
+              if (tie_count == 0 || value > max_value) {
+                max_value = value;
+                tie_count = 1;
+              } else if (value == max_value) {
+                ++tie_count;
+              }
+            }
+          }
+          if (tie_count == 0) {
+            continue;
+          }
+          const double grad_share =
+              value_at_storage_unchecked(grad, storage_offset_4d(grad, n, c, oh, ow)) /
+              static_cast<double>(tie_count);
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
+            if (ih < 0 || ih >= input.shape()[2]) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw * dilation_w;
+              if (iw < 0 || iw >= input.shape()[3]) {
+                continue;
+              }
+              const int64_t input_offset = storage_offset_4d(input, n, c, ih, iw);
+              if (value_at_storage_unchecked(input, input_offset) != max_value) {
+                continue;
+              }
+              const int64_t grad_offset = storage_offset_4d(input_grad, n, c, ih, iw);
+              const double current = value_at_storage_unchecked(input_grad, grad_offset);
+              set_value_at_storage_unchecked(input_grad, grad_offset, current + grad_share);
+            }
+          }
+        }
+      }
+    }
+  }
+  return input_grad;
+}
+
+Tensor avg_pool2d_input_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    bool count_include_pad) {
+  Tensor input_grad(input.shape(), grad.dtype(), false);
+  fill_storage_unchecked(input_grad, 0.0);
+  const double padded_window_count = static_cast<double>(kernel_h * kernel_w);
+
+  for (int64_t n = 0; n < input.shape()[0]; ++n) {
+    for (int64_t c = 0; c < input.shape()[1]; ++c) {
+      for (int64_t oh = 0; oh < grad.shape()[2]; ++oh) {
+        for (int64_t ow = 0; ow < grad.shape()[3]; ++ow) {
+          int64_t valid_count = 0;
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh;
+            if (ih < 0 || ih >= input.shape()[2]) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw;
+              if (iw >= 0 && iw < input.shape()[3]) {
+                ++valid_count;
+              }
+            }
+          }
+          if (valid_count == 0) {
+            continue;
+          }
+          const double denom = count_include_pad ? padded_window_count : static_cast<double>(valid_count);
+          const double grad_share =
+              value_at_storage_unchecked(grad, storage_offset_4d(grad, n, c, oh, ow)) / denom;
+          for (int64_t kh = 0; kh < kernel_h; ++kh) {
+            const int64_t ih = oh * stride_h - padding_h + kh;
+            if (ih < 0 || ih >= input.shape()[2]) {
+              continue;
+            }
+            for (int64_t kw = 0; kw < kernel_w; ++kw) {
+              const int64_t iw = ow * stride_w - padding_w + kw;
+              if (iw < 0 || iw >= input.shape()[3]) {
+                continue;
+              }
+              const int64_t grad_offset = storage_offset_4d(input_grad, n, c, ih, iw);
+              const double current = value_at_storage_unchecked(input_grad, grad_offset);
+              set_value_at_storage_unchecked(input_grad, grad_offset, current + grad_share);
+            }
+          }
+        }
+      }
+    }
+  }
+  return input_grad;
+}
+
+Tensor max_pool2d_impl(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    bool track_grad) {
+  validate_pool2d_inputs(
+      input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, "max_pool2d");
+  Tensor out(pool2d_output_shape(
+                 input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, "max_pool2d"),
+             input.dtype(),
+             false);
+  max_pool2d_forward_kernel(out, input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+  if (track_grad) {
+    set_history(out, {input}, [input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w](
+                              const Tensor& grad) {
+      return std::vector<Tensor>{max_pool2d_input_grad(
+          grad, input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w)};
+    });
+  }
+  return out;
+}
+
+Tensor avg_pool2d_impl(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    bool count_include_pad,
+    bool track_grad) {
+  validate_pool2d_inputs(
+      input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, 1, 1, "avg_pool2d");
+  Tensor out(pool2d_output_shape(input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, 1, 1, "avg_pool2d"),
+             dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32,
+             false);
+  avg_pool2d_forward_kernel(out, input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, count_include_pad);
+  if (track_grad) {
+    set_history(out, {input}, [input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, count_include_pad](
+                              const Tensor& grad) {
+      return std::vector<Tensor>{avg_pool2d_input_grad(
+          grad, input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, count_include_pad)};
+    });
+  }
+  return out;
+}
+
+int64_t normalize_axis(int64_t axis, const Shape& shape, const std::string& op_name) {
+  const auto rank = static_cast<int64_t>(shape.size());
+  if (rank == 0) {
+    throw ShapeError(op_name + " axis is out of range for a scalar tensor");
+  }
+  int64_t normalized = axis < 0 ? axis + rank : axis;
+  if (normalized < 0 || normalized >= rank) {
+    throw ShapeError(
+        op_name + " axis " + std::to_string(axis) + " is out of range for shape " +
+        shape_to_string(shape));
+  }
+  return normalized;
+}
+
+Shape reduction_output_shape(const Shape& input_shape, int64_t axis, bool keepdims) {
+  Shape output_shape;
+  output_shape.reserve(input_shape.size());
+  for (std::size_t i = 0; i < input_shape.size(); ++i) {
+    if (static_cast<int64_t>(i) == axis) {
+      if (keepdims) {
+        output_shape.push_back(1);
+      }
+      continue;
+    }
+    output_shape.push_back(input_shape[i]);
+  }
+  return output_shape;
+}
+
+int64_t linear_from_coordinates(const Shape& coords, const Shape& shape) {
+  if (shape.empty()) {
+    return 0;
+  }
+  int64_t linear = 0;
+  int64_t stride = 1;
+  for (int64_t dim = static_cast<int64_t>(shape.size()) - 1; dim >= 0; --dim) {
+    const auto index = static_cast<std::size_t>(dim);
+    linear += coords[index] * stride;
+    stride *= shape[index];
+  }
+  return linear;
+}
+
+int64_t reduction_output_linear(
+    const Shape& input_coords,
+    const Shape& input_shape,
+    const Shape& output_shape,
+    int64_t axis,
+    bool keepdims) {
+  if (output_shape.empty()) {
+    return 0;
+  }
+  Shape output_coords;
+  output_coords.reserve(output_shape.size());
+  for (std::size_t i = 0; i < input_shape.size(); ++i) {
+    if (static_cast<int64_t>(i) == axis) {
+      if (keepdims) {
+        output_coords.push_back(0);
+      }
+      continue;
+    }
+    output_coords.push_back(input_coords[i]);
+  }
+  return linear_from_coordinates(output_coords, output_shape);
+}
+
+Tensor broadcast_reduction_grad(
+    const Tensor& grad,
+    const Shape& input_shape,
+    int64_t axis,
+    bool keepdims,
+    double scale) {
+  Tensor out(input_shape, grad.dtype(), false);
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input_shape);
+    Shape grad_coords;
+    grad_coords.reserve(grad.shape().size());
+    for (std::size_t dim = 0; dim < input_shape.size(); ++dim) {
+      if (static_cast<int64_t>(dim) == axis) {
+        if (keepdims) {
+          grad_coords.push_back(0);
+        }
+        continue;
+      }
+      grad_coords.push_back(input_coords[dim]);
+    }
+    const int64_t grad_linear = linear_from_coordinates(grad_coords, grad.shape());
+    out.set_value_at_logical(i, grad.value_at_logical(grad_linear) * scale);
+  }
+  return out;
+}
+
+Tensor astype_impl(const Tensor& input, DType dtype, bool track_grad) {
+  Tensor out(input.shape(), dtype, false);
+  out.copy_from(input);
+  if (track_grad && dtype_is_floating(dtype)) {
+    set_history(out, {input}, [input_dtype = input.dtype()](const Tensor& grad) {
+      return std::vector<Tensor>{astype_impl(grad, input_dtype, false)};
+    });
+  }
+  return out;
+}
+
+int64_t normalize_insert_axis(int64_t axis, int64_t output_rank, const std::string& op_name) {
+  int64_t normalized = axis < 0 ? axis + output_rank : axis;
+  if (normalized < 0 || normalized >= output_rank) {
+    throw ShapeError(op_name + " axis " + std::to_string(axis) + " is out of range");
+  }
+  return normalized;
+}
+
+void validate_concat_inputs(const std::vector<Tensor>& tensors, int64_t axis) {
+  if (tensors.empty()) {
+    throw ShapeError("concat requires at least one tensor");
+  }
+  const Shape& base_shape = tensors.front().shape();
+  if (base_shape.empty()) {
+    throw ShapeError("concat does not support scalar tensors; use stack instead");
+  }
+  for (std::size_t i = 1; i < tensors.size(); ++i) {
+    const Tensor& tensor = tensors[i];
+    if (tensor.dtype() != tensors.front().dtype()) {
+      throw DTypeError("concat requires all tensors to have the same dtype");
+    }
+    if (tensor.shape().size() != base_shape.size()) {
+      throw ShapeError("concat requires tensors with the same rank");
+    }
+    for (std::size_t dim = 0; dim < base_shape.size(); ++dim) {
+      if (static_cast<int64_t>(dim) == axis) {
+        continue;
+      }
+      if (tensor.shape()[dim] != base_shape[dim]) {
+        throw ShapeError(
+            "concat shape mismatch: expected non-concat dimensions compatible with " +
+            shape_to_string(base_shape) + ", got " + shape_to_string(tensor.shape()));
+      }
+    }
+  }
+}
+
+Tensor concat_grad_slice(const Tensor& grad, const Shape& shape, int64_t axis, int64_t axis_offset) {
+  Tensor out(shape, grad.dtype(), false);
+  for (int64_t linear = 0; linear < out.numel(); ++linear) {
+    Shape coords = coordinates_from_linear(linear, shape);
+    coords[static_cast<std::size_t>(axis)] += axis_offset;
+    const int64_t grad_linear = linear_from_coordinates(coords, grad.shape());
+    out.set_value_at_logical(linear, grad.value_at_logical(grad_linear));
+  }
+  return out;
+}
+
+Tensor concat_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad) {
+  if (tensors.empty()) {
+    throw ShapeError("concat requires at least one tensor");
+  }
+  const int64_t normalized_axis = normalize_axis(axis, tensors.front().shape(), "concat");
+  validate_concat_inputs(tensors, normalized_axis);
+
+  Shape out_shape = tensors.front().shape();
+  out_shape[static_cast<std::size_t>(normalized_axis)] = 0;
+  for (const Tensor& tensor : tensors) {
+    out_shape[static_cast<std::size_t>(normalized_axis)] +=
+        tensor.shape()[static_cast<std::size_t>(normalized_axis)];
+  }
+
+  Tensor out(out_shape, tensors.front().dtype(), false);
+  int64_t axis_offset = 0;
+  for (const Tensor& tensor : tensors) {
+    for (int64_t linear = 0; linear < tensor.numel(); ++linear) {
+      Shape coords = coordinates_from_linear(linear, tensor.shape());
+      coords[static_cast<std::size_t>(normalized_axis)] += axis_offset;
+      const int64_t out_linear = linear_from_coordinates(coords, out_shape);
+      out.set_value_at_logical(out_linear, tensor.value_at_logical(linear));
+    }
+    axis_offset += tensor.shape()[static_cast<std::size_t>(normalized_axis)];
+  }
+
+  if (track_grad) {
+    std::vector<Shape> shapes;
+    shapes.reserve(tensors.size());
+    for (const Tensor& tensor : tensors) {
+      shapes.push_back(tensor.shape());
+    }
+    set_history(out, tensors, [shapes, normalized_axis](const Tensor& grad) {
+      std::vector<Tensor> grads;
+      grads.reserve(shapes.size());
+      int64_t offset = 0;
+      for (const Shape& shape : shapes) {
+        grads.push_back(concat_grad_slice(grad, shape, normalized_axis, offset));
+        offset += shape[static_cast<std::size_t>(normalized_axis)];
+      }
+      return grads;
+    });
+  }
+  return out;
+}
+
+void validate_stack_inputs(const std::vector<Tensor>& tensors) {
+  if (tensors.empty()) {
+    throw ShapeError("stack requires at least one tensor");
+  }
+  const Shape& base_shape = tensors.front().shape();
+  for (std::size_t i = 1; i < tensors.size(); ++i) {
+    const Tensor& tensor = tensors[i];
+    if (tensor.dtype() != tensors.front().dtype()) {
+      throw DTypeError("stack requires all tensors to have the same dtype");
+    }
+    if (tensor.shape() != base_shape) {
+      throw ShapeError(
+          "stack requires tensors with identical shapes, got " + shape_to_string(base_shape) +
+          " and " + shape_to_string(tensor.shape()));
+    }
+  }
+}
+
+Tensor stack_grad_slice(const Tensor& grad, const Shape& input_shape, int64_t axis, int64_t stack_index) {
+  Tensor out(input_shape, grad.dtype(), false);
+  for (int64_t linear = 0; linear < out.numel(); ++linear) {
+    const Shape input_coords = coordinates_from_linear(linear, input_shape);
+    Shape grad_coords;
+    grad_coords.reserve(input_shape.size() + 1);
+    std::size_t input_dim = 0;
+    for (std::size_t dim = 0; dim < input_shape.size() + 1; ++dim) {
+      if (static_cast<int64_t>(dim) == axis) {
+        grad_coords.push_back(stack_index);
+      } else {
+        grad_coords.push_back(input_coords[input_dim++]);
+      }
+    }
+    const int64_t grad_linear = linear_from_coordinates(grad_coords, grad.shape());
+    out.set_value_at_logical(linear, grad.value_at_logical(grad_linear));
+  }
+  return out;
+}
+
+Tensor stack_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad) {
+  validate_stack_inputs(tensors);
+  const Shape& input_shape = tensors.front().shape();
+  const int64_t output_rank = static_cast<int64_t>(input_shape.size()) + 1;
+  const int64_t normalized_axis = normalize_insert_axis(axis, output_rank, "stack");
+
+  Shape out_shape;
+  out_shape.reserve(input_shape.size() + 1);
+  std::size_t input_dim = 0;
+  for (int64_t dim = 0; dim < output_rank; ++dim) {
+    if (dim == normalized_axis) {
+      out_shape.push_back(static_cast<int64_t>(tensors.size()));
+    } else {
+      out_shape.push_back(input_shape[input_dim++]);
+    }
+  }
+
+  Tensor out(out_shape, tensors.front().dtype(), false);
+  for (std::size_t tensor_index = 0; tensor_index < tensors.size(); ++tensor_index) {
+    const Tensor& tensor = tensors[tensor_index];
+    for (int64_t linear = 0; linear < tensor.numel(); ++linear) {
+      const Shape input_coords = coordinates_from_linear(linear, input_shape);
+      Shape out_coords;
+      out_coords.reserve(out_shape.size());
+      std::size_t current_input_dim = 0;
+      for (int64_t dim = 0; dim < output_rank; ++dim) {
+        if (dim == normalized_axis) {
+          out_coords.push_back(static_cast<int64_t>(tensor_index));
+        } else {
+          out_coords.push_back(input_coords[current_input_dim++]);
+        }
+      }
+      const int64_t out_linear = linear_from_coordinates(out_coords, out_shape);
+      out.set_value_at_logical(out_linear, tensor.value_at_logical(linear));
+    }
+  }
+
+  if (track_grad) {
+    set_history(out, tensors, [input_shape, normalized_axis, count = tensors.size()](const Tensor& grad) {
+      std::vector<Tensor> grads;
+      grads.reserve(count);
+      for (std::size_t index = 0; index < count; ++index) {
+        grads.push_back(stack_grad_slice(grad, input_shape, normalized_axis, static_cast<int64_t>(index)));
+      }
+      return grads;
+    });
+  }
+  return out;
+}
+
+Tensor sum_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "sum");
+  const Shape out_shape = reduction_output_shape(input.shape(), normalized_axis, keepdims);
+  const DType out_dtype = dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float64;
+  Tensor out(out_shape, out_dtype, false);
+  std::vector<double> values(static_cast<std::size_t>(out.numel()), 0.0);
+  if (input.is_contiguous() && input.ndim() == 2) {
+    sum_axis2d_contiguous_values(values, input, normalized_axis);
+  } else {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      const Shape input_coords = coordinates_from_linear(i, input.shape());
+      const int64_t out_linear =
+          reduction_output_linear(input_coords, input.shape(), out_shape, normalized_axis, keepdims);
+      values[static_cast<std::size_t>(out_linear)] += input.value_at_logical(i);
+    }
+  }
+  write_contiguous_from_accumulator(out, values);
+  if (track_grad) {
+    set_history(out, {input}, [shape = input.shape(), normalized_axis, keepdims](const Tensor& grad) {
+      return std::vector<Tensor>{broadcast_reduction_grad(grad, shape, normalized_axis, keepdims, 1.0)};
+    });
+  }
+  return out;
+}
+
 Tensor sum_impl(const Tensor& input, bool track_grad) {
   Tensor out({}, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float64, false);
   double acc = 0.0;
@@ -685,6 +1730,38 @@ Tensor sum_impl(const Tensor& input, bool track_grad) {
   if (track_grad) {
     set_history(out, {input}, [shape = input.shape(), dtype = out.dtype()](const Tensor& grad) {
       return std::vector<Tensor>{full_like(shape, grad.value_at_logical(0), dtype)};
+    });
+  }
+  return out;
+}
+
+Tensor mean_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), "mean");
+  const int64_t reduction_size = input.shape()[static_cast<std::size_t>(normalized_axis)];
+  if (reduction_size == 0) {
+    throw ShapeError("mean is undefined for empty reduction axes");
+  }
+  const Shape out_shape = reduction_output_shape(input.shape(), normalized_axis, keepdims);
+  Tensor out(out_shape, DType::Float64, false);
+  std::vector<double> values(static_cast<std::size_t>(out.numel()), 0.0);
+  if (input.is_contiguous() && input.ndim() == 2) {
+    sum_axis2d_contiguous_values(values, input, normalized_axis);
+  } else {
+    for (int64_t i = 0; i < input.numel(); ++i) {
+      const Shape input_coords = coordinates_from_linear(i, input.shape());
+      const int64_t out_linear =
+          reduction_output_linear(input_coords, input.shape(), out_shape, normalized_axis, keepdims);
+      values[static_cast<std::size_t>(out_linear)] += input.value_at_logical(i);
+    }
+  }
+  for (double& value : values) {
+    value /= static_cast<double>(reduction_size);
+  }
+  write_contiguous_from_accumulator(out, values);
+  if (track_grad) {
+    set_history(out, {input}, [shape = input.shape(), normalized_axis, keepdims, reduction_size](const Tensor& grad) {
+      return std::vector<Tensor>{broadcast_reduction_grad(
+          grad, shape, normalized_axis, keepdims, 1.0 / static_cast<double>(reduction_size))};
     });
   }
   return out;
@@ -712,6 +1789,37 @@ Tensor mean_impl(const Tensor& input, bool track_grad) {
   return out;
 }
 
+Tensor extreme_axis_grad(
+    const Tensor& input,
+    const Tensor& grad,
+    int64_t axis,
+    bool keepdims,
+    bool is_max) {
+  const Tensor extremes =
+      is_max ? max_axis_impl(input, axis, keepdims, false) : min_axis_impl(input, axis, keepdims, false);
+  std::vector<int64_t> counts(static_cast<std::size_t>(extremes.numel()), 0);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input.shape());
+    const int64_t out_linear = reduction_output_linear(input_coords, input.shape(), extremes.shape(), axis, keepdims);
+    if (input.value_at_logical(i) == extremes.value_at_logical(out_linear)) {
+      ++counts[static_cast<std::size_t>(out_linear)];
+    }
+  }
+
+  Tensor out(input.shape(), grad.dtype(), false);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input.shape());
+    const int64_t out_linear = reduction_output_linear(input_coords, input.shape(), extremes.shape(), axis, keepdims);
+    double value = 0.0;
+    const auto count = counts[static_cast<std::size_t>(out_linear)];
+    if (count > 0 && input.value_at_logical(i) == extremes.value_at_logical(out_linear)) {
+      value = grad.value_at_logical(out_linear) / static_cast<double>(count);
+    }
+    out.set_value_at_logical(i, value);
+  }
+  return out;
+}
+
 Tensor extreme_grad(const Tensor& input, const Tensor& grad, double extreme_value) {
   int64_t count = 0;
   for (int64_t i = 0; i < input.numel(); ++i) {
@@ -725,6 +1833,45 @@ Tensor extreme_grad(const Tensor& input, const Tensor& grad, double extreme_valu
     out.set_value_at_logical(i, input.value_at_logical(i) == extreme_value ? scale : 0.0);
   }
   return out;
+}
+
+Tensor extreme_axis_impl(
+    const Tensor& input,
+    int64_t axis,
+    bool keepdims,
+    bool track_grad,
+    bool is_max,
+    const std::string& op_name) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), op_name);
+  if (input.shape()[static_cast<std::size_t>(normalized_axis)] == 0) {
+    throw ShapeError(op_name + " is undefined for empty reduction axes");
+  }
+  const Shape out_shape = reduction_output_shape(input.shape(), normalized_axis, keepdims);
+  Tensor out(out_shape, input.dtype(), false);
+  std::vector<double> values(static_cast<std::size_t>(out.numel()), 0.0);
+  std::vector<bool> initialized(static_cast<std::size_t>(out.numel()), false);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input.shape());
+    const int64_t out_linear =
+        reduction_output_linear(input_coords, input.shape(), out_shape, normalized_axis, keepdims);
+    const auto index = static_cast<std::size_t>(out_linear);
+    const double value = input.value_at_logical(i);
+    if (!initialized[index] || (is_max ? value > values[index] : value < values[index])) {
+      values[index] = value;
+      initialized[index] = true;
+    }
+  }
+  write_contiguous_from_accumulator(out, values);
+  if (track_grad) {
+    set_history(out, {input}, [input, normalized_axis, keepdims, is_max](const Tensor& grad) {
+      return std::vector<Tensor>{extreme_axis_grad(input, grad, normalized_axis, keepdims, is_max)};
+    });
+  }
+  return out;
+}
+
+Tensor max_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad) {
+  return extreme_axis_impl(input, axis, keepdims, track_grad, true, "max");
 }
 
 Tensor max_impl(const Tensor& input, bool track_grad) {
@@ -743,6 +1890,10 @@ Tensor max_impl(const Tensor& input, bool track_grad) {
     });
   }
   return out;
+}
+
+Tensor min_axis_impl(const Tensor& input, int64_t axis, bool keepdims, bool track_grad) {
+  return extreme_axis_impl(input, axis, keepdims, track_grad, false, "min");
 }
 
 Tensor min_impl(const Tensor& input, bool track_grad) {
@@ -1029,20 +2180,77 @@ Tensor matmul(const Tensor& left, const Tensor& right) {
   return matmul_impl(left, right, true);
 }
 
+Tensor conv2d(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  return conv2d_impl(
+      input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, true);
+}
+
+Tensor max_pool2d(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w) {
+  return max_pool2d_impl(
+      input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, true);
+}
+
+Tensor avg_pool2d(
+    const Tensor& input,
+    int64_t kernel_h,
+    int64_t kernel_w,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    bool count_include_pad) {
+  return avg_pool2d_impl(
+      input, kernel_h, kernel_w, stride_h, stride_w, padding_h, padding_w, count_include_pad, true);
+}
+
 Tensor sum(const Tensor& input) {
   return sum_impl(input, true);
+}
+
+Tensor sum(const Tensor& input, int64_t axis, bool keepdims) {
+  return sum_axis_impl(input, axis, keepdims, true);
 }
 
 Tensor mean(const Tensor& input) {
   return mean_impl(input, true);
 }
 
+Tensor mean(const Tensor& input, int64_t axis, bool keepdims) {
+  return mean_axis_impl(input, axis, keepdims, true);
+}
+
 Tensor max(const Tensor& input) {
   return max_impl(input, true);
 }
 
+Tensor max(const Tensor& input, int64_t axis, bool keepdims) {
+  return max_axis_impl(input, axis, keepdims, true);
+}
+
 Tensor min(const Tensor& input) {
   return min_impl(input, true);
+}
+
+Tensor min(const Tensor& input, int64_t axis, bool keepdims) {
+  return min_axis_impl(input, axis, keepdims, true);
 }
 
 Tensor relu(const Tensor& input) {
@@ -1075,6 +2283,18 @@ Tensor abs(const Tensor& input) {
 
 Tensor clamp(const Tensor& input, double min_value, double max_value) {
   return clamp_impl(input, min_value, max_value, true);
+}
+
+Tensor astype(const Tensor& input, DType dtype) {
+  return astype_impl(input, dtype, true);
+}
+
+Tensor concat(const std::vector<Tensor>& tensors, int64_t axis) {
+  return concat_impl(tensors, axis, true);
+}
+
+Tensor stack(const std::vector<Tensor>& tensors, int64_t axis) {
+  return stack_impl(tensors, axis, true);
 }
 
 Tensor reshape(const Tensor& input, const Shape& shape) {

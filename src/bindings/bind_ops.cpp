@@ -1,6 +1,7 @@
 #include "bindings.hpp"
 
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 
 #include "tensorstudio/ops.hpp"
 
@@ -20,10 +21,80 @@ void bind_ops(py::module_& module) {
   module.def("neg", &neg);
   module.def("pow", &pow, py::arg("input"), py::arg("exponent"));
   module.def("matmul", [](const Tensor& left, py::object right) { return matmul(left, ensure_tensor(right)); });
-  module.def("sum", &sum);
-  module.def("mean", &mean);
-  module.def("max", &max);
-  module.def("min", &min);
+  module.def(
+      "conv2d",
+      [](const Tensor& input,
+         const Tensor& weight,
+         py::object bias,
+         int64_t stride_h,
+         int64_t stride_w,
+         int64_t padding_h,
+         int64_t padding_w,
+         int64_t dilation_h,
+         int64_t dilation_w) {
+        std::optional<Tensor> maybe_bias;
+        if (!bias.is_none()) {
+          maybe_bias = ensure_tensor(bias);
+        }
+        return conv2d(
+            input, weight, maybe_bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+      },
+      py::arg("input"),
+      py::arg("weight"),
+      py::arg("bias") = py::none(),
+      py::arg("stride_h") = 1,
+      py::arg("stride_w") = 1,
+      py::arg("padding_h") = 0,
+      py::arg("padding_w") = 0,
+      py::arg("dilation_h") = 1,
+      py::arg("dilation_w") = 1);
+  module.def(
+      "max_pool2d",
+      &max_pool2d,
+      py::arg("input"),
+      py::arg("kernel_h"),
+      py::arg("kernel_w"),
+      py::arg("stride_h") = 1,
+      py::arg("stride_w") = 1,
+      py::arg("padding_h") = 0,
+      py::arg("padding_w") = 0,
+      py::arg("dilation_h") = 1,
+      py::arg("dilation_w") = 1);
+  module.def(
+      "avg_pool2d",
+      &avg_pool2d,
+      py::arg("input"),
+      py::arg("kernel_h"),
+      py::arg("kernel_w"),
+      py::arg("stride_h") = 1,
+      py::arg("stride_w") = 1,
+      py::arg("padding_h") = 0,
+      py::arg("padding_w") = 0,
+      py::arg("count_include_pad") = false);
+  module.def("sum", [](const Tensor& input, py::object axis, bool keepdims) {
+    if (axis.is_none()) {
+      return sum(input);
+    }
+    return sum(input, py::cast<int64_t>(axis), keepdims);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("mean", [](const Tensor& input, py::object axis, bool keepdims) {
+    if (axis.is_none()) {
+      return mean(input);
+    }
+    return mean(input, py::cast<int64_t>(axis), keepdims);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("max", [](const Tensor& input, py::object axis, bool keepdims) {
+    if (axis.is_none()) {
+      return max(input);
+    }
+    return max(input, py::cast<int64_t>(axis), keepdims);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("min", [](const Tensor& input, py::object axis, bool keepdims) {
+    if (axis.is_none()) {
+      return min(input);
+    }
+    return min(input, py::cast<int64_t>(axis), keepdims);
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("relu", &relu);
   module.def("sigmoid", &sigmoid);
   module.def("tanh", &tanh);
@@ -32,6 +103,13 @@ void bind_ops(py::module_& module) {
   module.def("sqrt", &sqrt);
   module.def("abs", &abs);
   module.def("clamp", &clamp, py::arg("input"), py::arg("min_value"), py::arg("max_value"));
+  module.def(
+      "astype",
+      [](const Tensor& input, py::object dtype) { return astype(input, dtype_from_py(dtype, input.dtype())); },
+      py::arg("input"),
+      py::arg("dtype"));
+  module.def("concat", &concat, py::arg("tensors"), py::arg("axis") = 0);
+  module.def("stack", &stack, py::arg("tensors"), py::arg("axis") = 0);
   module.def("reshape", [](const Tensor& input, py::object shape) { return reshape(input, shape_from_py(shape)); });
   module.def("flatten", &flatten);
   module.def("transpose", &transpose);

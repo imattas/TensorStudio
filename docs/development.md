@@ -65,7 +65,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-Clean wheel and sdist tests are documented in [Windows](windows.md).
+Clean wheel and sdist tests are documented in [Windows](Hardware/windows.md).
 
 ## Documentation
 

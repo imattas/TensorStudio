@@ -100,6 +100,39 @@ print(x.abs().tolist())
 print(x.clamp(-1.0, 2.0).tolist())
 ```
 
+Reductions can operate over all elements or one axis:
+
+```python
+x = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+print(x.sum().item())
+print(x.mean(axis=0).tolist())
+print(x.max(axis=1, keepdims=True).tolist())
+```
+
+Tensors can be cast, concatenated, and stacked:
+
+```python
+a = ts.ones((1, 2))
+b = ts.full((1, 2), 3.0)
+
+print(a.astype("float64").dtype)
+print(ts.concat([a, b], axis=0).tolist())
+print(ts.stack([a, b], axis=1).shape)
+```
+
+NCHW image-style tensors can use native CPU convolution and pooling helpers:
+
+```python
+image = ts.ones((1, 1, 4, 4))
+kernel = ts.ones((1, 1, 3, 3))
+
+features = ts.conv2d(image, kernel, padding=1)
+pooled = ts.max_pool2d(features, kernel_size=2)
+
+print(features.shape)  # (1, 1, 4, 4)
+print(pooled.shape)    # (1, 1, 2, 2)
+```
+
 ## Autograd
 
 ```python
@@ -150,6 +183,15 @@ for _ in range(100):
     scheduler.step()
 
 print(loss.item())
+```
+
+For multiclass logits, use `CrossEntropyLoss` or the matching functional helper:
+
+```python
+logits = ts.tensor([[1.0, 2.0, 3.0], [1.5, -0.5, 0.25]], requires_grad=True)
+target = ts.tensor([2, 0])
+loss = nn.CrossEntropyLoss()(logits, target)
+loss.backward()
 ```
 
 ## DataLoader

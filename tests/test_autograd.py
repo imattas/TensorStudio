@@ -90,6 +90,40 @@ def test_additional_unary_and_reduction_autograd() -> None:
     np.testing.assert_allclose(z.grad.numpy(), np.array([0.0, 0.5, 0.5, 1.0]), rtol=1e-6)
 
 
+def test_axis_reduction_autograd() -> None:
+    x = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], requires_grad=True)
+    weighted = x.sum(axis=1) * ts.tensor([1.0, 2.0])
+    weighted.sum().backward()
+    np.testing.assert_allclose(x.grad.numpy(), np.array([[1.0, 1.0, 1.0], [2.0, 2.0, 2.0]]))
+
+    y = ts.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], requires_grad=True)
+    y.mean(axis=0).sum().backward()
+    np.testing.assert_allclose(y.grad.numpy(), np.full((2, 3), 0.5), rtol=1e-6)
+
+    z = ts.tensor([[1.0, 3.0, 3.0], [2.0, 2.0, 0.0]], requires_grad=True)
+    z.max(axis=1).sum().backward()
+    np.testing.assert_allclose(z.grad.numpy(), np.array([[0.0, 0.5, 0.5], [0.5, 0.5, 0.0]]))
+
+
+def test_cast_concat_stack_autograd() -> None:
+    x = ts.tensor([1.0, 2.0], requires_grad=True)
+    x.astype("float64").sum().backward()
+    np.testing.assert_allclose(x.grad.numpy(), np.ones(2), rtol=1e-6)
+
+    a = ts.tensor([[1.0, 2.0]], requires_grad=True)
+    b = ts.tensor([[3.0, 4.0]], requires_grad=True)
+    weights = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
+    (ts.concat([a, b], axis=0) * weights).sum().backward()
+    np.testing.assert_allclose(a.grad.numpy(), np.array([[1.0, 2.0]]), rtol=1e-6)
+    np.testing.assert_allclose(b.grad.numpy(), np.array([[3.0, 4.0]]), rtol=1e-6)
+
+    c = ts.tensor([1.0, 2.0], requires_grad=True)
+    d = ts.tensor([3.0, 4.0], requires_grad=True)
+    (ts.stack([c, d], axis=1) * ts.tensor([[1.0, 2.0], [3.0, 4.0]])).sum().backward()
+    np.testing.assert_allclose(c.grad.numpy(), np.array([1.0, 3.0]), rtol=1e-6)
+    np.testing.assert_allclose(d.grad.numpy(), np.array([2.0, 4.0]), rtol=1e-6)
+
+
 def test_reshape_transpose_autograd() -> None:
     x = ts.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
 
@@ -114,6 +148,8 @@ def test_finite_difference_selected_ops() -> None:
     _assert_grad_matches(values, lambda x: x.relu().mean())
     _assert_grad_matches(values, lambda x: x.sigmoid().mean())
     _assert_grad_matches(values, lambda x: x.tanh().mean())
+    _assert_grad_matches(values, lambda x: x.sum(axis=1).mean())
+    _assert_grad_matches(values, lambda x: x.mean(axis=0).sum())
 
 
 def test_finite_difference_matmul() -> None:
@@ -121,3 +157,49 @@ def test_finite_difference_matmul() -> None:
     weight = ts.tensor([[1.0, -2.0], [0.5, 3.0]], dtype="float64")
 
     _assert_grad_matches(values, lambda x: (x @ weight).mean())
+
+
+def test_finite_difference_conv2d() -> None:
+    input_values = np.array(
+        [[[[0.2, -0.4, 0.7], [1.0, -1.2, 0.5], [0.3, 0.8, -0.6]]]],
+        dtype=np.float64,
+    )
+    weight_values = np.array([[[[0.5, -0.25], [1.5, 0.75]]]], dtype=np.float64)
+    bias_values = np.array([0.1], dtype=np.float64)
+
+    weight = ts.tensor(weight_values.tolist(), dtype="float64")
+    bias = ts.tensor(bias_values.tolist(), dtype="float64")
+    _assert_grad_matches(
+        input_values,
+        lambda x: ts.conv2d(x, weight, bias, padding=1).mean(),
+    )
+
+    fixed_input = ts.tensor(input_values.tolist(), dtype="float64")
+    _assert_grad_matches(
+        weight_values,
+        lambda w: ts.conv2d(fixed_input, w, bias, padding=1).mean(),
+    )
+
+    _assert_grad_matches(
+        bias_values,
+        lambda b: ts.conv2d(fixed_input, weight, b, padding=1).mean(),
+    )
+
+
+def test_finite_difference_pool2d() -> None:
+    values = np.array(
+        [
+            [
+                [
+                    [0.2, -0.4, 0.7, 1.1],
+                    [1.0, -1.2, 0.5, 0.9],
+                    [0.3, 0.8, -0.6, 1.4],
+                    [1.7, -0.1, 0.6, -0.9],
+                ]
+            ]
+        ],
+        dtype=np.float64,
+    )
+
+    _assert_grad_matches(values, lambda x: ts.avg_pool2d(x, kernel_size=2).mean())
+    _assert_grad_matches(values, lambda x: ts.max_pool2d(x, kernel_size=2).mean())

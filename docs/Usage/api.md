@@ -30,6 +30,12 @@ modules, optimizers, data utilities, and serialization helpers.
 - `arange`
 - `eye`
 - `linspace`
+- `conv2d`
+- `max_pool2d`
+- `avg_pool2d`
+- `astype`
+- `concat`
+- `stack`
 - `manual_seed`
 - `save`
 - `load`
@@ -103,10 +109,10 @@ Views:
 
 Math:
 
-- `sum()`
-- `mean()`
-- `max()`
-- `min()`
+- `sum(axis=None, keepdims=False)`
+- `mean(axis=None, keepdims=False)`
+- `max(axis=None, keepdims=False)`
+- `min(axis=None, keepdims=False)`
 - `relu()`
 - `sigmoid()`
 - `tanh()`
@@ -116,6 +122,8 @@ Math:
 - `abs()`
 - `clamp(min_value, max_value)`
 - `clip(min_value, max_value)`
+- `astype(dtype)`
+- `to(dtype)`
 
 ## Operators
 
@@ -135,11 +143,43 @@ Math:
 
 `+=` is intentionally unsupported and raises a clear error.
 
+## Functional Ops
+
+```python
+ts.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1)
+ts.max_pool2d(input, kernel_size, stride=None, padding=0, dilation=1)
+ts.avg_pool2d(input, kernel_size, stride=None, padding=0, count_include_pad=False)
+```
+
+`conv2d` expects NCHW input with shape `(batch, in_channels, height, width)`
+and weight shape `(out_channels, in_channels, kernel_h, kernel_w)`. Stride,
+padding, and dilation accept either an integer or a pair of integers. The
+current implementation is CPU-only and supports autograd for input, weight, and
+bias.
+
+`max_pool2d` and `avg_pool2d` also expect NCHW input. `kernel_size`, `stride`,
+`padding`, and `dilation` accept an integer or a pair where supported. If
+`stride=None`, pooling defaults to non-overlapping windows with
+`stride=kernel_size`. `max_pool2d` supports dilation; `avg_pool2d` supports
+`count_include_pad`.
+
+```python
+ts.astype(input, dtype)
+ts.concat(tensors, axis=0)
+ts.stack(tensors, axis=0)
+```
+
+`concat` joins same-dtype tensors along an existing axis. `stack` inserts a new
+axis and requires identical input shapes.
+
 ## `tensorstudio.nn`
 
 - `Module`
 - `Parameter`
 - `Linear`
+- `Conv2d`
+- `MaxPool2d`
+- `AvgPool2d`
 - `Sequential`
 - `ReLU`
 - `Sigmoid`
@@ -153,8 +193,10 @@ Math:
 - `L1Loss`
 - `BCELoss`
 - `BCEWithLogitsLoss`
+- `CrossEntropyLoss`
 - `HuberLoss`
-- Functional equivalents for activations and losses.
+- Functional equivalents for linear layers, convolution, pooling, activations,
+  softmax/log-softmax, and losses.
 
 Module methods:
 

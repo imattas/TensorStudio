@@ -24,6 +24,8 @@ Operation = Callable[[Any, Any | None], Any]
 
 VECTOR_SHAPES = [(1,), (8,), (32,), (128,), (1024,), (4096,), (16384,)]
 MATRIX_SHAPES = [(16, 16), (64, 64), (128, 128), (256, 256)]
+CONV2D_SHAPES = [(1, 1, 8, 8), (4, 3, 16, 16)]
+POOL2D_SHAPES = [(1, 1, 16, 16), (4, 3, 32, 32)]
 DTYPE = np.float32
 
 
@@ -88,6 +90,14 @@ def _iterations(shape: tuple[int, ...], category: str) -> int:
         if n <= 16384:
             return 5
         return 2
+    if category == "conv2d":
+        if n <= 256:
+            return 50
+        return 10
+    if category == "pooling":
+        if n <= 256:
+            return 200
+        return 50
     if category in {"autograd", "training_loop"}:
         if n <= 128:
             return 100
@@ -297,14 +307,25 @@ def _log_external(value: Any, module: str) -> Any:
     return np.log(value)
 
 
-def _reduction_op(name: str) -> Callable[[Library, np.ndarray, np.ndarray], Callable[[], Any]]:
+def _reduction_op(
+    name: str,
+    axis: int | None = None,
+) -> Callable[[Library, np.ndarray, np.ndarray], Callable[[], Any]]:
     def build(library: Library, left: np.ndarray, _: np.ndarray) -> Callable[[], Any]:
         x = library.factory(left)
 
         def run() -> Any:
             if library.name == "TensorStudio":
-                return x.sum() if name == "sum" else x.mean()
-            return _finalize(x.sum() if name == "sum" else x.mean())
+                return x.sum(axis=axis) if name == "sum" else x.mean(axis=axis)
+            module = x.__class__.__module__
+            if module.startswith("torch"):
+                return _finalize(x.sum(dim=axis) if name == "sum" else x.mean(dim=axis))
+            if module.startswith("tensorflow"):
+                tf = importlib.import_module("tensorflow")
+                return _finalize(
+                    tf.reduce_sum(x, axis=axis) if name == "sum" else tf.reduce_mean(x, axis=axis)
+                )
+            return _finalize(x.sum(axis=axis) if name == "sum" else x.mean(axis=axis))
 
         return run
 
@@ -319,6 +340,167 @@ def _matmul_build(library: Library, left: np.ndarray, right: np.ndarray) -> Call
         return _finalize(x @ y)
 
     return run
+
+
+def _numpy_conv2d_nchw(
+    input: np.ndarray,
+    weight: np.ndarray,
+    padding: tuple[int, int] = (1, 1),
+) -> np.ndarray:
+    batch, in_channels, input_h, input_w = input.shape
+    out_channels, _, kernel_h, kernel_w = weight.shape
+    padding_h, padding_w = padding
+    out_h = input_h + 2 * padding_h - kernel_h + 1
+    out_w = input_w + 2 * padding_w - kernel_w + 1
+    output = np.zeros((batch, out_channels, out_h, out_w), dtype=input.dtype)
+    for n in range(batch):
+        for oc in range(out_channels):
+            for oh in range(out_h):
+                for ow in range(out_w):
+                    acc = 0.0
+                    for ic in range(in_channels):
+                        for kh in range(kernel_h):
+                            ih = oh - padding_h + kh
+                            if ih < 0 or ih >= input_h:
+                                continue
+                            for kw in range(kernel_w):
+                                iw = ow - padding_w + kw
+                                if iw < 0 or iw >= input_w:
+                                    continue
+                                acc += float(input[n, ic, ih, iw] * weight[oc, ic, kh, kw])
+                    output[n, oc, oh, ow] = acc
+    return output
+
+
+def _conv2d_build(library: Library, left: np.ndarray, right: np.ndarray) -> Callable[[], Any]:
+    if library.name == "TensorStudio":
+        x = ts.from_numpy(left)
+        w = ts.from_numpy(right)
+
+        def run_ts() -> Any:
+            return ts.conv2d(x, w, padding=1)
+
+        return run_ts
+
+    if library.name == "NumPy":
+        x_np = left
+        w_np = right
+
+        def run_np() -> Any:
+            return _numpy_conv2d_nchw(x_np, w_np)
+
+        return run_np
+
+    if library.name == "PyTorch CPU" and library.available:
+        torch = importlib.import_module("torch")
+        functional = importlib.import_module("torch.nn.functional")
+        x_torch = torch.from_numpy(left.copy())
+        w_torch = torch.from_numpy(right.copy())
+
+        def run_torch() -> Any:
+            return functional.conv2d(x_torch, w_torch, padding=1)
+
+        return run_torch
+
+    if library.name == "TensorFlow CPU eager" and library.available:
+        tf = importlib.import_module("tensorflow")
+        x_tf = tf.constant(np.transpose(left, (0, 2, 3, 1)))
+        w_tf = tf.constant(np.transpose(right, (2, 3, 1, 0)))
+
+        def run_tf() -> Any:
+            return tf.nn.conv2d(x_tf, w_tf, strides=1, padding="SAME").numpy()
+
+        return run_tf
+
+    if library.name == "JAX CPU dispatch" and library.available:
+        jax = importlib.import_module("jax")
+        jnp = importlib.import_module("jax.numpy")
+        x_jax = jnp.array(left)
+        w_jax = jnp.array(right)
+
+        def run_jax() -> Any:
+            return jax.lax.conv_general_dilated(
+                x_jax,
+                w_jax,
+                window_strides=(1, 1),
+                padding=((1, 1), (1, 1)),
+                dimension_numbers=("NCHW", "OIHW", "NCHW"),
+            ).block_until_ready()
+
+        return run_jax
+
+    raise NotImplementedError
+
+
+def _numpy_pool2d_nchw(input: np.ndarray, mode: str) -> np.ndarray:
+    batch, channels, input_h, input_w = input.shape
+    kernel_h = 2
+    kernel_w = 2
+    stride_h = 2
+    stride_w = 2
+    out_h = (input_h - kernel_h) // stride_h + 1
+    out_w = (input_w - kernel_w) // stride_w + 1
+    output = np.empty((batch, channels, out_h, out_w), dtype=input.dtype)
+    for n in range(batch):
+        for c in range(channels):
+            for oh in range(out_h):
+                for ow in range(out_w):
+                    window = input[
+                        n,
+                        c,
+                        oh * stride_h : oh * stride_h + kernel_h,
+                        ow * stride_w : ow * stride_w + kernel_w,
+                    ]
+                    output[n, c, oh, ow] = window.max() if mode == "max" else window.mean()
+    return output
+
+
+def _pool2d_build(mode: str) -> Callable[[Library, np.ndarray, np.ndarray], Callable[[], Any]]:
+    def build(library: Library, left: np.ndarray, _: np.ndarray) -> Callable[[], Any]:
+        if library.name == "TensorStudio":
+            x = ts.from_numpy(left)
+
+            def run_ts() -> Any:
+                if mode == "max":
+                    return ts.max_pool2d(x, 2)
+                return ts.avg_pool2d(x, 2)
+
+            return run_ts
+
+        if library.name == "NumPy":
+            x_np = left
+
+            def run_np() -> Any:
+                return _numpy_pool2d_nchw(x_np, mode)
+
+            return run_np
+
+        if library.name == "PyTorch CPU" and library.available:
+            torch = importlib.import_module("torch")
+            functional = importlib.import_module("torch.nn.functional")
+            x_torch = torch.from_numpy(left.copy())
+
+            def run_torch() -> Any:
+                if mode == "max":
+                    return functional.max_pool2d(x_torch, 2)
+                return functional.avg_pool2d(x_torch, 2, count_include_pad=False)
+
+            return run_torch
+
+        if library.name == "TensorFlow CPU eager" and library.available:
+            tf = importlib.import_module("tensorflow")
+            x_tf = tf.constant(np.transpose(left, (0, 2, 3, 1)))
+
+            def run_tf() -> Any:
+                if mode == "max":
+                    return tf.nn.max_pool2d(x_tf, ksize=2, strides=2, padding="VALID").numpy()
+                return tf.nn.avg_pool2d(x_tf, ksize=2, strides=2, padding="VALID").numpy()
+
+            return run_tf
+
+        raise NotImplementedError
+
+    return build
 
 
 def _chain_build(library: Library, left: np.ndarray, _: np.ndarray) -> Callable[[], Any]:
@@ -498,7 +680,18 @@ def _build_cases(sections: set[str]) -> list[BenchmarkCase]:
             add_case("reductions", op, shape, _reduction_op(op))
 
     for shape in MATRIX_SHAPES:
+        add_case("reductions", "sum_axis1", shape, _reduction_op("sum", axis=1))
+        add_case("reductions", "mean_axis0", shape, _reduction_op("mean", axis=0))
+
+    for shape in MATRIX_SHAPES:
         add_case("matmul", "matmul", shape, _matmul_build)
+
+    for shape in CONV2D_SHAPES:
+        add_case("conv2d", "conv2d_3x3_padding1", shape, _conv2d_build)
+
+    for shape in POOL2D_SHAPES:
+        add_case("pooling", "max_pool2d_2x2", shape, _pool2d_build("max"))
+        add_case("pooling", "avg_pool2d_2x2", shape, _pool2d_build("avg"))
 
     for shape in [(1,), (128,), (1024,)]:
         add_case("autograd", "scalar_backward", shape, _autograd_scalar_build)
@@ -524,6 +717,10 @@ def _case_data(shape: tuple[int, ...], operation: str) -> tuple[np.ndarray, np.n
     rng = np.random.default_rng(123)
     left = rng.standard_normal(shape).astype(DTYPE)
     right = rng.standard_normal(shape).astype(DTYPE)
+    if operation == "conv2d_3x3_padding1":
+        _, in_channels, _, _ = shape
+        out_channels = 4
+        right = rng.standard_normal((out_channels, in_channels, 3, 3)).astype(DTYPE)
     if operation in {"div", "log"}:
         left = np.abs(left) + 0.25
         right = np.abs(right) + 0.25
@@ -741,7 +938,16 @@ def main() -> None:
     parser.add_argument(
         "--section",
         action="append",
-        choices=["elementwise", "matmul", "reductions", "activations", "autograd", "training_loop"],
+        choices=[
+            "elementwise",
+            "matmul",
+            "conv2d",
+            "pooling",
+            "reductions",
+            "activations",
+            "autograd",
+            "training_loop",
+        ],
         help="Benchmark section to run. Repeat for multiple sections. Defaults to all sections.",
     )
     parser.add_argument(
@@ -753,7 +959,16 @@ def main() -> None:
     args = parser.parse_args()
     sections = set(
         args.section
-        or ["elementwise", "matmul", "reductions", "activations", "autograd", "training_loop"]
+        or [
+            "elementwise",
+            "matmul",
+            "conv2d",
+            "pooling",
+            "reductions",
+            "activations",
+            "autograd",
+            "training_loop",
+        ]
     )
     report = run_benchmarks(sections, args.output)
     print(report)

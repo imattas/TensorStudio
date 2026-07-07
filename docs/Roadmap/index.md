@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.0.1` is a CPU-first foundation. This roadmap describes likely
+TensorStudio `1.1.0` is a CPU-first foundation. This roadmap describes likely
 directions without promising dates.
 
 ## Backend And Performance
@@ -14,11 +14,11 @@ directions without promising dates.
 
 ## Tensor API
 
-- Axis reductions
+- Tuple-axis reductions and arg reductions
 - More view operations
 - Advanced indexing
-- Concatenation and stacking
-- Dtype casting
+- More tensor layout transforms
+- Richer dtype promotion and casting policy
 - Device transfer API
 
 ## Autograd
@@ -31,9 +31,10 @@ directions without promising dates.
 
 ## Neural Networks
 
-- Convolution ops
+- Broader convolution ops beyond the initial CPU NCHW `conv2d`/`nn.Conv2d`
+- Adaptive pooling, global pooling, and more image-model building blocks
 - Batch normalization
-- Cross entropy loss
+- Label smoothing and additional classification losses
 - Model zoo examples
 
 ## Interchange And Tooling

@@ -31,10 +31,31 @@ python benchmarks/bench_matmul.py
 This compares TensorStudio 2D matrix multiplication with NumPy and, when
 installed, PyTorch on the same shapes.
 
+## Run Convolution Benchmarks
+
+```bash
+python benchmarks/bench_conv2d.py
+```
+
+This compares the native CPU NCHW `conv2d` kernel with a simple NumPy reference
+loop and, when installed, PyTorch, TensorFlow, and JAX CPU convolution. The
+NumPy baseline is intentionally simple; PyTorch and other mature libraries use
+far more optimized CPU kernels.
+
+## Run Pooling Benchmarks
+
+```bash
+python benchmarks/bench_pooling.py
+```
+
+This compares native CPU NCHW `max_pool2d` and `avg_pool2d` with a simple
+NumPy reference and, when installed, PyTorch, TensorFlow, and JAX CPU
+equivalents where available.
+
 ## Interpreting Results
 
 Expect NumPy and PyTorch to be faster for many medium and large operations
-because they use highly optimized native kernels. TensorStudio `1.0.1` still
+because they use highly optimized native kernels. TensorStudio `1.1.0` still
 favors clarity, portability, and a compact C++ implementation over full kernel
 library performance.
 
@@ -43,9 +64,9 @@ win/loss counts when those libraries are installed. Detailed tables include
 explicit win columns and a fastest-library column for each case.
 On the Windows CPython 3.10 run checked into `benchmarks/results.md`,
 TensorStudio wins many small PyTorch CPU eager cases, but loses larger matrix
-multiplication, larger transcendental activations, and larger autograd cases.
-Those losses are expected until TensorStudio has BLAS, SIMD, and a real kernel
-scheduler.
+multiplication, convolution against PyTorch CPU, larger transcendental
+activations, and larger autograd cases. Those losses are expected until
+TensorStudio has BLAS, SIMD, and a real kernel scheduler.
 
 Useful benchmark notes:
 

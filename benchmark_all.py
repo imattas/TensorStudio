@@ -8,6 +8,8 @@ from benchmarks.benchmark_report import run_benchmarks
 ALL_SECTIONS = {
     "elementwise",
     "matmul",
+    "conv2d",
+    "pooling",
     "reductions",
     "activations",
     "autograd",
