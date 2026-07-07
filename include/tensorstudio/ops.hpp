@@ -113,6 +113,10 @@ Tensor stack(const std::vector<Tensor>& tensors, int64_t axis = 0);
 Tensor reshape(const Tensor& input, const Shape& shape);
 Tensor flatten(const Tensor& input);
 Tensor transpose(const Tensor& input);
+Tensor transpose(const Tensor& input, int64_t axis0, int64_t axis1);
+Tensor permute(const Tensor& input, const Shape& axes);
+Tensor squeeze(const Tensor& input, std::optional<int64_t> axis = std::nullopt);
+Tensor unsqueeze(const Tensor& input, int64_t axis);
 Tensor index(const Tensor& input, const std::vector<TensorIndex>& indices);
 
 Tensor scalar_tensor(double value, DType dtype = DType::Float32);

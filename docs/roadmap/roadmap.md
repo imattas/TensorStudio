@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.4.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.5.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -29,8 +29,8 @@ tensor semantics.
 - Completed in `1.4.0`: add NumPy-style indexing and slicing for common
   integer, slice, tuple, ellipsis, newaxis, negative-index, negative-step, and
   scalar-output cases, with clear rejections for unsupported advanced indexing.
-- Add more view/layout operations: `squeeze`, `unsqueeze`, `permute`, and
-  general N-dimensional transpose.
+- Completed in `1.5.0`: add more view/layout operations: `squeeze`,
+  `unsqueeze`, `permute`, and general N-dimensional transpose.
 - Add clearer shape, dtype, and indexing error messages.
 - Expand numerical tests against NumPy for all new semantics.
 

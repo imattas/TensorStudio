@@ -147,7 +147,11 @@ Views:
 
 - `reshape(*shape)` or `reshape(shape)`
 - `flatten()`
-- `transpose()`
+- `transpose()` to reverse axes
+- `transpose(axis0, axis1)` to swap two axes
+- `permute(*axes)` or `permute(axes)`
+- `squeeze(axis=None)`
+- `unsqueeze(axis)`
 - `__getitem__(key)` through `x[key]`
 
 Indexing keys may contain integers, slices, tuples, ellipsis, and `None` for

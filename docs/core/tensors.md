@@ -148,8 +148,12 @@ Supported views:
 
 - `reshape`
 - `flatten`
-- 2D `transpose`
-- 2D `T` property
+- `transpose()` for reversed axes
+- `transpose(axis0, axis1)` for axis swaps
+- `permute`
+- `squeeze`
+- `unsqueeze`
+- `T` property
 - Basic indexing and slicing with integers, slices, tuples, ellipsis, and
   `None`/newaxis
 
@@ -158,10 +162,16 @@ x = ts.arange(6).reshape((2, 3))
 print(x.flatten().tolist())
 print(x.T.shape)
 print(x[0, :].tolist())
+
+y = ts.arange(24).reshape((2, 3, 4))
+print(y.permute(2, 0, 1).shape)
+print(y.transpose(0, 2).shape)
+print(y.unsqueeze(0).squeeze(0).shape)
 ```
 
-`reshape` currently requires a contiguous tensor. `transpose` returns a strided
-view. Basic slicing also returns a view where possible.
+`reshape` currently requires a contiguous tensor. `transpose`, `permute`,
+`squeeze`, `unsqueeze`, and basic slicing return metadata views that share the
+same storage where possible.
 
 Indexing supports common NumPy-style read cases:
 

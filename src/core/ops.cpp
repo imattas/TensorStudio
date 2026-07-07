@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <numeric>
 #include <type_traits>
 #include <vector>
 
@@ -681,6 +682,10 @@ Tensor concat_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_
 Tensor stack_impl(const std::vector<Tensor>& tensors, int64_t axis, bool track_grad);
 Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad);
 Tensor transpose_impl(const Tensor& input, bool track_grad);
+Tensor transpose_impl(const Tensor& input, int64_t axis0, int64_t axis1, bool track_grad);
+Tensor permute_impl(const Tensor& input, const Shape& axes, bool track_grad);
+Tensor squeeze_impl(const Tensor& input, std::optional<int64_t> axis, bool track_grad);
+Tensor unsqueeze_impl(const Tensor& input, int64_t axis, bool track_grad);
 Tensor index_impl(const Tensor& input, const std::vector<TensorIndex>& indices, bool track_grad);
 
 Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad) {
@@ -2516,25 +2521,155 @@ Tensor reshape_impl(const Tensor& input, const Shape& shape, bool track_grad) {
   Tensor out(input.impl()->storage, input.dtype(), normalized, contiguous_strides(normalized), input.offset(), false);
   if (track_grad) {
     set_history(out, {input}, [original_shape = input.shape()](const Tensor& grad) {
-      return std::vector<Tensor>{reshape_impl(grad, original_shape, false)};
+      Tensor usable_grad = grad.is_contiguous() ? grad : grad.clone();
+      return std::vector<Tensor>{reshape_impl(usable_grad, original_shape, false)};
+    });
+  }
+  return out;
+}
+
+int64_t normalize_unsqueeze_axis(int64_t axis, int64_t rank, const std::string& op_name) {
+  const int64_t output_rank = rank + 1;
+  const int64_t normalized = axis < 0 ? axis + output_rank : axis;
+  if (normalized < 0 || normalized > rank) {
+    throw ShapeError(
+        op_name + " axis " + std::to_string(axis) + " is out of range for rank " +
+        std::to_string(rank));
+  }
+  return normalized;
+}
+
+Shape normalize_permutation(const Shape& axes, int64_t rank, const std::string& op_name) {
+  if (static_cast<int64_t>(axes.size()) != rank) {
+    throw ShapeError(
+        op_name + " expected " + std::to_string(rank) + " axes, got " +
+        shape_to_string(axes));
+  }
+  Shape normalized;
+  normalized.reserve(axes.size());
+  std::vector<bool> seen(static_cast<std::size_t>(rank), false);
+  for (const int64_t axis : axes) {
+    const int64_t value = axis < 0 ? axis + rank : axis;
+    if (value < 0 || value >= rank) {
+      throw ShapeError(op_name + " axis " + std::to_string(axis) + " is out of range");
+    }
+    const auto index = static_cast<std::size_t>(value);
+    if (seen[index]) {
+      throw ShapeError(op_name + " axes must be unique, got " + shape_to_string(axes));
+    }
+    seen[index] = true;
+    normalized.push_back(value);
+  }
+  return normalized;
+}
+
+Shape inverse_permutation(const Shape& axes) {
+  Shape inverse(axes.size(), 0);
+  for (std::size_t i = 0; i < axes.size(); ++i) {
+    inverse[static_cast<std::size_t>(axes[i])] = static_cast<int64_t>(i);
+  }
+  return inverse;
+}
+
+Tensor permute_impl(const Tensor& input, const Shape& axes, bool track_grad) {
+  const Shape normalized_axes = normalize_permutation(axes, input.ndim(), "permute");
+  Shape output_shape;
+  Shape output_strides;
+  output_shape.reserve(normalized_axes.size());
+  output_strides.reserve(normalized_axes.size());
+  for (const int64_t axis : normalized_axes) {
+    const auto index = static_cast<std::size_t>(axis);
+    output_shape.push_back(input.shape()[index]);
+    output_strides.push_back(input.strides()[index]);
+  }
+  Tensor out(
+      input.impl()->storage,
+      input.dtype(),
+      output_shape,
+      output_strides,
+      input.offset(),
+      false);
+  if (track_grad) {
+    set_history(out, {input}, [inverse = inverse_permutation(normalized_axes)](const Tensor& grad) {
+      return std::vector<Tensor>{permute_impl(grad, inverse, false)};
     });
   }
   return out;
 }
 
 Tensor transpose_impl(const Tensor& input, bool track_grad) {
-  if (input.ndim() != 2) {
-    throw ShapeError("transpose expects a 2D tensor, got " + shape_to_string(input.shape()));
+  Shape axes(static_cast<std::size_t>(input.ndim()), 0);
+  std::iota(axes.begin(), axes.end(), int64_t{0});
+  std::reverse(axes.begin(), axes.end());
+  return permute_impl(input, axes, track_grad);
+}
+
+Tensor transpose_impl(const Tensor& input, int64_t axis0, int64_t axis1, bool track_grad) {
+  Shape axes(static_cast<std::size_t>(input.ndim()), 0);
+  std::iota(axes.begin(), axes.end(), int64_t{0});
+  const int64_t dim0 = normalize_axis(axis0, input.shape(), "transpose");
+  const int64_t dim1 = normalize_axis(axis1, input.shape(), "transpose");
+  std::swap(axes[static_cast<std::size_t>(dim0)], axes[static_cast<std::size_t>(dim1)]);
+  return permute_impl(input, axes, track_grad);
+}
+
+Tensor unsqueeze_impl(const Tensor& input, int64_t axis, bool track_grad) {
+  const int64_t normalized_axis = normalize_unsqueeze_axis(axis, input.ndim(), "unsqueeze");
+  Shape output_shape = input.shape();
+  Shape output_strides = input.strides();
+  int64_t inserted_stride = 1;
+  if (!input.shape().empty() && normalized_axis < input.ndim()) {
+    const auto index = static_cast<std::size_t>(normalized_axis);
+    inserted_stride = input.strides()[index] * std::max<int64_t>(input.shape()[index], 1);
   }
-  Tensor out(
-      input.impl()->storage,
-      input.dtype(),
-      Shape{input.shape()[1], input.shape()[0]},
-      Shape{input.strides()[1], input.strides()[0]},
-      input.offset(),
-      false);
+  output_shape.insert(output_shape.begin() + normalized_axis, 1);
+  output_strides.insert(output_strides.begin() + normalized_axis, inserted_stride);
+  Tensor out(input.impl()->storage, input.dtype(), output_shape, output_strides, input.offset(), false);
   if (track_grad) {
-    set_history(out, {input}, [](const Tensor& grad) { return std::vector<Tensor>{transpose_impl(grad, false)}; });
+    set_history(out, {input}, [normalized_axis](const Tensor& grad) {
+      return std::vector<Tensor>{squeeze_impl(grad, normalized_axis, false)};
+    });
+  }
+  return out;
+}
+
+Tensor squeeze_impl(const Tensor& input, std::optional<int64_t> axis, bool track_grad) {
+  Shape output_shape;
+  Shape output_strides;
+  std::vector<int64_t> removed_axes;
+
+  std::optional<int64_t> normalized_axis;
+  if (axis.has_value()) {
+    normalized_axis = normalize_axis(*axis, input.shape(), "squeeze");
+    if (input.shape()[static_cast<std::size_t>(*normalized_axis)] != 1) {
+      throw ShapeError(
+          "cannot squeeze axis " + std::to_string(*axis) + " with size " +
+          std::to_string(input.shape()[static_cast<std::size_t>(*normalized_axis)]) +
+          " for shape " + shape_to_string(input.shape()));
+    }
+  }
+
+  for (int64_t dim = 0; dim < input.ndim(); ++dim) {
+    const bool remove = axis.has_value()
+        ? dim == *normalized_axis
+        : input.shape()[static_cast<std::size_t>(dim)] == 1;
+    if (remove) {
+      removed_axes.push_back(dim);
+      continue;
+    }
+    output_shape.push_back(input.shape()[static_cast<std::size_t>(dim)]);
+    output_strides.push_back(input.strides()[static_cast<std::size_t>(dim)]);
+  }
+
+  Tensor out(input.impl()->storage, input.dtype(), output_shape, output_strides, input.offset(), false);
+  if (track_grad) {
+    set_history(out, {input}, [removed_axes](const Tensor& grad) {
+      Tensor result = grad;
+      for (const int64_t removed_axis : removed_axes) {
+        result = unsqueeze_impl(result, removed_axis, false);
+      }
+      return std::vector<Tensor>{result};
+    });
   }
   return out;
 }
@@ -2846,6 +2981,22 @@ Tensor flatten(const Tensor& input) {
 
 Tensor transpose(const Tensor& input) {
   return transpose_impl(input, true);
+}
+
+Tensor transpose(const Tensor& input, int64_t axis0, int64_t axis1) {
+  return transpose_impl(input, axis0, axis1, true);
+}
+
+Tensor permute(const Tensor& input, const Shape& axes) {
+  return permute_impl(input, axes, true);
+}
+
+Tensor squeeze(const Tensor& input, std::optional<int64_t> axis) {
+  return squeeze_impl(input, axis, true);
+}
+
+Tensor unsqueeze(const Tensor& input, int64_t axis) {
+  return unsqueeze_impl(input, axis, true);
 }
 
 Tensor index(const Tensor& input, const std::vector<TensorIndex>& indices) {

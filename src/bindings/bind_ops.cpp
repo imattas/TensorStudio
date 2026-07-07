@@ -5,6 +5,7 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
+#include "tensorstudio/errors.hpp"
 #include "tensorstudio/ops.hpp"
 
 namespace tensorstudio::bindings {
@@ -153,7 +154,23 @@ void bind_ops(py::module_& module) {
   module.def("stack", &stack, py::arg("tensors"), py::arg("axis") = 0);
   module.def("reshape", [](const Tensor& input, py::object shape) { return reshape(input, shape_from_py(shape)); });
   module.def("flatten", &flatten);
-  module.def("transpose", &transpose);
+  module.def("transpose", [](const Tensor& input, py::object axis0, py::object axis1) {
+    if (axis0.is_none() && axis1.is_none()) {
+      return transpose(input);
+    }
+    if (!axis0.is_none() && !axis1.is_none()) {
+      return transpose(input, py::cast<int64_t>(axis0), py::cast<int64_t>(axis1));
+    }
+    throw ShapeError("transpose expects either no axes or both axis0 and axis1");
+  }, py::arg("input"), py::arg("axis0") = py::none(), py::arg("axis1") = py::none());
+  module.def("permute", [](const Tensor& input, py::object axes) { return permute(input, shape_from_py(axes)); });
+  module.def("squeeze", [](const Tensor& input, py::object axis) {
+    if (axis.is_none()) {
+      return squeeze(input);
+    }
+    return squeeze(input, py::cast<int64_t>(axis));
+  }, py::arg("input"), py::arg("axis") = py::none());
+  module.def("unsqueeze", &unsqueeze, py::arg("input"), py::arg("axis"));
 }
 
 }  // namespace tensorstudio::bindings

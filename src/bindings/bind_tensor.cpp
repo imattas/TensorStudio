@@ -321,6 +321,31 @@ Tensor arg_reduce_from_py(
   return reduce_axis(input, normalize_reduction_axis(input, py::cast<int64_t>(axis), op_name), keepdims);
 }
 
+Shape shape_from_varargs(py::args args, const std::string& op_name) {
+  if (args.size() == 1 && !py::isinstance<py::int_>(args[0])) {
+    return shape_from_py(py::reinterpret_borrow<py::object>(args[0]));
+  }
+  Shape shape;
+  shape.reserve(args.size());
+  for (py::handle arg : args) {
+    if (!py::isinstance<py::int_>(arg) || py::isinstance<py::bool_>(arg)) {
+      throw ShapeError(op_name + " axes must be integers");
+    }
+    shape.push_back(py::cast<int64_t>(arg));
+  }
+  return shape;
+}
+
+Tensor transpose_from_args(const Tensor& self, py::args args) {
+  if (args.empty()) {
+    return transpose(self);
+  }
+  if (args.size() == 2) {
+    return transpose(self, py::cast<int64_t>(args[0]), py::cast<int64_t>(args[1]));
+  }
+  throw ShapeError("transpose expects no axes or exactly two axes");
+}
+
 bool is_ellipsis(py::handle object) {
   return object.ptr() == Py_Ellipsis;
 }
@@ -474,17 +499,20 @@ void bind_tensor(py::module_& module) {
       .def("clone", &Tensor::clone)
       .def("detach", &Tensor::detach)
       .def("reshape", [](const Tensor& self, py::args args) {
-        if (args.size() == 1 && !py::isinstance<py::int_>(args[0])) {
-          return reshape(self, shape_from_py(py::reinterpret_borrow<py::object>(args[0])));
-        }
-        Shape shape;
-        for (py::handle arg : args) {
-          shape.push_back(py::cast<int64_t>(arg));
-        }
-        return reshape(self, shape);
+        return reshape(self, shape_from_varargs(args, "reshape"));
       })
       .def("flatten", &flatten)
-      .def("transpose", &transpose)
+      .def("transpose", &transpose_from_args)
+      .def("permute", [](const Tensor& self, py::args args) {
+        return permute(self, shape_from_varargs(args, "permute"));
+      })
+      .def("squeeze", [](const Tensor& self, py::object axis) {
+        if (axis.is_none()) {
+          return squeeze(self);
+        }
+        return squeeze(self, py::cast<int64_t>(axis));
+      }, py::arg("axis") = py::none())
+      .def("unsqueeze", &unsqueeze, py::arg("axis"))
       .def("sum", [](const Tensor& self, py::object axis, bool keepdims) {
         return reduce_from_py(self, std::move(axis), keepdims, "sum", [](const Tensor& input) {
           return sum(input);

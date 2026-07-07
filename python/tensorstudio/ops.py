@@ -272,8 +272,20 @@ def flatten(input: Tensor) -> Tensor:
     return _C.flatten(input)
 
 
-def transpose(input: Tensor) -> Tensor:
-    return _C.transpose(input)
+def transpose(input: Tensor, axis0: int | None = None, axis1: int | None = None) -> Tensor:
+    return _C.transpose(input, axis0, axis1)
+
+
+def permute(input: Tensor, axes: tuple[int, ...] | list[int]) -> Tensor:
+    return _C.permute(input, axes)
+
+
+def squeeze(input: Tensor, axis: int | None = None) -> Tensor:
+    return _C.squeeze(input, axis)
+
+
+def unsqueeze(input: Tensor, axis: int) -> Tensor:
+    return _C.unsqueeze(input, axis)
 
 
 __all__ = [
@@ -312,6 +324,7 @@ __all__ = [
     "neg",
     "not_equal",
     "pow",
+    "permute",
     "relu",
     "reshape",
     "rsqrt",
@@ -320,9 +333,11 @@ __all__ = [
     "stack",
     "sub",
     "sum",
+    "squeeze",
     "sqrt",
     "tan",
     "tanh",
     "transpose",
+    "unsqueeze",
     "where",
 ]

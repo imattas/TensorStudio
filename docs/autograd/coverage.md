@@ -40,7 +40,7 @@ Calling `backward()`:
 
 ## Supported Gradient Operations
 
-`1.4.0` supports gradients for:
+`1.5.0` supports gradients for:
 
 - `add`
 - `sub`
@@ -71,6 +71,9 @@ Calling `backward()`:
 - `reshape`
 - `flatten`
 - `transpose`
+- `permute`
+- `squeeze`
+- `unsqueeze`
 - basic integer and slice indexing views
 
 ## Broadcasting Gradients

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+## 1.5.0 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with native C++ view and
+  layout operations: `squeeze`, `unsqueeze`, `permute`, and general
+  N-dimensional transpose.
+- Added Python Tensor methods, functional APIs, top-level exports, and type
+  stubs for the new layout operations.
+- Added autograd support for the new metadata views, including non-contiguous
+  gradient handling through reshape chains.
+- Added NumPy parity tests for view semantics, strides, shape errors, and
+  autograd behavior.
+- Updated tensor, API, autograd, and roadmap docs for the expanded view API.
+
 ## 1.4.0 - 2026-07-07
 
 - Supersedes the short-lived `1.3.7` indexing release as a minor version
