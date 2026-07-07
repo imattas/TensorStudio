@@ -293,6 +293,8 @@ ts.math.einsum("ij,ij->", x, x)
 Image-style functional operations:
 
 - `conv2d`
+- `conv_transpose2d`
+- `embedding`
 - `max_pool2d`
 - `avg_pool2d`
 

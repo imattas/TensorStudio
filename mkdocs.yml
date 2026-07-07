@@ -33,6 +33,8 @@ nav:
   - Neural Networks:
       - Overview: nn/overview.md
       - Modules: nn/modules.md
+      - Initializers: nn/initializers.md
+      - Losses And Summary: nn/losses-and-summary.md
       - Optimizers: nn/optimizers.md
       - Training: nn/training.md
   - Data:

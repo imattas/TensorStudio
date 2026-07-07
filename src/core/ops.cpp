@@ -902,7 +902,23 @@ Tensor conv2d_impl(
     int64_t padding_w,
     int64_t dilation_h,
     int64_t dilation_w,
+    int64_t groups,
     bool track_grad);
+Tensor conv_transpose2d_impl(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t output_padding_h,
+    int64_t output_padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups,
+    bool track_grad);
+Tensor embedding_impl(const Tensor& indices, const Tensor& weight, bool track_grad);
 Tensor max_pool2d_impl(
     const Tensor& input,
     int64_t kernel_h,
@@ -1304,13 +1320,17 @@ void validate_conv2d_inputs(
     int64_t padding_h,
     int64_t padding_w,
     int64_t dilation_h,
-    int64_t dilation_w) {
+    int64_t dilation_w,
+    int64_t groups) {
   if (input.ndim() != 4) {
     throw ShapeError("conv2d input must be NCHW with rank 4, got " + shape_to_string(input.shape()));
   }
   if (weight.ndim() != 4) {
-    throw ShapeError("conv2d weight must have shape (out_channels, in_channels, kernel_h, kernel_w), got " +
+    throw ShapeError("conv2d weight must have shape (out_channels, in_channels/groups, kernel_h, kernel_w), got " +
                      shape_to_string(weight.shape()));
+  }
+  if (groups <= 0) {
+    throw ShapeError("conv2d groups must be positive");
   }
   if (stride_h <= 0 || stride_w <= 0) {
     throw ShapeError("conv2d stride values must be positive");
@@ -1321,10 +1341,16 @@ void validate_conv2d_inputs(
   if (dilation_h <= 0 || dilation_w <= 0) {
     throw ShapeError("conv2d dilation values must be positive");
   }
-  if (input.shape()[1] != weight.shape()[1]) {
+  if (input.shape()[1] % groups != 0 || weight.shape()[0] % groups != 0) {
+    throw ShapeError(
+        "conv2d groups must divide input and output channels: input shape " + shape_to_string(input.shape()) +
+        ", weight shape " + shape_to_string(weight.shape()) + ", groups=" + std::to_string(groups));
+  }
+  if (input.shape()[1] / groups != weight.shape()[1]) {
     throw ShapeError(
         "conv2d channel mismatch: input shape " + shape_to_string(input.shape()) +
-        " and weight shape " + shape_to_string(weight.shape()));
+        " and weight shape " + shape_to_string(weight.shape()) +
+        " for groups=" + std::to_string(groups));
   }
   if (weight.shape()[2] <= 0 || weight.shape()[3] <= 0) {
     throw ShapeError("conv2d kernel dimensions must be positive");
@@ -1379,12 +1405,14 @@ void conv2d_forward_kernel(
     int64_t padding_h,
     int64_t padding_w,
     int64_t dilation_h,
-    int64_t dilation_w) {
+    int64_t dilation_w,
+    int64_t groups) {
   const int64_t batch = input.shape()[0];
-  const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = weight.shape()[1];
   const int64_t input_h = input.shape()[2];
   const int64_t input_w = input.shape()[3];
   const int64_t out_channels = weight.shape()[0];
+  const int64_t out_channels_per_group = out_channels / groups;
   const int64_t kernel_h = weight.shape()[2];
   const int64_t kernel_w = weight.shape()[3];
   const int64_t out_h = out.shape()[2];
@@ -1394,12 +1422,14 @@ void conv2d_forward_kernel(
     for (int64_t task = begin; task < end; ++task) {
       const int64_t n = task / out_channels;
       const int64_t oc = task % out_channels;
+      const int64_t group = oc / out_channels_per_group;
       const double bias_value =
           bias.has_value() ? value_at_storage_unchecked(*bias, storage_offset_1d(*bias, oc)) : 0.0;
       for (int64_t oh = 0; oh < out_h; ++oh) {
         for (int64_t ow = 0; ow < out_w; ++ow) {
           double acc = bias_value;
-          for (int64_t ic = 0; ic < in_channels; ++ic) {
+          for (int64_t ic = 0; ic < in_channels_per_group; ++ic) {
+            const int64_t input_channel = group * in_channels_per_group + ic;
             for (int64_t kh = 0; kh < kernel_h; ++kh) {
               const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
               if (ih < 0 || ih >= input_h) {
@@ -1411,7 +1441,7 @@ void conv2d_forward_kernel(
                   continue;
                 }
                 const double input_value =
-                    value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+                    value_at_storage_unchecked(input, storage_offset_4d(input, n, input_channel, ih, iw));
                 const double weight_value =
                     value_at_storage_unchecked(weight, storage_offset_4d(weight, oc, ic, kh, kw));
                 acc += input_value * weight_value;
@@ -1434,26 +1464,31 @@ Tensor conv2d_input_grad(
     int64_t padding_h,
     int64_t padding_w,
     int64_t dilation_h,
-    int64_t dilation_w) {
+    int64_t dilation_w,
+    int64_t groups) {
   Tensor input_grad(input.shape(), grad.dtype(), false);
   fill_storage_unchecked(input_grad, 0.0);
 
   const int64_t batch = input.shape()[0];
   const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = weight.shape()[1];
   const int64_t input_h = input.shape()[2];
   const int64_t input_w = input.shape()[3];
   const int64_t out_channels = weight.shape()[0];
+  const int64_t out_channels_per_group = out_channels / groups;
   const int64_t kernel_h = weight.shape()[2];
   const int64_t kernel_w = weight.shape()[3];
   const int64_t out_h = grad.shape()[2];
   const int64_t out_w = grad.shape()[3];
 
   for (int64_t n = 0; n < batch; ++n) {
-    for (int64_t oc = 0; oc < out_channels; ++oc) {
-      for (int64_t oh = 0; oh < out_h; ++oh) {
-        for (int64_t ow = 0; ow < out_w; ++ow) {
-          const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
-          for (int64_t ic = 0; ic < in_channels; ++ic) {
+    for (int64_t ic = 0; ic < in_channels; ++ic) {
+      const int64_t group = ic / in_channels_per_group;
+      const int64_t local_ic = ic - group * in_channels_per_group;
+      for (int64_t oc = group * out_channels_per_group; oc < (group + 1) * out_channels_per_group; ++oc) {
+        for (int64_t oh = 0; oh < out_h; ++oh) {
+          for (int64_t ow = 0; ow < out_w; ++ow) {
+            const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
             for (int64_t kh = 0; kh < kernel_h; ++kh) {
               const int64_t ih = oh * stride_h - padding_h + kh * dilation_h;
               if (ih < 0 || ih >= input_h) {
@@ -1467,7 +1502,7 @@ Tensor conv2d_input_grad(
                 const int64_t input_grad_offset = storage_offset_4d(input_grad, n, ic, ih, iw);
                 const double current = value_at_storage_unchecked(input_grad, input_grad_offset);
                 const double weight_value =
-                    value_at_storage_unchecked(weight, storage_offset_4d(weight, oc, ic, kh, kw));
+                    value_at_storage_unchecked(weight, storage_offset_4d(weight, oc, local_ic, kh, kw));
                 set_value_at_storage_unchecked(input_grad, input_grad_offset, current + grad_value * weight_value);
               }
             }
@@ -1488,21 +1523,25 @@ Tensor conv2d_weight_grad(
     int64_t padding_h,
     int64_t padding_w,
     int64_t dilation_h,
-    int64_t dilation_w) {
+    int64_t dilation_w,
+    int64_t groups) {
   Tensor weight_grad(weight.shape(), grad.dtype(), false);
 
   const int64_t batch = input.shape()[0];
-  const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = weight.shape()[1];
   const int64_t input_h = input.shape()[2];
   const int64_t input_w = input.shape()[3];
   const int64_t out_channels = weight.shape()[0];
+  const int64_t out_channels_per_group = out_channels / groups;
   const int64_t kernel_h = weight.shape()[2];
   const int64_t kernel_w = weight.shape()[3];
   const int64_t out_h = grad.shape()[2];
   const int64_t out_w = grad.shape()[3];
 
   for (int64_t oc = 0; oc < out_channels; ++oc) {
-    for (int64_t ic = 0; ic < in_channels; ++ic) {
+    const int64_t group = oc / out_channels_per_group;
+    for (int64_t ic = 0; ic < in_channels_per_group; ++ic) {
+      const int64_t input_channel = group * in_channels_per_group + ic;
       for (int64_t kh = 0; kh < kernel_h; ++kh) {
         for (int64_t kw = 0; kw < kernel_w; ++kw) {
           double acc = 0.0;
@@ -1518,7 +1557,7 @@ Tensor conv2d_weight_grad(
                   continue;
                 }
                 const double input_value =
-                    value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+                    value_at_storage_unchecked(input, storage_offset_4d(input, n, input_channel, ih, iw));
                 const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
                 acc += input_value * grad_value;
               }
@@ -1558,8 +1597,9 @@ Tensor conv2d_impl(
     int64_t padding_w,
     int64_t dilation_h,
     int64_t dilation_w,
+    int64_t groups,
     bool track_grad) {
-  validate_conv2d_inputs(input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+  validate_conv2d_inputs(input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups);
   DType out_dtype = promote_types(input.dtype(), weight.dtype());
   if (bias.has_value()) {
     out_dtype = promote_types(out_dtype, bias->dtype());
@@ -1567,7 +1607,8 @@ Tensor conv2d_impl(
   Tensor out(conv2d_output_shape(input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
              out_dtype,
              false);
-  conv2d_forward_kernel(out, input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+  conv2d_forward_kernel(
+      out, input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups);
 
   if (track_grad) {
     std::vector<Tensor> parents{input, weight};
@@ -1577,17 +1618,418 @@ Tensor conv2d_impl(
     set_history(
         out,
         parents,
-        [input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w](
+        [input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups](
             const Tensor& grad) {
           std::vector<Tensor> gradients{
-              conv2d_input_grad(grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
-              conv2d_weight_grad(grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w),
+              conv2d_input_grad(
+                  grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups),
+              conv2d_weight_grad(
+                  grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups),
           };
           if (bias.has_value()) {
             gradients.push_back(conv2d_bias_grad(grad));
           }
           return gradients;
         });
+  }
+  return out;
+}
+
+void validate_conv_transpose2d_inputs(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t output_padding_h,
+    int64_t output_padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  if (input.ndim() != 4) {
+    throw ShapeError("conv_transpose2d input must be NCHW with rank 4, got " + shape_to_string(input.shape()));
+  }
+  if (weight.ndim() != 4) {
+    throw ShapeError(
+        "conv_transpose2d weight must have shape (in_channels, out_channels/groups, kernel_h, kernel_w), got " +
+        shape_to_string(weight.shape()));
+  }
+  if (groups <= 0) {
+    throw ShapeError("conv_transpose2d groups must be positive");
+  }
+  if (stride_h <= 0 || stride_w <= 0) {
+    throw ShapeError("conv_transpose2d stride values must be positive");
+  }
+  if (padding_h < 0 || padding_w < 0) {
+    throw ShapeError("conv_transpose2d padding values must be non-negative");
+  }
+  if (output_padding_h < 0 || output_padding_w < 0) {
+    throw ShapeError("conv_transpose2d output_padding values must be non-negative");
+  }
+  if (output_padding_h >= stride_h || output_padding_w >= stride_w) {
+    throw ShapeError("conv_transpose2d output_padding must be smaller than stride");
+  }
+  if (dilation_h <= 0 || dilation_w <= 0) {
+    throw ShapeError("conv_transpose2d dilation values must be positive");
+  }
+  if (input.shape()[1] != weight.shape()[0]) {
+    throw ShapeError(
+        "conv_transpose2d channel mismatch: input shape " + shape_to_string(input.shape()) +
+        " and weight shape " + shape_to_string(weight.shape()));
+  }
+  if (input.shape()[1] % groups != 0) {
+    throw ShapeError(
+        "conv_transpose2d groups must divide input channels: input shape " + shape_to_string(input.shape()) +
+        ", groups=" + std::to_string(groups));
+  }
+  if (weight.shape()[1] <= 0 || weight.shape()[2] <= 0 || weight.shape()[3] <= 0) {
+    throw ShapeError("conv_transpose2d weight channel and kernel dimensions must be positive");
+  }
+  const int64_t out_channels = weight.shape()[1] * groups;
+  if (bias.has_value()) {
+    const Tensor& bias_tensor = *bias;
+    if (bias_tensor.ndim() != 1 || bias_tensor.shape()[0] != out_channels) {
+      throw ShapeError(
+          "conv_transpose2d bias must have shape (" + std::to_string(out_channels) +
+          ",), got " + shape_to_string(bias_tensor.shape()));
+    }
+  }
+}
+
+Shape conv_transpose2d_output_shape(
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t output_padding_h,
+    int64_t output_padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  const int64_t batch = input.shape()[0];
+  const int64_t out_channels = weight.shape()[1] * groups;
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t out_h =
+      (input.shape()[2] - 1) * stride_h - 2 * padding_h + dilation_h * (kernel_h - 1) +
+      output_padding_h + 1;
+  const int64_t out_w =
+      (input.shape()[3] - 1) * stride_w - 2 * padding_w + dilation_w * (kernel_w - 1) +
+      output_padding_w + 1;
+  if (out_h <= 0 || out_w <= 0) {
+    throw ShapeError(
+        "conv_transpose2d calculated non-positive output shape from input " + shape_to_string(input.shape()) +
+        ", weight " + shape_to_string(weight.shape()) + ", stride=(" + std::to_string(stride_h) +
+        ", " + std::to_string(stride_w) + "), padding=(" + std::to_string(padding_h) +
+        ", " + std::to_string(padding_w) + "), output_padding=(" + std::to_string(output_padding_h) +
+        ", " + std::to_string(output_padding_w) + "), dilation=(" + std::to_string(dilation_h) +
+        ", " + std::to_string(dilation_w) + ")");
+  }
+  return Shape{batch, out_channels, out_h, out_w};
+}
+
+void conv_transpose2d_forward_kernel(
+    Tensor& out,
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  fill_storage_unchecked(out, 0.0);
+  const int64_t batch = input.shape()[0];
+  const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = in_channels / groups;
+  const int64_t out_channels_per_group = weight.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+  const int64_t out_h = out.shape()[2];
+  const int64_t out_w = out.shape()[3];
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t ic = 0; ic < in_channels; ++ic) {
+      const int64_t group = ic / in_channels_per_group;
+      for (int64_t ih = 0; ih < input_h; ++ih) {
+        for (int64_t iw = 0; iw < input_w; ++iw) {
+          const double input_value = value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+          for (int64_t oc_local = 0; oc_local < out_channels_per_group; ++oc_local) {
+            const int64_t oc = group * out_channels_per_group + oc_local;
+            for (int64_t kh = 0; kh < kernel_h; ++kh) {
+              const int64_t oh = ih * stride_h - padding_h + kh * dilation_h;
+              if (oh < 0 || oh >= out_h) {
+                continue;
+              }
+              for (int64_t kw = 0; kw < kernel_w; ++kw) {
+                const int64_t ow = iw * stride_w - padding_w + kw * dilation_w;
+                if (ow < 0 || ow >= out_w) {
+                  continue;
+                }
+                const int64_t out_offset = storage_offset_4d(out, n, oc, oh, ow);
+                const double current = value_at_storage_unchecked(out, out_offset);
+                const double weight_value =
+                    value_at_storage_unchecked(weight, storage_offset_4d(weight, ic, oc_local, kh, kw));
+                set_value_at_storage_unchecked(out, out_offset, current + input_value * weight_value);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (bias.has_value()) {
+    for (int64_t n = 0; n < batch; ++n) {
+      for (int64_t oc = 0; oc < out.shape()[1]; ++oc) {
+        const double bias_value = value_at_storage_unchecked(*bias, storage_offset_1d(*bias, oc));
+        for (int64_t oh = 0; oh < out_h; ++oh) {
+          for (int64_t ow = 0; ow < out_w; ++ow) {
+            const int64_t out_offset = storage_offset_4d(out, n, oc, oh, ow);
+            set_value_at_storage_unchecked(out, out_offset, value_at_storage_unchecked(out, out_offset) + bias_value);
+          }
+        }
+      }
+    }
+  }
+}
+
+Tensor conv_transpose2d_input_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  Tensor input_grad(input.shape(), grad.dtype(), false);
+  fill_storage_unchecked(input_grad, 0.0);
+
+  const int64_t batch = input.shape()[0];
+  const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = in_channels / groups;
+  const int64_t out_channels_per_group = weight.shape()[1];
+  const int64_t input_h = input.shape()[2];
+  const int64_t input_w = input.shape()[3];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+
+  for (int64_t n = 0; n < batch; ++n) {
+    for (int64_t ic = 0; ic < in_channels; ++ic) {
+      const int64_t group = ic / in_channels_per_group;
+      for (int64_t ih = 0; ih < input_h; ++ih) {
+        for (int64_t iw = 0; iw < input_w; ++iw) {
+          double acc = 0.0;
+          for (int64_t oc_local = 0; oc_local < out_channels_per_group; ++oc_local) {
+            const int64_t oc = group * out_channels_per_group + oc_local;
+            for (int64_t kh = 0; kh < kernel_h; ++kh) {
+              const int64_t oh = ih * stride_h - padding_h + kh * dilation_h;
+              if (oh < 0 || oh >= grad.shape()[2]) {
+                continue;
+              }
+              for (int64_t kw = 0; kw < kernel_w; ++kw) {
+                const int64_t ow = iw * stride_w - padding_w + kw * dilation_w;
+                if (ow < 0 || ow >= grad.shape()[3]) {
+                  continue;
+                }
+                const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
+                const double weight_value =
+                    value_at_storage_unchecked(weight, storage_offset_4d(weight, ic, oc_local, kh, kw));
+                acc += grad_value * weight_value;
+              }
+            }
+          }
+          set_value_at_storage_unchecked(input_grad, storage_offset_4d(input_grad, n, ic, ih, iw), acc);
+        }
+      }
+    }
+  }
+  return input_grad;
+}
+
+Tensor conv_transpose2d_weight_grad(
+    const Tensor& grad,
+    const Tensor& input,
+    const Tensor& weight,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  Tensor weight_grad(weight.shape(), grad.dtype(), false);
+  const int64_t in_channels = input.shape()[1];
+  const int64_t in_channels_per_group = in_channels / groups;
+  const int64_t out_channels_per_group = weight.shape()[1];
+  const int64_t kernel_h = weight.shape()[2];
+  const int64_t kernel_w = weight.shape()[3];
+
+  for (int64_t ic = 0; ic < in_channels; ++ic) {
+    const int64_t group = ic / in_channels_per_group;
+    for (int64_t oc_local = 0; oc_local < out_channels_per_group; ++oc_local) {
+      const int64_t oc = group * out_channels_per_group + oc_local;
+      for (int64_t kh = 0; kh < kernel_h; ++kh) {
+        for (int64_t kw = 0; kw < kernel_w; ++kw) {
+          double acc = 0.0;
+          for (int64_t n = 0; n < input.shape()[0]; ++n) {
+            for (int64_t ih = 0; ih < input.shape()[2]; ++ih) {
+              const int64_t oh = ih * stride_h - padding_h + kh * dilation_h;
+              if (oh < 0 || oh >= grad.shape()[2]) {
+                continue;
+              }
+              for (int64_t iw = 0; iw < input.shape()[3]; ++iw) {
+                const int64_t ow = iw * stride_w - padding_w + kw * dilation_w;
+                if (ow < 0 || ow >= grad.shape()[3]) {
+                  continue;
+                }
+                const double input_value = value_at_storage_unchecked(input, storage_offset_4d(input, n, ic, ih, iw));
+                const double grad_value = value_at_storage_unchecked(grad, storage_offset_4d(grad, n, oc, oh, ow));
+                acc += input_value * grad_value;
+              }
+            }
+          }
+          set_value_at_storage_unchecked(weight_grad, storage_offset_4d(weight_grad, ic, oc_local, kh, kw), acc);
+        }
+      }
+    }
+  }
+  return weight_grad;
+}
+
+Tensor conv_transpose2d_impl(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t output_padding_h,
+    int64_t output_padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups,
+    bool track_grad) {
+  validate_conv_transpose2d_inputs(
+      input,
+      weight,
+      bias,
+      stride_h,
+      stride_w,
+      padding_h,
+      padding_w,
+      output_padding_h,
+      output_padding_w,
+      dilation_h,
+      dilation_w,
+      groups);
+  DType out_dtype = promote_types(input.dtype(), weight.dtype());
+  if (bias.has_value()) {
+    out_dtype = promote_types(out_dtype, bias->dtype());
+  }
+  Tensor out(conv_transpose2d_output_shape(
+                 input,
+                 weight,
+                 stride_h,
+                 stride_w,
+                 padding_h,
+                 padding_w,
+                 output_padding_h,
+                 output_padding_w,
+                 dilation_h,
+                 dilation_w,
+                 groups),
+             out_dtype,
+             false);
+  conv_transpose2d_forward_kernel(
+      out, input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups);
+
+  if (track_grad) {
+    std::vector<Tensor> parents{input, weight};
+    if (bias.has_value()) {
+      parents.push_back(*bias);
+    }
+    set_history(
+        out,
+        parents,
+        [input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups](
+            const Tensor& grad) {
+          std::vector<Tensor> gradients{
+              conv_transpose2d_input_grad(
+                  grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups),
+              conv_transpose2d_weight_grad(
+                  grad, input, weight, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups),
+          };
+          if (bias.has_value()) {
+            gradients.push_back(conv2d_bias_grad(grad));
+          }
+          return gradients;
+        });
+  }
+  return out;
+}
+
+void validate_embedding_inputs(const Tensor& indices, const Tensor& weight) {
+  if (indices.dtype() != DType::Int32 && indices.dtype() != DType::Int64) {
+    throw DTypeError("embedding indices must have dtype int32 or int64, got " + dtype_name(indices.dtype()));
+  }
+  if (weight.ndim() != 2) {
+    throw ShapeError("embedding weight must have shape (num_embeddings, embedding_dim), got " +
+                     shape_to_string(weight.shape()));
+  }
+  if (weight.shape()[0] <= 0 || weight.shape()[1] <= 0) {
+    throw ShapeError("embedding weight dimensions must be positive");
+  }
+}
+
+Tensor embedding_weight_grad(const Tensor& grad, const Tensor& indices, const Tensor& weight) {
+  Tensor weight_grad(weight.shape(), grad.dtype(), false);
+  fill_storage_unchecked(weight_grad, 0.0);
+  const int64_t embedding_dim = weight.shape()[1];
+  for (int64_t linear = 0; linear < indices.numel(); ++linear) {
+    const auto row = static_cast<int64_t>(indices.value_at_logical(linear));
+    for (int64_t dim = 0; dim < embedding_dim; ++dim) {
+      const int64_t target = row * embedding_dim + dim;
+      const int64_t source = linear * embedding_dim + dim;
+      weight_grad.set_value_at_logical(target, weight_grad.value_at_logical(target) + grad.value_at_logical(source));
+    }
+  }
+  return weight_grad;
+}
+
+Tensor embedding_impl(const Tensor& indices, const Tensor& weight, bool track_grad) {
+  validate_embedding_inputs(indices, weight);
+  Shape out_shape = indices.shape();
+  out_shape.push_back(weight.shape()[1]);
+  Tensor out(out_shape, weight.dtype(), false);
+  const int64_t embedding_dim = weight.shape()[1];
+  for (int64_t linear = 0; linear < indices.numel(); ++linear) {
+    const auto row = static_cast<int64_t>(indices.value_at_logical(linear));
+    if (row < 0 || row >= weight.shape()[0]) {
+      throw ShapeError(
+          "embedding index " + std::to_string(row) + " is out of range for " +
+          std::to_string(weight.shape()[0]) + " embeddings");
+    }
+    for (int64_t dim = 0; dim < embedding_dim; ++dim) {
+      out.set_value_at_logical(linear * embedding_dim + dim, weight.value_at_logical(row * embedding_dim + dim));
+    }
+  }
+  if (track_grad) {
+    set_history(out, {weight}, [indices, weight](const Tensor& grad) {
+      return std::vector<Tensor>{embedding_weight_grad(grad, indices, weight)};
+    });
   }
   return out;
 }
@@ -3311,9 +3753,43 @@ Tensor conv2d(
     int64_t padding_h,
     int64_t padding_w,
     int64_t dilation_h,
-    int64_t dilation_w) {
+    int64_t dilation_w,
+    int64_t groups) {
   return conv2d_impl(
-      input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, true);
+      input, weight, bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups, true);
+}
+
+Tensor conv_transpose2d(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias,
+    int64_t stride_h,
+    int64_t stride_w,
+    int64_t padding_h,
+    int64_t padding_w,
+    int64_t output_padding_h,
+    int64_t output_padding_w,
+    int64_t dilation_h,
+    int64_t dilation_w,
+    int64_t groups) {
+  return conv_transpose2d_impl(
+      input,
+      weight,
+      bias,
+      stride_h,
+      stride_w,
+      padding_h,
+      padding_w,
+      output_padding_h,
+      output_padding_w,
+      dilation_h,
+      dilation_w,
+      groups,
+      true);
+}
+
+Tensor embedding(const Tensor& indices, const Tensor& weight) {
+  return embedding_impl(indices, weight, true);
 }
 
 Tensor max_pool2d(

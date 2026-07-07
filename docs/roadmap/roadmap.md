@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.8.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.9.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -104,15 +104,21 @@ visible.
 Once math and autograd are stronger, add the modules needed for real model
 families.
 
-- Add initializers: Xavier, Kaiming, normal, uniform, zeros, and ones.
-- Add `BatchNorm1d`, `BatchNorm2d`, `LayerNorm`, and `Embedding`.
-- Add `Conv1d`, grouped convolution, depthwise convolution, and
+- Completed in `1.9.0`: add initializers: Xavier, Kaiming, normal, uniform,
+  zeros, and ones.
+- Completed in `1.9.0`: add `BatchNorm1d`, `BatchNorm2d`, `LayerNorm`, and
+  `Embedding`.
+- Completed in `1.9.0`: add `Conv1d`, grouped convolution, depthwise
+  convolution, and
   `ConvTranspose2d`.
-- Add adaptive pooling and global pooling.
-- Add more activation modules: GELU, ELU, SELU, SiLU, and Mish.
-- Add more losses: label-smoothing cross entropy, focal loss, KL divergence,
-  negative log likelihood, and cosine embedding loss.
-- Add model summary utilities for parameters, shapes, and estimated memory.
+- Completed in `1.9.0`: add adaptive pooling and global pooling.
+- Completed in `1.9.0`: add more activation modules: GELU, ELU, SELU, SiLU,
+  and Mish.
+- Completed in `1.9.0`: add more losses: label-smoothing cross entropy,
+  focal loss, KL divergence, negative log likelihood, and cosine embedding
+  loss.
+- Completed in `1.9.0`: add model summary utilities for parameters, shapes,
+  and estimated memory.
 
 ## 6. Training And Project Workflows
 

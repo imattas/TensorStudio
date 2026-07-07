@@ -185,7 +185,23 @@ def conv2d(
     padding_w: int = 0,
     dilation_h: int = 1,
     dilation_w: int = 1,
+    groups: int = 1,
 ) -> Tensor: ...
+def conv_transpose2d(
+    input: Tensor,
+    weight: Tensor,
+    bias: Tensor | None = None,
+    stride_h: int = 1,
+    stride_w: int = 1,
+    padding_h: int = 0,
+    padding_w: int = 0,
+    output_padding_h: int = 0,
+    output_padding_w: int = 0,
+    dilation_h: int = 1,
+    dilation_w: int = 1,
+    groups: int = 1,
+) -> Tensor: ...
+def embedding(indices: Tensor, weight: Tensor) -> Tensor: ...
 def max_pool2d(
     input: Tensor,
     kernel_h: int,

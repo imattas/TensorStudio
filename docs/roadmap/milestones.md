@@ -30,6 +30,10 @@ numbers can change, but the order should stay foundation-first.
 - Add embedding-style layers when indexing support is ready.
 - Add more initialization helpers.
 - Improve module serialization and state migration.
+- Completed in `1.9.0`: added initializers, normalization, embedding,
+  grouped/depthwise/1D/transposed convolution, adaptive/global pooling,
+  expanded activations, expanded losses, BatchNorm buffers, and model summary
+  utilities.
 
 ## Milestone D: Vision Workloads
 

@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 1.9.0 - 2026-07-07
+
+- Completed the ordered Neural Network Building Blocks roadmap section as one
+  release batch.
+- Added native grouped `conv2d`, native `conv_transpose2d`, and native
+  embedding lookup with autograd support.
+- Added Python-level `Conv1d`, `DepthwiseConv2d`, `ConvTranspose2d`,
+  `BatchNorm1d`, `BatchNorm2d`, `LayerNorm`, `Embedding`,
+  adaptive/global pooling, and additional activation modules.
+- Added `tensorstudio.nn.init` with Xavier, Kaiming, normal, uniform, zero, and
+  one initializers.
+- Added label-smoothing cross entropy, focal loss, KL divergence, negative log
+  likelihood, and cosine embedding loss modules and functional helpers.
+- Added module buffers, buffer-aware `state_dict()` support, and model summary
+  utilities for parameters, shapes, and estimated tensor memory.
+- Expanded tests and docs for the section-5 neural-network API surface.
+
 ## 1.8.0 - 2026-07-07
 
 - Completed the ordered Autograd Coverage And Hardening roadmap section as one

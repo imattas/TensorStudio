@@ -64,6 +64,8 @@ modules, optimizers, data utilities, and serialization helpers.
 - `minimum`
 - `where`
 - `conv2d`
+- `conv_transpose2d`
+- `embedding`
 - `max_pool2d`
 - `avg_pool2d`
 - `all`
@@ -302,7 +304,18 @@ ts.greater_equal(left, right)
 ts.maximum(left, right)
 ts.minimum(left, right)
 ts.where(condition, true_value, false_value)
-ts.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1)
+ts.conv2d(input, weight, bias=None, stride=1, padding=0, dilation=1, groups=1)
+ts.conv_transpose2d(
+    input,
+    weight,
+    bias=None,
+    stride=1,
+    padding=0,
+    output_padding=0,
+    dilation=1,
+    groups=1,
+)
+ts.embedding(indices, weight)
 ts.max_pool2d(input, kernel_size, stride=None, padding=0, dilation=1)
 ts.avg_pool2d(input, kernel_size, stride=None, padding=0, count_include_pad=False)
 ts.all(input, axis=None, keepdims=False)
@@ -320,10 +333,18 @@ The branch dtype is promoted with the same compact promotion order used by
 arithmetic ops.
 
 `conv2d` expects NCHW input with shape `(batch, in_channels, height, width)`
-and weight shape `(out_channels, in_channels, kernel_h, kernel_w)`. Stride,
-padding, and dilation accept either an integer or a pair of integers. The
-current implementation is CPU-only and supports autograd for input, weight, and
-bias.
+and weight shape `(out_channels, in_channels / groups, kernel_h, kernel_w)`.
+Stride, padding, and dilation accept either an integer or a pair of integers.
+The current implementation is CPU-only and supports autograd for input, weight,
+and bias.
+
+`conv_transpose2d` expects NCHW input and weight shape
+`(in_channels, out_channels / groups, kernel_h, kernel_w)`. The optional bias
+shape is `(out_channels,)`.
+
+`embedding` expects integer indices and a 2D weight table shaped
+`(num_embeddings, embedding_dim)`. Gradients accumulate into repeated weight
+rows; indices are not differentiable.
 
 `max_pool2d` and `avg_pool2d` also expect NCHW input. `kernel_size`, `stride`,
 `padding`, and `dilation` accept an integer or a pair where supported. If

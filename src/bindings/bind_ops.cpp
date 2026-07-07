@@ -48,13 +48,14 @@ void bind_ops(py::module_& module) {
          int64_t padding_h,
          int64_t padding_w,
          int64_t dilation_h,
-         int64_t dilation_w) {
+         int64_t dilation_w,
+         int64_t groups) {
         std::optional<Tensor> maybe_bias;
         if (!bias.is_none()) {
           maybe_bias = ensure_tensor(bias);
         }
         return conv2d(
-            input, weight, maybe_bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
+            input, weight, maybe_bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups);
       },
       py::arg("input"),
       py::arg("weight"),
@@ -64,7 +65,53 @@ void bind_ops(py::module_& module) {
       py::arg("padding_h") = 0,
       py::arg("padding_w") = 0,
       py::arg("dilation_h") = 1,
-      py::arg("dilation_w") = 1);
+      py::arg("dilation_w") = 1,
+      py::arg("groups") = 1);
+  module.def(
+      "conv_transpose2d",
+      [](const Tensor& input,
+         const Tensor& weight,
+         py::object bias,
+         int64_t stride_h,
+         int64_t stride_w,
+         int64_t padding_h,
+         int64_t padding_w,
+         int64_t output_padding_h,
+         int64_t output_padding_w,
+         int64_t dilation_h,
+         int64_t dilation_w,
+         int64_t groups) {
+        std::optional<Tensor> maybe_bias;
+        if (!bias.is_none()) {
+          maybe_bias = ensure_tensor(bias);
+        }
+        return conv_transpose2d(
+            input,
+            weight,
+            maybe_bias,
+            stride_h,
+            stride_w,
+            padding_h,
+            padding_w,
+            output_padding_h,
+            output_padding_w,
+            dilation_h,
+            dilation_w,
+            groups);
+      },
+      py::arg("input"),
+      py::arg("weight"),
+      py::arg("bias") = py::none(),
+      py::arg("stride_h") = 1,
+      py::arg("stride_w") = 1,
+      py::arg("padding_h") = 0,
+      py::arg("padding_w") = 0,
+      py::arg("output_padding_h") = 0,
+      py::arg("output_padding_w") = 0,
+      py::arg("dilation_h") = 1,
+      py::arg("dilation_w") = 1,
+      py::arg("groups") = 1);
+  module.def("embedding", &embedding, py::arg("indices"), py::arg("weight"));
   module.def(
       "max_pool2d",
       &max_pool2d,

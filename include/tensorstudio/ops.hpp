@@ -60,7 +60,22 @@ Tensor conv2d(
     int64_t padding_h = 0,
     int64_t padding_w = 0,
     int64_t dilation_h = 1,
-    int64_t dilation_w = 1);
+    int64_t dilation_w = 1,
+    int64_t groups = 1);
+Tensor conv_transpose2d(
+    const Tensor& input,
+    const Tensor& weight,
+    const std::optional<Tensor>& bias = std::nullopt,
+    int64_t stride_h = 1,
+    int64_t stride_w = 1,
+    int64_t padding_h = 0,
+    int64_t padding_w = 0,
+    int64_t output_padding_h = 0,
+    int64_t output_padding_w = 0,
+    int64_t dilation_h = 1,
+    int64_t dilation_w = 1,
+    int64_t groups = 1);
+Tensor embedding(const Tensor& indices, const Tensor& weight);
 Tensor max_pool2d(
     const Tensor& input,
     int64_t kernel_h,

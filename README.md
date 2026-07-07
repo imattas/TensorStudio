@@ -7,13 +7,15 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.8.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.9.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
 boolean reductions, seeded random distributions, and a hardened eager autograd
-lifecycle. It is eager-only, intentionally compact, and not a replacement for
-mature ML frameworks.
+lifecycle. The neural-network layer now includes grouped/depthwise/1D/
+transposed convolution, normalization layers, embeddings, richer activations,
+initializers, additional losses, and model summaries. It is eager-only,
+intentionally compact, and not a replacement for mature ML frameworks.
 
 ## Install
 
@@ -223,6 +225,23 @@ print(model.state_dict().keys())
 print(model.parameter_count())
 ```
 
+The `1.9.0` neural-network surface also includes initialization helpers,
+normalization layers, embeddings, grouped/depthwise/1D/transposed convolution,
+adaptive/global pooling, richer activations, and model summaries:
+
+```python
+model = nn.Sequential(
+    nn.Conv2d(1, 8, kernel_size=3, padding=1),
+    nn.BatchNorm2d(8),
+    nn.GELU(),
+    nn.GlobalAvgPool2d(),
+    nn.Flatten(),
+    nn.Linear(8, 10),
+)
+nn.init.kaiming_uniform_(model[0].weight, nonlinearity="relu", seed=7)
+print(nn.summary(model, input_shape=(1, 1, 28, 28))["total_parameters"])
+```
+
 ## Vision
 
 TensorStudio includes a practical computer-vision namespace for local image
@@ -327,11 +346,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.8.0`, with
+On one Windows CPython 3.10 development run reporting `1.9.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
 benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 47 local cases and lost 51. The
+available on that machine; TensorStudio won 55 local cases and lost 43. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -343,15 +362,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0155 ms | 0.0044 ms | 0.0761 ms | 0.2860x | 4.9227x |
-| `mean` | `(32,)` | 0.0158 ms | 0.0082 ms | 0.0126 ms | 0.5215x | 0.7968x |
-| `sum_axis1` | `(16, 16)` | 0.0161 ms | 0.0028 ms | 0.0136 ms | 0.1714x | 0.8417x |
-| `chain_relu` | `(128,)` | 0.0861 ms | 0.0056 ms | 0.0944 ms | 0.0646x | 1.0971x |
-| `matmul` | `(256, 256)` | 2.1900 ms | 0.4380 ms | 0.2610 ms | 0.2000x | 0.1192x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1995 ms | 1.2390 ms | 0.1086 ms | 6.2118x | 0.5443x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0286 ms | 0.1684 ms | n/a | 5.8921x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0286 ms | 0.5569 ms | n/a | 19.4803x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7758 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0154 ms | 0.0048 ms | 0.0855 ms | 0.3098x | 5.5404x |
+| `mean` | `(32,)` | 0.0187 ms | 0.0104 ms | 0.0143 ms | 0.5575x | 0.7616x |
+| `sum_axis1` | `(16, 16)` | 0.0172 ms | 0.0027 ms | 0.0136 ms | 0.1551x | 0.7942x |
+| `chain_relu` | `(128,)` | 0.0957 ms | 0.0057 ms | 0.1030 ms | 0.0596x | 1.0768x |
+| `matmul` | `(256, 256)` | 2.3777 ms | 0.4328 ms | 0.2489 ms | 0.1820x | 0.1047x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2216 ms | 1.3908 ms | 0.1073 ms | 6.2770x | 0.4841x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0280 ms | 0.1846 ms | n/a | 6.5816x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0281 ms | 0.5595 ms | n/a | 19.8874x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.8255 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -452,8 +471,9 @@ tokens or print secrets.
   exposing a compatible CBLAS/Accelerate interface; otherwise TensorStudio uses
   a portable C++ fallback.
 - No graph compiler or distributed runtime.
-- Convolution and pooling support are currently limited to CPU NCHW
-  `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
+- Convolution and pooling support are CPU-only. Native kernels include NCHW
+  `conv2d`, grouped/depthwise convolution, `conv_transpose2d`, `max_pool2d`,
+  `avg_pool2d`, and embedding lookup; they are not CUDA/cuDNN replacements.
 - Vision covers local image-classification utilities, metrics, visualization,
   and compact CNNs. It is not an OpenCV replacement and does not include
   pretrained model zoos, detection/segmentation training stacks, video IO, or

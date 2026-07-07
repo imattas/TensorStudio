@@ -95,6 +95,7 @@ def conv2d(
     stride: PairLike = 1,
     padding: PairLike = 0,
     dilation: PairLike = 1,
+    groups: int = 1,
 ) -> Tensor:
     """Apply a 2D NCHW convolution with CPU kernels and autograd support."""
 
@@ -111,7 +112,46 @@ def conv2d(
         padding_w,
         dilation_h,
         dilation_w,
+        groups,
     )
+
+
+def conv_transpose2d(
+    input: Tensor,
+    weight: Tensor,
+    bias: Tensor | None = None,
+    stride: PairLike = 1,
+    padding: PairLike = 0,
+    output_padding: PairLike = 0,
+    dilation: PairLike = 1,
+    groups: int = 1,
+) -> Tensor:
+    """Apply a 2D NCHW transposed convolution with CPU kernels and autograd support."""
+
+    stride_h, stride_w = _pair(stride, "stride")
+    padding_h, padding_w = _pair(padding, "padding")
+    output_padding_h, output_padding_w = _pair(output_padding, "output_padding")
+    dilation_h, dilation_w = _pair(dilation, "dilation")
+    return _C.conv_transpose2d(
+        input,
+        weight,
+        bias,
+        stride_h,
+        stride_w,
+        padding_h,
+        padding_w,
+        output_padding_h,
+        output_padding_w,
+        dilation_h,
+        dilation_w,
+        groups,
+    )
+
+
+def embedding(indices: Tensor, weight: Tensor) -> Tensor:
+    """Lookup embedding rows with a native CPU kernel and weight gradients."""
+
+    return _C.embedding(indices, weight)
 
 
 def max_pool2d(
@@ -357,7 +397,9 @@ __all__ = [
     "concat",
     "cos",
     "conv2d",
+    "conv_transpose2d",
     "div",
+    "embedding",
     "equal",
     "exp",
     "flatten",
