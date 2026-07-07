@@ -117,6 +117,7 @@ print(x.sum().item())
 print(x.mean(axis=0).tolist())
 print(x.max(axis=1, keepdims=True).tolist())
 print(ts.arange(24).reshape((2, 3, 4)).sum(axis=(0, 2)).tolist())
+print(x.argmax().item())
 ```
 
 Tensors can be cast, concatenated, and stacked:

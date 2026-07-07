@@ -27,6 +27,13 @@ Tensor reduce_from_py(
     const std::string& op_name,
     const std::function<Tensor(const Tensor&)>& reduce_all,
     const std::function<Tensor(const Tensor&, int64_t, bool)>& reduce_axis);
+Tensor arg_reduce_from_py(
+    const Tensor& input,
+    py::object axis,
+    bool keepdims,
+    const std::string& op_name,
+    const std::function<Tensor(const Tensor&, bool)>& reduce_all,
+    const std::function<Tensor(const Tensor&, int64_t, bool)>& reduce_axis);
 
 void bind_tensor(py::module_& module);
 void bind_ops(py::module_& module);

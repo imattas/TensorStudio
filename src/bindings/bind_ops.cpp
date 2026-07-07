@@ -101,6 +101,20 @@ void bind_ops(py::module_& module) {
       return min(tensor, normalized_axis, keep);
     });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("argmax", [](const Tensor& input, py::object axis, bool keepdims) {
+    return arg_reduce_from_py(input, std::move(axis), keepdims, "argmax", [](const Tensor& tensor, bool keep) {
+      return argmax(tensor, keep);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return argmax(tensor, normalized_axis, keep);
+    });
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
+  module.def("argmin", [](const Tensor& input, py::object axis, bool keepdims) {
+    return arg_reduce_from_py(input, std::move(axis), keepdims, "argmin", [](const Tensor& tensor, bool keep) {
+      return argmin(tensor, keep);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return argmin(tensor, normalized_axis, keep);
+    });
+  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("relu", &relu);
   module.def("sigmoid", &sigmoid);
   module.def("tanh", &tanh);

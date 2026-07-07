@@ -184,6 +184,8 @@ Matrix and reductions:
 - `mean`
 - `max`
 - `min`
+- `argmax`
+- `argmin`
 
 Reductions operate over all elements by default and support an int axis or a
 tuple/list of axes with `keepdims`:
@@ -194,6 +196,8 @@ x.sum(axis=1)
 x.mean(axis=0, keepdims=True)
 x.max(axis=-1)
 x.reshape((1, 2, 3)).sum(axis=(0, 2))
+x.argmax()
+x.argmin(axis=1)
 ```
 
 Higher-level helpers in `tensorstudio.math` include variance, standard

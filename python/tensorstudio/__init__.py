@@ -9,6 +9,8 @@ from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
 from .interchange import export_onnx
 from .ops import (
     acos,
+    argmax,
+    argmin,
     asin,
     astype,
     atan,
@@ -50,6 +52,8 @@ __all__ = [
     "Tensor",
     "__version__",
     "acos",
+    "argmax",
+    "argmin",
     "arange",
     "asin",
     "astype",

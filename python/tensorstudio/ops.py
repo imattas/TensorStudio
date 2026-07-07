@@ -164,6 +164,14 @@ def min(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:
     return _C.min(input, axis, keepdims)
 
 
+def argmax(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return _C.argmax(input, axis, keepdims)
+
+
+def argmin(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
+    return _C.argmin(input, axis, keepdims)
+
+
 def relu(input: Tensor) -> Tensor:
     return _C.relu(input)
 
@@ -260,6 +268,8 @@ __all__ = [
     "add",
     "abs",
     "acos",
+    "argmax",
+    "argmin",
     "asin",
     "astype",
     "atan",

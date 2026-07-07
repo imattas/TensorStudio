@@ -271,6 +271,48 @@ def test_tuple_axis_reductions_match_numpy() -> None:
         x.max(axis=(0, "bad"))  # type: ignore[arg-type]
 
 
+def test_arg_reductions_match_numpy() -> None:
+    values = np.array(
+        [
+            [[1.0, 4.0, 4.0], [7.0, -2.0, 5.0]],
+            [[3.0, 3.0, 9.0], [0.0, -5.0, 9.0]],
+        ],
+        dtype=np.float32,
+    )
+    x = ts.from_numpy(values)
+
+    assert x.argmax().dtype == "int64"
+    assert x.argmin().dtype == "int64"
+    assert x.argmax().item() == int(np.argmax(values))
+    assert x.argmin().item() == int(np.argmin(values))
+    np.testing.assert_array_equal(x.argmax(axis=0).numpy(), np.argmax(values, axis=0))
+    np.testing.assert_array_equal(x.argmin(axis=1).numpy(), np.argmin(values, axis=1))
+    np.testing.assert_array_equal(
+        x.argmax(axis=-1, keepdims=True).numpy(),
+        np.argmax(values, axis=-1, keepdims=True),
+    )
+    np.testing.assert_array_equal(
+        ts.ops.argmin(x, axis=2, keepdims=True).numpy(),
+        np.argmin(values, axis=2, keepdims=True),
+    )
+    np.testing.assert_array_equal(
+        ts.argmax(x, keepdims=True).numpy(),
+        np.argmax(values, keepdims=True),
+    )
+
+    ties = ts.tensor([2.0, 5.0, 5.0, 1.0])
+    assert ties.argmax().item() == 1
+
+    with pytest.raises(Exception, match="out of range"):
+        x.argmax(axis=3)
+    with pytest.raises(Exception, match="axis must be None or an int"):
+        x.argmin(axis=(0, 1))  # type: ignore[arg-type]
+    with pytest.raises(Exception, match="empty"):
+        ts.tensor([], dtype="float32").argmax()
+    with pytest.raises(Exception, match="empty reduction axes"):
+        ts.empty((2, 0)).argmin(axis=1)
+
+
 def test_cast_concat_and_stack_match_numpy() -> None:
     x = ts.tensor([1.2, 2.8, -3.1])
     as_int = x.astype("int32")

@@ -146,10 +146,16 @@ Math:
 - `mean(axis=None, keepdims=False)`
 - `max(axis=None, keepdims=False)`
 - `min(axis=None, keepdims=False)`
+- `argmax(axis=None, keepdims=False)`
+- `argmin(axis=None, keepdims=False)`
 
 For reductions, `axis` may be `None`, an int, or a tuple/list of ints.
 Negative axes are normalized against the input rank, duplicate axes are
 rejected, and `axis=()` is a no-op identity.
+
+For arg reductions, `axis` may be `None` or an int. All-element arg reductions
+return the flat index of the first selected value. Axis arg reductions return
+`int64` indices along that axis and are not differentiable.
 - `relu()`
 - `sigmoid()`
 - `tanh()`

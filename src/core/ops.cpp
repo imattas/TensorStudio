@@ -1922,6 +1922,59 @@ Tensor min_impl(const Tensor& input, bool track_grad) {
   return out;
 }
 
+Tensor arg_extreme_impl(const Tensor& input, bool keepdims, bool is_max, const std::string& op_name) {
+  if (input.numel() == 0) {
+    throw ShapeError(op_name + " is undefined for empty tensors");
+  }
+  Shape out_shape;
+  if (keepdims) {
+    out_shape.assign(input.shape().size(), 1);
+  }
+  Tensor out(out_shape, DType::Int64, false);
+  int64_t best_index = 0;
+  double best_value = input.value_at_logical(0);
+  for (int64_t i = 1; i < input.numel(); ++i) {
+    const double value = input.value_at_logical(i);
+    if (is_max ? value > best_value : value < best_value) {
+      best_value = value;
+      best_index = i;
+    }
+  }
+  out.set_value_at_logical(0, static_cast<double>(best_index));
+  return out;
+}
+
+Tensor arg_extreme_axis_impl(
+    const Tensor& input,
+    int64_t axis,
+    bool keepdims,
+    bool is_max,
+    const std::string& op_name) {
+  const int64_t normalized_axis = normalize_axis(axis, input.shape(), op_name);
+  if (input.shape()[static_cast<std::size_t>(normalized_axis)] == 0) {
+    throw ShapeError(op_name + " is undefined for empty reduction axes");
+  }
+  const Shape out_shape = reduction_output_shape(input.shape(), normalized_axis, keepdims);
+  Tensor out(out_shape, DType::Int64, false);
+  std::vector<int64_t> best_indices(static_cast<std::size_t>(out.numel()), -1);
+  std::vector<double> best_values(static_cast<std::size_t>(out.numel()), 0.0);
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    const Shape input_coords = coordinates_from_linear(i, input.shape());
+    const int64_t out_linear =
+        reduction_output_linear(input_coords, input.shape(), out_shape, normalized_axis, keepdims);
+    const auto out_index = static_cast<std::size_t>(out_linear);
+    const double value = input.value_at_logical(i);
+    if (best_indices[out_index] == -1 || (is_max ? value > best_values[out_index] : value < best_values[out_index])) {
+      best_values[out_index] = value;
+      best_indices[out_index] = input_coords[static_cast<std::size_t>(normalized_axis)];
+    }
+  }
+  for (int64_t i = 0; i < out.numel(); ++i) {
+    out.set_value_at_logical(i, static_cast<double>(best_indices[static_cast<std::size_t>(i)]));
+  }
+  return out;
+}
+
 Tensor relu_impl(const Tensor& input, bool track_grad) {
   Tensor out = elementwise_unary_impl(input, input.dtype(), [](double value) { return std::max(0.0, value); });
   if (track_grad) {
@@ -2376,6 +2429,22 @@ Tensor min(const Tensor& input) {
 
 Tensor min(const Tensor& input, int64_t axis, bool keepdims) {
   return min_axis_impl(input, axis, keepdims, true);
+}
+
+Tensor argmax(const Tensor& input, bool keepdims) {
+  return arg_extreme_impl(input, keepdims, true, "argmax");
+}
+
+Tensor argmax(const Tensor& input, int64_t axis, bool keepdims) {
+  return arg_extreme_axis_impl(input, axis, keepdims, true, "argmax");
+}
+
+Tensor argmin(const Tensor& input, bool keepdims) {
+  return arg_extreme_impl(input, keepdims, false, "argmin");
+}
+
+Tensor argmin(const Tensor& input, int64_t axis, bool keepdims) {
+  return arg_extreme_axis_impl(input, axis, keepdims, false, "argmin");
 }
 
 Tensor relu(const Tensor& input) {

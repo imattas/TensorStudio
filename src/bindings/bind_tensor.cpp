@@ -305,6 +305,22 @@ Tensor reduce_from_py(
   return result;
 }
 
+Tensor arg_reduce_from_py(
+    const Tensor& input,
+    py::object axis,
+    bool keepdims,
+    const std::string& op_name,
+    const std::function<Tensor(const Tensor&, bool)>& reduce_all,
+    const std::function<Tensor(const Tensor&, int64_t, bool)>& reduce_axis) {
+  if (axis.is_none()) {
+    return reduce_all(input, keepdims);
+  }
+  if (!py::isinstance<py::int_>(axis)) {
+    throw ShapeError(op_name + " axis must be None or an int");
+  }
+  return reduce_axis(input, normalize_reduction_axis(input, py::cast<int64_t>(axis), op_name), keepdims);
+}
+
 py::array tensor_to_numpy(const Tensor& tensor) {
   py::array array(numpy_dtype(tensor.dtype()), ssize_shape(tensor.shape()));
   if (tensor.is_contiguous()) {
@@ -396,6 +412,20 @@ void bind_tensor(py::module_& module) {
           return min(input);
         }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
           return min(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("argmax", [](const Tensor& self, py::object axis, bool keepdims) {
+        return arg_reduce_from_py(self, std::move(axis), keepdims, "argmax", [](const Tensor& input, bool keep) {
+          return argmax(input, keep);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return argmax(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("argmin", [](const Tensor& self, py::object axis, bool keepdims) {
+        return arg_reduce_from_py(self, std::move(axis), keepdims, "argmin", [](const Tensor& input, bool keep) {
+          return argmin(input, keep);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return argmin(input, normalized_axis, keep);
         });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("relu", &relu)

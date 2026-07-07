@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 1.3.5 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with native C++
+  `argmax` and `argmin` operations.
+- Added Tensor methods, functional ops, top-level Python exports, and type
+  stubs for arg reductions.
+- Added NumPy parity tests for all-element and axis arg reductions, including
+  `keepdims`, negative axes, first-tie behavior, dtype, and error cases.
+- Documented arg-reduction semantics and limitations.
+
 ## 1.3.4 - 2026-07-07
 
 - Completed the next ordered correctness-roadmap item with tuple/list-axis
