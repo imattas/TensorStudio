@@ -7,14 +7,12 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.0.0rc2` is a release candidate for a CPU-only stable API
-foundation. It is eager-only, intentionally small, and not a replacement for
-mature ML frameworks. The final `1.0.0` version should only be tagged after the
-Windows, Linux, and macOS release checklist passes.
+TensorStudio `1.0.0` is a CPU-only stable API foundation. It is eager-only,
+intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
 
-From PyPI, once release-candidate wheels are published:
+From PyPI:
 
 ```bash
 python -m pip install tensorstudio
@@ -161,8 +159,8 @@ for features, targets in loader:
     print(features.shape, targets.shape)
 ```
 
-The v1 release candidate DataLoader is intentionally single-process so it works
-cleanly on Windows without multiprocessing setup.
+The v1 DataLoader is intentionally single-process so it works cleanly on
+Windows without multiprocessing setup.
 
 ## Performance
 
@@ -174,31 +172,30 @@ run locally:
 python benchmarks/benchmark_report.py
 ```
 
-On one Windows CPython 3.10 run for `1.0.0rc2`, TensorStudio beat NumPy on 11
-small activation/reduction benchmark cases and lost on 78 NumPy-comparable
-cases. The strongest local wins were small `sigmoid`, `sum`, and `mean` cases;
-medium elementwise operations and matrix multiplication remain slower than
-NumPy. The C++ contiguous matmul fast path is much faster than the original
-naive storage-access loop, but it is not a BLAS replacement. See
-`benchmarks/results.md` for the full table, platform details, and exact timings.
+On one Windows CPython 3.10 run for `1.0.0`, TensorStudio beat NumPy on 13
+small activation/reduction benchmark cases and lost on 76 NumPy-comparable
+cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 68 local cases and
+lost 26. The strongest local wins were small eager operations where framework
+dispatch overhead dominates; larger matrix multiplication, larger transcendental
+activations, and larger autograd workloads remain faster in PyTorch and NumPy.
+See `benchmarks/results.md` for the full table, platform details, and exact
+timings.
 
 Snapshot from that local run:
 
-| operation | shape | TensorStudio median | NumPy median | speedup | result |
-|---|---:|---:|---:|---:|---|
-| `sigmoid` | `(1,)` | 0.0016 ms | 0.0036 ms | 2.2170x | win |
-| `mean` | `(1,)` | 0.0014 ms | 0.0081 ms | 5.8562x | win |
-| `mean` | `(8,)` | 0.0016 ms | 0.0079 ms | 5.0005x | win |
-| `add` | `(16384,)` | 0.0100 ms | 0.0037 ms | 0.3682x | loss |
-| `matmul` | `(256, 256)` | 4.1393 ms | 0.4222 ms | 0.1020x | loss |
+| operation | shape | TensorStudio | NumPy | PyTorch CPU | TS vs NumPy | TS vs PyTorch |
+|---|---:|---:|---:|---:|---:|---:|
+| `sigmoid` | `(32,)` | 0.0018 ms | 0.0049 ms | 0.0638 ms | 2.7548x | 35.6408x |
+| `mean` | `(32,)` | 0.0016 ms | 0.0071 ms | 0.0110 ms | 4.3608x | 6.7855x |
+| `chain_relu` | `(128,)` | 0.0089 ms | 0.0039 ms | 0.0545 ms | 0.4410x | 6.1384x |
+| `matmul` | `(256, 256)` | 3.0180 ms | 0.4115 ms | 0.1392 ms | 0.1363x | 0.0461x |
+| `elementwise_backward` | `(1024,)` | 2.3844 ms | n/a | 0.1830 ms | n/a | 0.0767x |
 
-Speedup is `NumPy median / TensorStudio median`, so values above `1.0x` favor
-TensorStudio. The matmul result is from the optimized C++ contiguous path; a
-pre-optimization run was about 259 ms for the same `(256, 256)` case on this
-machine.
+Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
+favor TensorStudio.
 
-Do not treat these results as universal. TensorStudio does not currently claim
-to be faster than NumPy, TensorFlow, PyTorch, or JAX overall.
+Do not treat these results as universal. TensorStudio does not claim to be
+faster than NumPy, TensorFlow, PyTorch, or JAX overall.
 
 ## Save And Load
 

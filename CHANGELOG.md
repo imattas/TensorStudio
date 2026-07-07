@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0
+
+- Promoted the CPU-only stable API foundation from release candidate status.
+- Added direct C++ buffer copies for NumPy import/export paths.
+- Added faster typed tensor construction, flat-vector export, contiguous tensor
+  copy, and floating-point optimizer update paths.
+- Added a `float32` contiguous matmul fast path that avoids double accumulation
+  and per-element dtype conversion for the common training dtype.
+- Added typed contiguous reduction kernels for `sum` and `mean`.
+- Expanded benchmark reports with framework version metadata and PyTorch
+  win/loss summaries.
+- Updated documentation to describe honest `1.0.0` performance boundaries.
+
 ## 1.0.0rc2
 
 - Added `*_like` tensor creation helpers for zero, one, full, empty, uniform
