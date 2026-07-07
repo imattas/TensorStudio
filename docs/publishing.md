@@ -50,8 +50,8 @@ permissions:
   id-token: write
 ```
 
-It should publish only from a GitHub release or an approved release tag. It must
-not print secrets.
+It should publish only from a GitHub Release or an explicit manual dispatch. It
+must not print secrets. Tag pushes are handled by the wheel-building workflow.
 
 ## TestPyPI First
 
