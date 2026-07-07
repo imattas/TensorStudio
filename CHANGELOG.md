@@ -2,8 +2,10 @@
 
 ## Unreleased
 
-## 1.3.7 - 2026-07-07
+## 1.4.0 - 2026-07-07
 
+- Supersedes the short-lived `1.3.7` indexing release as a minor version
+  because the indexing/view API is a larger public surface change than a patch.
 - Completed the next ordered correctness-roadmap item with native C++ basic
   indexing and slicing views.
 - Added Python `Tensor.__getitem__` support for integers, slices with steps,

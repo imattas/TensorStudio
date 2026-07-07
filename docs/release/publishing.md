@@ -23,8 +23,8 @@ Windows, Linux, and macOS.
 After the release checklist passes, tag the stable release:
 
 ```bash
-git tag v1.3.7
-git push origin v1.3.7
+git tag v1.4.0
+git push origin v1.4.0
 ```
 
 Stable release notes must avoid unsupported performance claims. Publish measured
@@ -63,7 +63,7 @@ clean environment:
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.7
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.4.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -74,7 +74,7 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.3.7
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.4.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```

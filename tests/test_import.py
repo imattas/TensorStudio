@@ -4,7 +4,7 @@ from __future__ import annotations
 def test_import_and_version() -> None:
     import tensorstudio as ts
 
-    assert ts.__version__ == "1.3.7"
+    assert ts.__version__ == "1.4.0"
     assert hasattr(ts, "Tensor")
     assert hasattr(ts, "data")
     assert hasattr(ts, "nn")
