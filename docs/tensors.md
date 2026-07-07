@@ -28,7 +28,7 @@ print(x.device)         # cpu
 print(x.is_contiguous)  # True
 ```
 
-The v1 release candidate exposes a CPU device abstraction only. Unsupported
+The v1 release exposes a CPU device abstraction only. Unsupported
 devices raise errors instead of silently falling back.
 
 ## DTypes
@@ -160,6 +160,6 @@ by `numpy()` does not mutate the TensorStudio tensor.
 
 ## Mutation
 
-General in-place tensor math is intentionally limited in this release candidate.
+General in-place tensor math is intentionally limited in v1.
 `+=` raises a clear error. Optimizers use private assignment helpers to update
 parameters after gradients are computed.

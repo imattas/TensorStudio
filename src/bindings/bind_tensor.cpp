@@ -1,6 +1,7 @@
 #include "bindings.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <functional>
 #include <optional>
 #include <sstream>
@@ -198,13 +199,13 @@ Tensor tensor_from_numpy(py::array array, bool requires_grad) {
   for (py::handle dim : py::reinterpret_borrow<py::tuple>(contiguous.attr("shape"))) {
     shape.push_back(py::cast<int64_t>(dim));
   }
-  py::array flat = py::reinterpret_borrow<py::array>(contiguous.attr("ravel")());
-  std::vector<double> values;
-  values.reserve(static_cast<std::size_t>(flat.size()));
-  for (py::ssize_t i = 0; i < flat.size(); ++i) {
-    values.push_back(py::cast<double>(flat.attr("__getitem__")(i)));
+  Tensor tensor(shape, dtype, requires_grad);
+  const auto bytes = static_cast<std::size_t>(tensor.numel()) * dtype_size(dtype);
+  if (static_cast<std::size_t>(contiguous.nbytes()) != bytes) {
+    throw TensorStudioError("NumPy array byte size does not match TensorStudio dtype and shape");
   }
-  return Tensor::from_flat_values(values, shape, dtype, requires_grad);
+  std::memcpy(tensor.impl()->storage->data(), contiguous.data(), bytes);
+  return tensor;
 }
 
 Tensor tensor_from_py(py::object data, py::object dtype_object, bool requires_grad) {
@@ -243,6 +244,13 @@ Tensor ensure_tensor(py::object object) {
 
 py::array tensor_to_numpy(const Tensor& tensor) {
   py::array array(numpy_dtype(tensor.dtype()), ssize_shape(tensor.shape()));
+  if (tensor.is_contiguous()) {
+    const auto bytes = static_cast<std::size_t>(tensor.numel()) * dtype_size(tensor.dtype());
+    const auto* source =
+        tensor.impl()->storage->data() + static_cast<std::size_t>(tensor.offset()) * dtype_size(tensor.dtype());
+    std::memcpy(array.mutable_data(), source, bytes);
+    return array;
+  }
   py::array flat = py::reinterpret_borrow<py::array>(array.attr("ravel")());
   for (int64_t i = 0; i < tensor.numel(); ++i) {
     flat.attr("__setitem__")(i, scalar_from_value(tensor.value_at_logical(i), tensor.dtype()));

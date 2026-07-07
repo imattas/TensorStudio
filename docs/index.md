@@ -3,9 +3,8 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.0.0rc2` is a release candidate for a CPU-only stable API foundation. It is
-intended to prove the tensor, autograd, neural-network, optimizer, data, docs,
-packaging, and wheel workflows before the project is marked final `1.0.0`.
+`1.0.0` is a CPU-only stable API foundation for the tensor, autograd,
+neural-network, optimizer, data, docs, packaging, and wheel workflows.
 
 ## Status
 
@@ -15,10 +14,7 @@ TensorStudio is:
 - Eager-only.
 - Built around a native `tensorstudio._C` extension.
 - Suitable for learning, experimentation, and lightweight ML workloads.
-- Not intended to compete with mature production ML frameworks.
-
-The final `1.0.0` tag should wait until Windows, Linux, and macOS source builds,
-wheel builds, clean installs, tests, examples, and release checks all pass.
+- Not intended to replace or broadly outperform mature production ML frameworks.
 
 ## What Is Included
 
@@ -31,7 +27,7 @@ wheel builds, clean installs, tests, examples, and release checks all pass.
 - NumPy-style broadcasting for binary elementwise operations.
 - Arithmetic, comparisons, matrix multiplication, all-element reductions, common
   activations, `sqrt`, `abs`, `clamp`, reshape, flatten, and 2D transpose.
-- Reverse-mode autograd for the release-candidate operation set.
+- Reverse-mode autograd for the v1 operation set.
 - Python `nn.Module`, parameters, linear layers, sequential models, activation
   modules, dropout, flatten, module introspection, and common losses.
 - Python `optim.SGD`, `optim.Adam`, `optim.AdamW`, gradient clipping helpers,
@@ -55,7 +51,8 @@ TensorStudio prioritizes:
 TensorStudio does not currently include CUDA, Metal, distributed execution,
 graph compilation, convolution layers, advanced indexing, sparse tensors, mixed
 precision, or a high-performance kernel library. Benchmarks are rough local
-references only.
+references only; TensorStudio wins some small eager CPU cases but is not faster
+than PyTorch, NumPy, TensorFlow, or JAX overall.
 
 Serialization uses pickle. Loading pickle files from untrusted sources is
 unsafe.

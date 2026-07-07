@@ -2,7 +2,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstring>
 #include <sstream>
+#include <type_traits>
 
 #include "tensorstudio/errors.hpp"
 
@@ -62,6 +64,118 @@ void write_value(
   throw DTypeError("unknown dtype");
 }
 
+template <typename T>
+void write_flat_values_typed(const std::shared_ptr<Storage>& storage, const std::vector<double>& values) {
+  auto* data = typed_ptr<T>(storage);
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if constexpr (std::is_same_v<T, bool>) {
+      data[i] = values[i] != 0.0;
+    } else {
+      data[i] = static_cast<T>(values[i]);
+    }
+  }
+}
+
+void write_flat_values(const std::shared_ptr<Storage>& storage, DType dtype, const std::vector<double>& values) {
+  switch (dtype) {
+    case DType::Float32:
+      write_flat_values_typed<float>(storage, values);
+      return;
+    case DType::Float64:
+      write_flat_values_typed<double>(storage, values);
+      return;
+    case DType::Int32:
+      write_flat_values_typed<int32_t>(storage, values);
+      return;
+    case DType::Int64:
+      write_flat_values_typed<int64_t>(storage, values);
+      return;
+    case DType::Bool:
+      write_flat_values_typed<bool>(storage, values);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename T>
+void read_flat_values_typed(
+    const std::shared_ptr<Storage>& storage,
+    int64_t offset,
+    std::vector<double>& values) {
+  const auto* data = typed_ptr_const<T>(storage) + offset;
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if constexpr (std::is_same_v<T, bool>) {
+      values[i] = data[i] ? 1.0 : 0.0;
+    } else {
+      values[i] = static_cast<double>(data[i]);
+    }
+  }
+}
+
+void read_flat_values(
+    const std::shared_ptr<Storage>& storage,
+    DType dtype,
+    int64_t offset,
+    std::vector<double>& values) {
+  switch (dtype) {
+    case DType::Float32:
+      read_flat_values_typed<float>(storage, offset, values);
+      return;
+    case DType::Float64:
+      read_flat_values_typed<double>(storage, offset, values);
+      return;
+    case DType::Int32:
+      read_flat_values_typed<int32_t>(storage, offset, values);
+      return;
+    case DType::Int64:
+      read_flat_values_typed<int64_t>(storage, offset, values);
+      return;
+    case DType::Bool:
+      read_flat_values_typed<bool>(storage, offset, values);
+      return;
+  }
+  throw DTypeError("unknown dtype");
+}
+
+template <typename T>
+void add_scaled_contiguous_typed(
+    const std::shared_ptr<Storage>& target_storage,
+    int64_t target_offset,
+    const std::shared_ptr<Storage>& source_storage,
+    int64_t source_offset,
+    int64_t count,
+    double scale) {
+  auto* target = typed_ptr<T>(target_storage) + target_offset;
+  const auto* source = typed_ptr_const<T>(source_storage) + source_offset;
+  for (int64_t i = 0; i < count; ++i) {
+    target[i] = static_cast<T>(target[i] + source[i] * scale);
+  }
+}
+
+void add_scaled_contiguous_same_dtype(Tensor& target, const Tensor& source, double scale) {
+  switch (target.dtype()) {
+    case DType::Float32:
+      add_scaled_contiguous_typed<float>(
+          target.impl()->storage, target.offset(), source.impl()->storage, source.offset(), target.numel(), scale);
+      return;
+    case DType::Float64:
+      add_scaled_contiguous_typed<double>(
+          target.impl()->storage, target.offset(), source.impl()->storage, source.offset(), target.numel(), scale);
+      return;
+    case DType::Int32:
+      add_scaled_contiguous_typed<int32_t>(
+          target.impl()->storage, target.offset(), source.impl()->storage, source.offset(), target.numel(), scale);
+      return;
+    case DType::Int64:
+      add_scaled_contiguous_typed<int64_t>(
+          target.impl()->storage, target.offset(), source.impl()->storage, source.offset(), target.numel(), scale);
+      return;
+    case DType::Bool:
+      break;
+  }
+  throw DTypeError("add_scaled_ is not supported for bool tensors");
+}
+
 }  // namespace
 
 Tensor::Tensor() = default;
@@ -111,9 +225,7 @@ Tensor Tensor::from_flat_values(
         shape_to_string(shape) + ", got " + std::to_string(values.size()));
   }
   Tensor tensor(shape, dtype, requires_grad);
-  for (int64_t i = 0; i < tensor.numel(); ++i) {
-    tensor.set_value_at_logical(i, values[static_cast<std::size_t>(i)]);
-  }
+  write_flat_values(tensor.impl_->storage, dtype, values);
   return tensor;
 }
 
@@ -269,9 +381,7 @@ std::vector<double> Tensor::to_flat_vector() const {
   ensure_defined();
   std::vector<double> values(static_cast<std::size_t>(numel()));
   if (is_contiguous()) {
-    for (int64_t i = 0; i < numel(); ++i) {
-      values[static_cast<std::size_t>(i)] = value_at_storage(offset() + i);
-    }
+    read_flat_values(impl_->storage, dtype(), offset(), values);
   } else {
     for (int64_t i = 0; i < numel(); ++i) {
       values[static_cast<std::size_t>(i)] = value_at_logical(i);
@@ -288,6 +398,14 @@ void Tensor::copy_from(const Tensor& other) {
         shape_to_string(shape()));
   }
   if (is_contiguous() && other.is_contiguous()) {
+    if (dtype() == other.dtype()) {
+      const auto bytes = static_cast<std::size_t>(numel()) * dtype_size(dtype());
+      auto* target = impl_->storage->data() + static_cast<std::size_t>(offset()) * dtype_size(dtype());
+      const auto* source =
+          other.impl_->storage->data() + static_cast<std::size_t>(other.offset()) * dtype_size(other.dtype());
+      std::memcpy(target, source, bytes);
+      return;
+    }
     for (int64_t i = 0; i < numel(); ++i) {
       set_value_at_storage(offset() + i, other.value_at_storage(other.offset() + i));
     }
@@ -306,6 +424,10 @@ void Tensor::add_scaled_(const Tensor& other, double scale) {
         shape_to_string(shape()));
   }
   if (is_contiguous() && other.is_contiguous()) {
+    if (dtype() == other.dtype() && dtype_is_floating(dtype())) {
+      add_scaled_contiguous_same_dtype(*this, other, scale);
+      return;
+    }
     for (int64_t i = 0; i < numel(); ++i) {
       set_value_at_storage(
           offset() + i,

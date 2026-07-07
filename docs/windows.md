@@ -1,6 +1,6 @@
 # Windows
 
-Windows is TensorStudio's first release target for the v1 release candidate.
+Windows is TensorStudio's first release target for v1.
 The goal is for normal users to install wheels without CMake and for
 contributors to build from source with MSVC.
 

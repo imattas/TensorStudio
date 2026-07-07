@@ -1,7 +1,7 @@
 # Data
 
 `tensorstudio.data` provides a minimal map-style dataset and dataloader layer.
-It is deliberately single-process for the v1 release candidate so it works
+It is deliberately single-process in v1 so it works
 cleanly on Windows and in simple teaching environments.
 
 ## Dataset
@@ -62,7 +62,7 @@ Features:
 
 ## Windows Behavior
 
-There is no multiprocessing worker pool in this release candidate. That avoids
+There is no multiprocessing worker pool in v1. That avoids
 Windows process-spawning pitfalls and keeps examples runnable from a normal
 PowerShell prompt.
 

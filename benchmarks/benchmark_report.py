@@ -62,6 +62,11 @@ def _optional_import(module_name: str) -> Any | None:
         return None
 
 
+def _version_note(module: Any) -> str:
+    version = getattr(module, "__version__", "")
+    return str(version) if version else "available"
+
+
 def _shape_label(shape: tuple[int, ...]) -> str:
     return "(" + ", ".join(str(dim) for dim in shape) + ("," if len(shape) == 1 else "") + ")"
 
@@ -135,19 +140,41 @@ def _load_libraries() -> list[Library]:
     if tf is not None:
         with suppress(Exception):
             tf.config.set_visible_devices([], "GPU")
-        libraries.append(Library("TensorFlow CPU eager", lambda array: tf.constant(array)))
+        libraries.append(
+            Library(
+                "TensorFlow CPU eager",
+                lambda array: tf.constant(array),
+                True,
+                _version_note(tf),
+            )
+        )
     else:
         libraries.append(Library("TensorFlow CPU eager", _numpy_factory, False, "not installed"))
 
     torch = _optional_import("torch")
     if torch is not None:
-        libraries.append(Library("PyTorch CPU", lambda array: torch.from_numpy(array.copy())))
+        libraries.append(
+            Library(
+                "PyTorch CPU",
+                lambda array: torch.from_numpy(array.copy()),
+                True,
+                _version_note(torch),
+            )
+        )
     else:
         libraries.append(Library("PyTorch CPU", _numpy_factory, False, "not installed"))
 
     jnp = _optional_import("jax.numpy")
     if jnp is not None:
-        libraries.append(Library("JAX CPU dispatch", lambda array: jnp.array(array)))
+        jax = _optional_import("jax")
+        libraries.append(
+            Library(
+                "JAX CPU dispatch",
+                lambda array: jnp.array(array),
+                True,
+                _version_note(jax or jnp),
+            )
+        )
     else:
         libraries.append(Library("JAX CPU dispatch", _numpy_factory, False, "not installed"))
 
@@ -559,34 +586,49 @@ def _render_report(
     for library in libraries:
         if library.name in {"TensorStudio", "NumPy"}:
             continue
-        status = "available" if library.available else f"unavailable ({library.note})"
+        status = (
+            f"available ({library.note})"
+            if library.available
+            else f"unavailable ({library.note})"
+        )
         lines.append(f"- {library.name}: {status}")
     lines.append("")
     lines.append("## Summary")
     lines.append("")
 
-    wins = 0
-    losses = 0
-    for case in cases:
-        ts_stats = results.get(_result_key(case, "TensorStudio"))
-        np_stats = results.get(_result_key(case, "NumPy"))
-        ratio = _speedup(
-            ts_stats.median_ms if ts_stats else None,
-            np_stats.median_ms if np_stats else None,
-        )
-        if ratio is None:
-            continue
-        if ratio > 1.0:
-            wins += 1
-        else:
-            losses += 1
+    def win_loss_against(library_name: str) -> tuple[int, int]:
+        wins = 0
+        losses = 0
+        for benchmark_case in cases:
+            ts_stats = results.get(_result_key(benchmark_case, "TensorStudio"))
+            competitor_stats = results.get(_result_key(benchmark_case, library_name))
+            ratio = _speedup(
+                ts_stats.median_ms if ts_stats else None,
+                competitor_stats.median_ms if competitor_stats else None,
+            )
+            if ratio is None:
+                continue
+            if ratio > 1.0:
+                wins += 1
+            else:
+                losses += 1
+        return wins, losses
+
+    wins, losses = win_loss_against("NumPy")
     lines.append(f"- TensorStudio wins versus NumPy: `{wins}`")
     lines.append(f"- TensorStudio losses versus NumPy: `{losses}`")
+
+    for competitor in ["PyTorch CPU", "TensorFlow CPU eager", "JAX CPU dispatch"]:
+        competitor_wins, competitor_losses = win_loss_against(competitor)
+        if competitor_wins or competitor_losses:
+            lines.append(f"- TensorStudio wins versus {competitor}: `{competitor_wins}`")
+            lines.append(f"- TensorStudio losses versus {competitor}: `{competitor_losses}`")
     lines.append("")
+
     if wins == 0:
         lines.append(
             "TensorStudio did not beat NumPy on this machine for the available benchmark set. "
-            "Performance remains a blocker for a final `1.0.0` performance claim."
+            "Performance remains a blocker for broad performance claims."
         )
     else:
         lines.append(

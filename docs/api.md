@@ -16,11 +16,17 @@ modules, optimizers, data utilities, and serialization helpers.
 - `tensor`
 - `from_numpy`
 - `zeros`
+- `zeros_like`
 - `ones`
+- `ones_like`
 - `empty`
+- `empty_like`
 - `full`
+- `full_like`
 - `rand`
+- `rand_like`
 - `randn`
+- `randn_like`
 - `arange`
 - `eye`
 - `linspace`
@@ -41,11 +47,17 @@ modules, optimizers, data utilities, and serialization helpers.
 ts.tensor(data, dtype=None, requires_grad=False)
 ts.from_numpy(array, requires_grad=False)
 ts.zeros(shape, dtype="float32", requires_grad=False)
+ts.zeros_like(input, dtype=None, requires_grad=None)
 ts.ones(shape, dtype="float32", requires_grad=False)
+ts.ones_like(input, dtype=None, requires_grad=None)
 ts.empty(shape, dtype="float32", requires_grad=False)
+ts.empty_like(input, dtype=None, requires_grad=None)
 ts.full(shape, fill_value, dtype="float32", requires_grad=False)
+ts.full_like(input, fill_value, dtype=None, requires_grad=None)
 ts.rand(shape, dtype="float32", seed=None, requires_grad=False)
+ts.rand_like(input, dtype=None, seed=None, requires_grad=None)
 ts.randn(shape, dtype="float32", seed=None, requires_grad=False)
+ts.randn_like(input, dtype=None, seed=None, requires_grad=None)
 ts.arange(start, stop=None, step=1, dtype="float32", requires_grad=False)
 ts.eye(n, m=None, dtype="float32", requires_grad=False)
 ts.linspace(start, stop, steps, dtype="float32", requires_grad=False)
@@ -134,19 +146,33 @@ Math:
 - `Tanh`
 - `Dropout`
 - `Flatten`
+- `Identity`
+- `LeakyReLU`
+- `Softplus`
 - `MSELoss`
 - `L1Loss`
 - `BCELoss`
+- `BCEWithLogitsLoss`
+- `HuberLoss`
 - Functional equivalents for activations and losses.
 
 Module methods:
 
 - `parameters()`
 - `named_parameters()`
+- `trainable_parameters()`
+- `children()`
+- `named_children()`
 - `modules()`
+- `named_modules()`
 - `train()`
 - `eval()`
 - `zero_grad()`
+- `requires_grad_()`
+- `freeze()`
+- `unfreeze()`
+- `parameter_count()`
+- `apply()`
 - `state_dict()`
 - `load_state_dict()`
 
@@ -155,6 +181,10 @@ Module methods:
 - `SGD(params, lr=0.01, momentum=0.0, weight_decay=0.0)`
 - `Adam(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0)`
 - `AdamW(params, lr=0.001, betas=(0.9, 0.999), eps=1e-8, weight_decay=0.0)`
+- `clip_grad_norm_(params, max_norm)`
+- `clip_grad_value_(params, clip_value)`
+- `StepLR(optimizer, step_size, gamma=0.1)`
+- `ExponentialLR(optimizer, gamma)`
 
 Optimizers implement `zero_grad`, `step`, `state_dict`, and `load_state_dict`.
 

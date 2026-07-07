@@ -11,7 +11,7 @@ loaded = ts.load("object.tsmodel")
 
 ## Supported Objects
 
-The release candidate supports saving and loading:
+The v1 release supports saving and loading:
 
 - `Tensor` objects.
 - Plain dictionaries and lists containing tensors.
@@ -48,4 +48,4 @@ Use TensorStudio serialization only for files you created or otherwise trust.
 ## Future Work
 
 Future releases may add a structured non-executable tensor checkpoint format.
-For `1.0.0rc2`, pickle keeps the implementation small and clear.
+For `1.0.0`, pickle keeps the implementation small and clear.

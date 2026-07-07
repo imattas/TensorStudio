@@ -16,6 +16,19 @@ git push origin v1.0.0rc2
 The final `v1.0.0` tag should only be created after the release checklist passes
 on Windows, Linux, and macOS.
 
+## Stable Release Flow
+
+After the release checklist passes, tag the stable release:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Stable release notes must avoid unsupported performance claims. Publish measured
+benchmark results, including known losses versus NumPy or PyTorch where they
+exist.
+
 ## GitHub Actions
 
 Workflows:
@@ -40,13 +53,14 @@ not print secrets.
 ## TestPyPI First
 
 Configure a PyPI trusted publisher for TestPyPI before rehearsing a release.
-Then publish `v1.0.0rc2` to TestPyPI and install it in a clean environment:
+Then publish the candidate or stable version to TestPyPI and install it in a
+clean environment:
 
 ```bash
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc2
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -57,7 +71,7 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0rc2
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==1.0.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -73,8 +87,8 @@ Promote to real PyPI only after TestPyPI install and runtime checks pass.
 - `README.md`
 - Docs that mention version or status
 
-`CMakeLists.txt` uses a numeric project version, so release candidates keep the
-public Python/C++ version strings in the package metadata and version header.
+`CMakeLists.txt` uses a numeric project version. Keep the public Python/C++
+version strings in package metadata and the version header synchronized.
 
 ## Required Checks Before Final `1.0.0`
 

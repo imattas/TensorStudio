@@ -346,6 +346,32 @@ void elementwise_unary_fast_path(Tensor& out, const Tensor& input, Op op) {
   throw DTypeError("unknown dtype");
 }
 
+template <typename T>
+double sum_contiguous_kernel(const Tensor& input) {
+  const auto* data = raw_data<T>(input) + input.offset();
+  double acc = 0.0;
+  for (int64_t i = 0; i < input.numel(); ++i) {
+    acc += to_double(data[i]);
+  }
+  return acc;
+}
+
+double sum_contiguous_fast_path(const Tensor& input) {
+  switch (input.dtype()) {
+    case DType::Float32:
+      return sum_contiguous_kernel<float>(input);
+    case DType::Float64:
+      return sum_contiguous_kernel<double>(input);
+    case DType::Int32:
+      return sum_contiguous_kernel<int32_t>(input);
+    case DType::Int64:
+      return sum_contiguous_kernel<int64_t>(input);
+    case DType::Bool:
+      return sum_contiguous_kernel<bool>(input);
+  }
+  throw DTypeError("unknown dtype");
+}
+
 template <typename Op>
 Tensor elementwise_binary_impl(
     const Tensor& left,
@@ -416,6 +442,27 @@ void matmul_contiguous_kernel(
     int64_t cols) {
   const auto* left_data = raw_data<LeftT>(left) + left.offset();
   const auto* right_data = raw_data<RightT>(right) + right.offset();
+
+  if constexpr (std::is_same_v<LeftT, float> && std::is_same_v<RightT, float>) {
+    if (out.dtype() == DType::Float32) {
+      std::vector<float> accumulator(static_cast<std::size_t>(rows * cols), 0.0F);
+      for (int64_t r = 0; r < rows; ++r) {
+        auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
+        const auto* left_row = left_data + r * inner;
+        for (int64_t k = 0; k < inner; ++k) {
+          const float left_value = left_row[k];
+          const auto* right_row = right_data + k * cols;
+          for (int64_t c = 0; c < cols; ++c) {
+            out_row[c] += left_value * right_row[c];
+          }
+        }
+      }
+      auto* out_data = raw_data<float>(out) + out.offset();
+      std::copy(accumulator.begin(), accumulator.end(), out_data);
+      return;
+    }
+  }
+
   std::vector<double> accumulator(static_cast<std::size_t>(rows * cols), 0.0);
 
   for (int64_t r = 0; r < rows; ++r) {
@@ -628,9 +675,7 @@ Tensor sum_impl(const Tensor& input, bool track_grad) {
   Tensor out({}, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float64, false);
   double acc = 0.0;
   if (input.is_contiguous()) {
-    for (int64_t i = 0; i < input.numel(); ++i) {
-      acc += value_at_storage_unchecked(input, input.offset() + i);
-    }
+    acc = sum_contiguous_fast_path(input);
   } else {
     for (int64_t i = 0; i < input.numel(); ++i) {
       acc += input.value_at_logical(i);
@@ -652,9 +697,7 @@ Tensor mean_impl(const Tensor& input, bool track_grad) {
   Tensor out({}, DType::Float64, false);
   double acc = 0.0;
   if (input.is_contiguous()) {
-    for (int64_t i = 0; i < input.numel(); ++i) {
-      acc += value_at_storage_unchecked(input, input.offset() + i);
-    }
+    acc = sum_contiguous_fast_path(input);
   } else {
     for (int64_t i = 0; i < input.numel(); ++i) {
       acc += input.value_at_logical(i);

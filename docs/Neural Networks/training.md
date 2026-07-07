@@ -58,7 +58,7 @@ w = ts.randn((4, 4), seed=123)
 
 ## Practical Tips
 
-- Keep tensors modest in `1.0.0rc2`; kernels are simple CPU loops.
+- Keep tensors modest in `1.0.0`; kernels are simple CPU loops.
 - Prefer `float32` unless you need `float64`.
 - Compare with NumPy in tests for expected numerical values.
 - Watch shape errors carefully around broadcasting and matrix multiplication.

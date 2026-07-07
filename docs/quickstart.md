@@ -164,7 +164,7 @@ for features, targets in loader:
     print(features.tolist(), targets.tolist())
 ```
 
-The DataLoader is single-process by design for the v1 release candidate.
+The DataLoader is single-process by design in v1.
 
 ## Save And Load
 

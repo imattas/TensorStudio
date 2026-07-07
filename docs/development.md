@@ -115,6 +115,6 @@ Use `np.testing.assert_allclose` for numerical comparisons.
 
 ## Release Hygiene
 
-Do not mark the project final `1.0.0` until the full release checklist passes on
-Windows, Linux, and macOS. Keep release-candidate work versioned as
-`1.0.0rcN`.
+For release work, keep documentation and benchmark claims aligned with measured
+results. A stable API release is not the same thing as a performance-superiority
+claim.

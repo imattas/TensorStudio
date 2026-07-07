@@ -59,7 +59,7 @@ optimizer.zero_grad()
 
 ## Supported Gradients
 
-The release candidate supports gradients for:
+The v1 release supports gradients for:
 
 - `add`, `sub`, `mul`, `div`
 - `neg`
