@@ -29,6 +29,21 @@ python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version
 pytest -q
 ```
 
+## Optional BLAS
+
+macOS source builds can use Apple's Accelerate framework for optional
+CBLAS-backed `float32` and `float64` matrix multiplication when CMake exposes
+it through `find_package(BLAS)`. No extra package is usually required beyond
+the Xcode Command Line Tools.
+
+Verify with:
+
+```bash
+python -c "import tensorstudio as ts; print(ts.performance_info())"
+```
+
+If `blas_enabled` is `False`, TensorStudio is using the portable C++ fallback.
+
 ## Build And Check
 
 ```bash

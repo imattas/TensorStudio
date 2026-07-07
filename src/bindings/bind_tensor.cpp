@@ -37,7 +37,7 @@ bool is_sequence_like(py::handle object) {
 }
 
 std::string py_type_name(py::handle object) {
-  return py::cast<std::string>(object.get_type().attr("__name__"));
+  return py::cast<std::string>(py::type::of(object).attr("__name__"));
 }
 
 std::string py_repr_string(py::handle object) {

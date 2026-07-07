@@ -7,8 +7,10 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.5.1` is a CPU-only stable API foundation. It is eager-only,
-intentionally small, and not a replacement for mature ML frameworks.
+TensorStudio `1.6.0` is a CPU-only stable API foundation with native C++
+threading, storage reuse, SIMD-friendly typed kernels, and optional
+CBLAS/Accelerate matrix multiplication when available. It is eager-only,
+intentionally compact, and not a replacement for mature ML frameworks.
 
 ## Install
 
@@ -280,31 +282,46 @@ python benchmarks/benchmark_report.py
 columns for NumPy, TensorFlow, PyTorch, and JAX when those libraries are
 available locally.
 
-On one Windows CPython 3.10 development run reporting `1.2.0`, TensorStudio
-beat NumPy on 26 small operation benchmark cases and lost on 77
-NumPy-comparable cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 75
-local cases and lost 33. The strongest local wins were small eager operations,
-small contiguous axis reductions, and the simple NumPy convolution/pooling
-references where framework dispatch or Python loops dominate; larger matrix
-multiplication, PyTorch convolution and pooling, larger axis reductions, larger
-transcendental activations, and larger autograd workloads remain faster in
-PyTorch and NumPy.
+Useful runtime diagnostics:
+
+```python
+import tensorstudio as ts
+
+print(ts.performance_info())
+ts.set_num_threads(4)
+```
+
+Run the loose local regression thresholds with:
+
+```bash
+python benchmark_all.py --check-thresholds
+```
+
+On one Windows CPython 3.10 development run reporting `1.6.0`, with
+TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
+reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
+benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
+available on that machine; TensorStudio won 39 local cases and lost 59. The
+strongest local wins were the simple NumPy convolution/pooling reference loops
+and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
+many elementwise, reduction, matrix multiplication, larger activation, and
+autograd workloads.
 See `benchmarks/results.md` for the full table, platform details, and exact
 timings.
 
 Snapshot from that local run:
 
-| operation | shape | TensorStudio | NumPy | PyTorch CPU | TS vs NumPy | TS vs PyTorch |
+| operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0017 ms | 0.0038 ms | 0.0614 ms | 2.1691x | 35.3154x |
-| `mean` | `(32,)` | 0.0029 ms | 0.0131 ms | 0.0186 ms | 4.5638x | 6.4709x |
-| `sum_axis1` | `(16, 16)` | 0.0027 ms | 0.0029 ms | 0.0085 ms | 1.0894x | 3.1408x |
-| `chain_relu` | `(128,)` | 0.0112 ms | 0.0051 ms | 0.0726 ms | 0.4575x | 6.4533x |
-| `matmul` | `(256, 256)` | 4.4121 ms | 0.3779 ms | 0.1669 ms | 0.0856x | 0.0378x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2374 ms | 1.7112 ms | 0.0186 ms | 7.2091x | 0.0784x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0237 ms | 0.2764 ms | 0.0082 ms | 11.6685x | 0.3462x |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0198 ms | 0.7431 ms | 0.0073 ms | 37.4930x | 0.3662x |
-| `elementwise_backward` | `(1024,)` | 3.0196 ms | n/a | 0.2254 ms | n/a | 0.0746x |
+| `sigmoid` | `(32,)` | 0.0173 ms | 0.0047 ms | 0.0719 ms | 0.2724x | 4.1608x |
+| `mean` | `(32,)` | 0.0157 ms | 0.0082 ms | 0.0119 ms | 0.5208x | 0.7587x |
+| `sum_axis1` | `(16, 16)` | 0.0159 ms | 0.0031 ms | 0.0131 ms | 0.1924x | 0.8231x |
+| `chain_relu` | `(128,)` | 0.0992 ms | 0.0063 ms | 0.1113 ms | 0.0636x | 1.1219x |
+| `matmul` | `(256, 256)` | 2.5261 ms | 0.3848 ms | 0.2288 ms | 0.1524x | 0.0906x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2120 ms | 1.2975 ms | 0.0959 ms | 6.1191x | 0.4524x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0286 ms | 0.1613 ms | n/a | 5.6321x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0304 ms | 0.5601 ms | n/a | 18.4457x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7150 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -401,7 +418,9 @@ tokens or print secrets.
 - CPU backend only.
 - Eager execution only.
 - No CUDA or Metal backend yet.
-- No BLAS-backed matrix multiplication yet.
+- Optional BLAS-backed matrix multiplication depends on the build environment
+  exposing a compatible CBLAS/Accelerate interface; otherwise TensorStudio uses
+  a portable C++ fallback.
 - No graph compiler or distributed runtime.
 - Convolution and pooling support are currently limited to CPU NCHW
   `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
@@ -431,9 +450,9 @@ tokens or print secrets.
 - Richer dataset utilities
 - Model zoo examples
 - ONNX import and broader export coverage
-- Improved memory allocator
-- SIMD kernels
-- Multithreaded ops
+- Runtime-dispatched SIMD kernels
+- Better non-BLAS matrix multiplication tiling
+- More threaded backward kernels
 
 ## License
 

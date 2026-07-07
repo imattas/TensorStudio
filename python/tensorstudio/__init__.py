@@ -40,6 +40,7 @@ from .ops import (
     unsqueeze,
     where,
 )
+from .performance import get_num_threads, performance_info, set_num_threads
 from .serialization import load, load_npz, save, save_npz
 from .tensor import (
     Tensor,
@@ -92,6 +93,7 @@ __all__ = [
     "full_like",
     "greater",
     "greater_equal",
+    "get_num_threads",
     "less",
     "less_equal",
     "interchange",
@@ -112,6 +114,7 @@ __all__ = [
     "ones_like",
     "optim",
     "permute",
+    "performance_info",
     "project",
     "promote_types",
     "rand",
@@ -122,6 +125,7 @@ __all__ = [
     "save",
     "save_npz",
     "set_grad_enabled",
+    "set_num_threads",
     "sin",
     "stack",
     "squeeze",

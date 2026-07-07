@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+## 1.6.0 - 2026-07-07
+
+- Completed the ordered CPU Performance Core roadmap section as one release
+  batch.
+- Added optional CBLAS/Accelerate-backed `matmul` for contiguous `float32` and
+  `float64` matrices when the source build environment exposes a compatible
+  BLAS library and header; portable C++ kernels remain the fallback path.
+- Added a small native C++ CPU thread pool, configurable with
+  `tensorstudio.set_num_threads()` and `TENSORSTUDIO_NUM_THREADS`, and used it
+  for large contiguous elementwise ops, reductions, matrix multiplication,
+  convolution, and pooling forward kernels.
+- Added SIMD-friendly typed `float32`/`float64` contiguous kernels for common
+  elementwise arithmetic and activations, while preserving mixed-dtype fallback
+  behavior.
+- Added a bounded C++ storage reuse pool for tensor allocations, with
+  `TENSORSTUDIO_DISABLE_STORAGE_POOL=1` and
+  `TENSORSTUDIO_STORAGE_POOL_MAX_BLOCK_BYTES` controls.
+- Added `tensorstudio.performance_info()`, `get_num_threads()`, and
+  `set_num_threads()` diagnostics/configuration helpers.
+- Added benchmark threshold support via `benchmark_all.py --check-thresholds`
+  and `benchmarks/thresholds.json`.
+- Expanded performance, CPU backend, and platform docs for BLAS selection,
+  threading, storage reuse, benchmark thresholds, and honest interpretation.
+
 ## 1.5.1 - 2026-07-07
 
 - Completed the next ordered correctness-roadmap item with clearer native

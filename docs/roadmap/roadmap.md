@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.5.1` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.6.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -40,17 +40,23 @@ tensor semantics.
 These items should land before broad model expansion so the framework has a
 serious runtime base.
 
-- Add BLAS-backed `matmul` for `float32` and `float64`.
-- Add platform-specific BLAS selection guidance for Windows, Linux, and macOS.
-- Add a small CPU thread pool for large contiguous elementwise ops, reductions,
-  matrix operations, convolution, and pooling.
-- Add SIMD kernels for common contiguous `float32` and `float64` elementwise
-  operations.
-- Improve storage allocation and reuse for temporary tensors.
-- Add fast paths for scalar broadcasting and same-shape contiguous tensors.
-- Add benchmark regression thresholds for core kernels.
-- Keep benchmark reports honest, with win/loss columns against available local
-  NumPy, PyTorch, TensorFlow, and JAX installs.
+- Completed in `1.6.0`: add optional CBLAS/Accelerate-backed `matmul` for
+  contiguous `float32` and `float64` matrices when compatible platform BLAS
+  support is available, with a portable C++ fallback.
+- Completed in `1.6.0`: add platform-specific BLAS selection guidance for
+  Windows, Linux, and macOS.
+- Completed in `1.6.0`: add a small native CPU thread pool for large
+  contiguous elementwise ops, reductions, matrix operations, convolution, and
+  pooling forward kernels.
+- Completed in `1.6.0`: add SIMD-friendly typed `float32` and `float64`
+  contiguous kernels for common elementwise arithmetic and activations.
+- Completed in `1.6.0`: improve storage allocation and reuse with a bounded
+  C++ storage pool.
+- Completed in `1.6.0`: keep scalar broadcasting and same-shape contiguous
+  tensor fast paths and make them threaded for large tensors.
+- Completed in `1.6.0`: add benchmark regression thresholds for core kernels.
+- Completed in `1.6.0`: keep benchmark reports honest, with win/loss columns
+  against available local NumPy, PyTorch, TensorFlow, and JAX installs.
 
 ## 3. Core Math Expansion
 

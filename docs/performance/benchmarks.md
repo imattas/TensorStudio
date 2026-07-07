@@ -22,6 +22,15 @@ This compares:
 
 against equivalent NumPy operations.
 
+Run the loose local regression thresholds with:
+
+```bash
+python benchmark_all.py --check-thresholds
+```
+
+Thresholds live in `benchmarks/thresholds.json`. They are intentionally broad
+release smoke checks, not proof of superiority over another library.
+
 ## Run Matmul Benchmarks
 
 ```bash
@@ -55,18 +64,22 @@ equivalents where available.
 ## Interpreting Results
 
 Expect NumPy and PyTorch to be faster for many medium and large operations
-because they use highly optimized native kernels. TensorStudio `1.5.1` still
-favors clarity, portability, and a compact C++ implementation over full kernel
-library performance.
+because they use highly optimized native kernels. TensorStudio `1.6.0` adds a
+native thread pool, compiler-vectorization-friendly `float32` and `float64`
+loops, bounded storage reuse, and optional CBLAS/Accelerate `matmul`, but it
+still favors clarity, portability, and a compact C++ implementation over full
+kernel-library performance.
 
 The current benchmark report records local NumPy, TensorFlow, PyTorch, and JAX
 win/loss counts when those libraries are installed. Detailed tables include
 explicit win columns and a fastest-library column for each case.
 On the Windows CPython 3.10 run checked into `benchmarks/results.md`,
-TensorStudio wins many small PyTorch CPU eager cases, but loses larger matrix
-multiplication, convolution against PyTorch CPU, larger transcendental
-activations, and larger autograd cases. Those losses are expected until
-TensorStudio has BLAS, SIMD, and a real kernel scheduler.
+TensorStudio wins some simple NumPy reference-loop cases and some
+JAX-dispatch-heavy eager cases, but loses many NumPy-comparable elementwise,
+reduction, matrix multiplication, activation, and autograd cases. Those losses
+are expected until TensorStudio has broader runtime dispatch, deeper kernel
+coverage, BLAS-enabled wheels where practical, and more specialized backward
+kernels.
 
 Useful benchmark notes:
 
@@ -74,6 +87,7 @@ Useful benchmark notes:
 - Close other heavy processes.
 - Record Python version and CPU.
 - Record TensorStudio version.
+- Record `tensorstudio.performance_info()`.
 - Read win columns together with speedup columns. A win applies only to that
   exact operation, shape, dtype, Python version, and CPU.
 - Do not compare debug builds with release builds.

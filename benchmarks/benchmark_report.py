@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import io
+import json
 import os
 import platform
 import statistics
@@ -794,6 +795,12 @@ def _render_report(
     lines.append(f"- Processor: `{platform.processor() or 'unknown'}`")
     lines.append(f"- Python: `{sys.version.split()[0]}`")
     lines.append(f"- TensorStudio: `{ts.__version__}`")
+    with suppress(Exception):
+        perf_info = ts.performance_info()
+        lines.append(f"- TensorStudio threads: `{perf_info['num_threads']}`")
+        lines.append(f"- TensorStudio BLAS enabled: `{perf_info['blas_enabled']}`")
+        lines.append(f"- TensorStudio SIMD level: `{perf_info['simd_level']}`")
+        lines.append(f"- TensorStudio storage pool enabled: `{perf_info['storage_pool_enabled']}`")
     lines.append(f"- NumPy: `{np.__version__}`")
     for library in libraries:
         if library.name in {"TensorStudio", "NumPy"}:
@@ -925,14 +932,55 @@ def _render_report(
     return "\n".join(lines)
 
 
-def run_benchmarks(sections: set[str], output: Path | None) -> str:
+def run_benchmark_data(
+    sections: set[str],
+) -> tuple[list[BenchmarkCase], list[Library], dict[str, Stats]]:
     libraries = _load_libraries()
     cases = _build_cases(sections)
     results = _run_cases(cases, libraries)
-    report = _render_report(cases, libraries, results)
+    return cases, libraries, results
+
+
+def render_benchmark_report(
+    cases: list[BenchmarkCase],
+    libraries: list[Library],
+    results: dict[str, Stats],
+) -> str:
+    return _render_report(cases, libraries, results)
+
+
+def write_benchmark_report(report: str, output: Path | None) -> None:
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report, encoding="utf-8")
+
+
+def load_thresholds(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def evaluate_thresholds(thresholds: dict[str, Any], results: dict[str, Stats]) -> list[str]:
+    failures: list[str] = []
+    for item in thresholds.get("cases", []):
+        category = str(item["category"])
+        operation = str(item["operation"])
+        shape = str(item["shape"])
+        max_ms = float(item["max_median_ms"])
+        key = f"{category}|{operation}|{shape}|TensorStudio"
+        stats = results.get(key)
+        label = f"{category}/{operation}/{shape}"
+        if stats is None:
+            failures.append(f"{label}: no TensorStudio benchmark result was recorded")
+            continue
+        if stats.median_ms > max_ms:
+            failures.append(f"{label}: median {stats.median_ms:.4f} ms exceeded {max_ms:.4f} ms")
+    return failures
+
+
+def run_benchmarks(sections: set[str], output: Path | None) -> str:
+    cases, libraries, results = run_benchmark_data(sections)
+    report = _render_report(cases, libraries, results)
+    write_benchmark_report(report, output)
     return report
 
 

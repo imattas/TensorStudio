@@ -21,6 +21,8 @@ class Storage {
   std::size_t size_bytes() const;
 
  private:
+  static void release(Storage* storage);
+
   std::vector<std::byte> data_;
 };
 

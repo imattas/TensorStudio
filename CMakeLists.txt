@@ -1,10 +1,12 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(tensorstudio VERSION 1.5.1 LANGUAGES CXX)
+project(tensorstudio VERSION 1.6.0 LANGUAGES CXX)
 
 find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
 set(PYBIND11_FINDPYTHON ON)
 find_package(pybind11 CONFIG REQUIRED)
+
+option(TENSORSTUDIO_ENABLE_BLAS "Enable optional CBLAS-backed matmul when available" ON)
 
 set(TENSORSTUDIO_CORE_SOURCES
   src/core/tensor.cpp
@@ -19,6 +21,7 @@ set(TENSORSTUDIO_CORE_SOURCES
   src/core/random.cpp
   src/core/serialization.cpp
   src/core/errors.cpp
+  src/core/perf.cpp
 )
 
 set(TENSORSTUDIO_BINDING_SOURCES
@@ -37,6 +40,20 @@ pybind11_add_module(_C MODULE
 
 target_include_directories(_C PRIVATE include src/bindings)
 target_compile_features(_C PRIVATE cxx_std_20)
+
+if(TENSORSTUDIO_ENABLE_BLAS)
+  find_package(BLAS)
+  if(BLAS_FOUND)
+    include(CheckIncludeFileCXX)
+    check_include_file_cxx(cblas.h TENSORSTUDIO_HAVE_CBLAS_H)
+    target_link_libraries(_C PRIVATE ${BLAS_LIBRARIES})
+    if(APPLE)
+      target_compile_definitions(_C PRIVATE TENSORSTUDIO_HAS_ACCELERATE=1)
+    elseif(TENSORSTUDIO_HAVE_CBLAS_H)
+      target_compile_definitions(_C PRIVATE TENSORSTUDIO_HAS_CBLAS=1)
+    endif()
+  endif()
+endif()
 
 if(MSVC)
   target_compile_options(_C PRIVATE /W4 /permissive-)

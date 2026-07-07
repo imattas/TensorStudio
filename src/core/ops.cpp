@@ -1,14 +1,23 @@
 #include "tensorstudio/ops.hpp"
 
+#if defined(TENSORSTUDIO_HAS_ACCELERATE)
+#include <Accelerate/Accelerate.h>
+#elif defined(TENSORSTUDIO_HAS_CBLAS)
+#include <cblas.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
+#include <mutex>
 #include <numeric>
 #include <type_traits>
 #include <vector>
 
 #include "tensorstudio/autograd.hpp"
 #include "tensorstudio/errors.hpp"
+#include "tensorstudio/perf.hpp"
 
 namespace tensorstudio {
 
@@ -89,6 +98,146 @@ double value_at_storage_unchecked(const Tensor& tensor, int64_t storage_index) {
       return to_double(raw_data<bool>(tensor)[index]);
   }
   throw DTypeError("unknown dtype");
+}
+
+struct AddOp {
+  double operator()(double a, double b) const {
+    return a + b;
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return a + b;
+  }
+};
+
+struct SubOp {
+  double operator()(double a, double b) const {
+    return a - b;
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return a - b;
+  }
+};
+
+struct MulOp {
+  double operator()(double a, double b) const {
+    return a * b;
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return a * b;
+  }
+};
+
+struct DivOp {
+  double operator()(double a, double b) const {
+    return a / b;
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return a / b;
+  }
+};
+
+struct MaximumOp {
+  double operator()(double a, double b) const {
+    return std::max(a, b);
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return std::max(a, b);
+  }
+};
+
+struct MinimumOp {
+  double operator()(double a, double b) const {
+    return std::min(a, b);
+  }
+  template <typename T>
+  T typed(T a, T b) const {
+    return std::min(a, b);
+  }
+};
+
+struct NegOp {
+  double operator()(double value) const {
+    return -value;
+  }
+  template <typename T>
+  T typed(T value) const {
+    return -value;
+  }
+};
+
+struct ReluOp {
+  double operator()(double value) const {
+    return std::max(0.0, value);
+  }
+  template <typename T>
+  T typed(T value) const {
+    return std::max<T>(static_cast<T>(0), value);
+  }
+};
+
+struct SigmoidOp {
+  double operator()(double value) const {
+    return 1.0 / (1.0 + std::exp(-value));
+  }
+  template <typename T>
+  T typed(T value) const {
+    return static_cast<T>(1) / (static_cast<T>(1) + std::exp(-value));
+  }
+};
+
+struct TanhOp {
+  double operator()(double value) const {
+    return std::tanh(value);
+  }
+  template <typename T>
+  T typed(T value) const {
+    return std::tanh(value);
+  }
+};
+
+struct ExpOp {
+  double operator()(double value) const {
+    return std::exp(value);
+  }
+  template <typename T>
+  T typed(T value) const {
+    return std::exp(value);
+  }
+};
+
+struct LogOp {
+  double operator()(double value) const {
+    return std::log(value);
+  }
+  template <typename T>
+  T typed(T value) const {
+    return std::log(value);
+  }
+};
+
+template <typename Op, typename T>
+auto typed_binary_apply(const Op& op, T a, T b, int) -> decltype(op.template typed<T>(a, b)) {
+  return op.template typed<T>(a, b);
+}
+
+template <typename Op, typename T>
+T typed_binary_apply(const Op& op, T a, T b, long) {
+  return from_double<T>(op(to_double(a), to_double(b)));
+}
+
+template <typename Op, typename T>
+auto typed_unary_apply(const Op& op, T value, int) -> decltype(op.template typed<T>(value)) {
+  return op.template typed<T>(value);
+}
+
+template <typename Op, typename T>
+T typed_unary_apply(const Op& op, T value, long) {
+  return from_double<T>(op(to_double(value)));
 }
 
 void set_value_at_storage_unchecked(Tensor& tensor, int64_t storage_index, double value) {
@@ -193,9 +342,17 @@ void binary_direct_kernel(Tensor& out, const Tensor& left, const Tensor& right, 
   auto* out_data = raw_data<OutT>(out) + out.offset();
   const auto* left_data = raw_data<LeftT>(left) + left.offset();
   const auto* right_data = raw_data<RightT>(right) + right.offset();
-  for (int64_t i = 0; i < count; ++i) {
-    out_data[i] = from_double<OutT>(op(to_double(left_data[i]), to_double(right_data[i])));
-  }
+  perf::parallel_for(0, count, 16 * 1024, [&](int64_t begin, int64_t end) {
+    for (int64_t i = begin; i < end; ++i) {
+      if constexpr (
+          std::is_same_v<OutT, LeftT> && std::is_same_v<OutT, RightT> &&
+          (std::is_same_v<OutT, float> || std::is_same_v<OutT, double>)) {
+        out_data[i] = typed_binary_apply(op, left_data[i], right_data[i], 0);
+      } else {
+        out_data[i] = from_double<OutT>(op(to_double(left_data[i]), to_double(right_data[i])));
+      }
+    }
+  });
 }
 
 template <typename OutT, typename LeftT, typename RightT, typename Op>
@@ -203,10 +360,19 @@ void binary_left_scalar_kernel(Tensor& out, const Tensor& left, const Tensor& ri
   const auto count = out.numel();
   auto* out_data = raw_data<OutT>(out) + out.offset();
   const double left_value = to_double(raw_data<LeftT>(left)[static_cast<std::size_t>(left.offset())]);
+  const LeftT typed_left_value = raw_data<LeftT>(left)[static_cast<std::size_t>(left.offset())];
   const auto* right_data = raw_data<RightT>(right) + right.offset();
-  for (int64_t i = 0; i < count; ++i) {
-    out_data[i] = from_double<OutT>(op(left_value, to_double(right_data[i])));
-  }
+  perf::parallel_for(0, count, 16 * 1024, [&](int64_t begin, int64_t end) {
+    for (int64_t i = begin; i < end; ++i) {
+      if constexpr (
+          std::is_same_v<OutT, LeftT> && std::is_same_v<OutT, RightT> &&
+          (std::is_same_v<OutT, float> || std::is_same_v<OutT, double>)) {
+        out_data[i] = typed_binary_apply(op, typed_left_value, right_data[i], 0);
+      } else {
+        out_data[i] = from_double<OutT>(op(left_value, to_double(right_data[i])));
+      }
+    }
+  });
 }
 
 template <typename OutT, typename LeftT, typename RightT, typename Op>
@@ -215,9 +381,18 @@ void binary_right_scalar_kernel(Tensor& out, const Tensor& left, const Tensor& r
   auto* out_data = raw_data<OutT>(out) + out.offset();
   const auto* left_data = raw_data<LeftT>(left) + left.offset();
   const double right_value = to_double(raw_data<RightT>(right)[static_cast<std::size_t>(right.offset())]);
-  for (int64_t i = 0; i < count; ++i) {
-    out_data[i] = from_double<OutT>(op(to_double(left_data[i]), right_value));
-  }
+  const RightT typed_right_value = raw_data<RightT>(right)[static_cast<std::size_t>(right.offset())];
+  perf::parallel_for(0, count, 16 * 1024, [&](int64_t begin, int64_t end) {
+    for (int64_t i = begin; i < end; ++i) {
+      if constexpr (
+          std::is_same_v<OutT, LeftT> && std::is_same_v<OutT, RightT> &&
+          (std::is_same_v<OutT, float> || std::is_same_v<OutT, double>)) {
+        out_data[i] = typed_binary_apply(op, left_data[i], typed_right_value, 0);
+      } else {
+        out_data[i] = from_double<OutT>(op(to_double(left_data[i]), right_value));
+      }
+    }
+  });
 }
 
 template <typename OutT, typename LeftT, typename RightT, typename Op>
@@ -327,9 +502,16 @@ void unary_contiguous_kernel(Tensor& out, const Tensor& input, Op op) {
   const auto count = out.numel();
   auto* out_data = raw_data<OutT>(out) + out.offset();
   const auto* input_data = raw_data<InT>(input) + input.offset();
-  for (int64_t i = 0; i < count; ++i) {
-    out_data[i] = from_double<OutT>(op(to_double(input_data[i])));
-  }
+  perf::parallel_for(0, count, 16 * 1024, [&](int64_t begin, int64_t end) {
+    for (int64_t i = begin; i < end; ++i) {
+      if constexpr (
+          std::is_same_v<OutT, InT> && (std::is_same_v<OutT, float> || std::is_same_v<OutT, double>)) {
+        out_data[i] = typed_unary_apply(op, input_data[i], 0);
+      } else {
+        out_data[i] = from_double<OutT>(op(to_double(input_data[i])));
+      }
+    }
+  });
 }
 
 template <typename OutT, typename Op>
@@ -380,8 +562,21 @@ template <typename T>
 double sum_contiguous_kernel(const Tensor& input) {
   const auto* data = raw_data<T>(input) + input.offset();
   double acc = 0.0;
-  for (int64_t i = 0; i < input.numel(); ++i) {
-    acc += to_double(data[i]);
+  const int64_t count = input.numel();
+  if (perf::threads_enabled() && count > 32 * 1024) {
+    std::mutex mutex;
+    perf::parallel_for(0, count, 32 * 1024, [&](int64_t begin, int64_t end) {
+      double local = 0.0;
+      for (int64_t i = begin; i < end; ++i) {
+        local += to_double(data[i]);
+      }
+      std::lock_guard<std::mutex> lock(mutex);
+      acc += local;
+    });
+  } else {
+    for (int64_t i = 0; i < count; ++i) {
+      acc += to_double(data[i]);
+    }
   }
   return acc;
 }
@@ -408,14 +603,16 @@ void sum_axis2d_contiguous_kernel(std::vector<double>& values, const Tensor& inp
   const int64_t rows = input.shape()[0];
   const int64_t cols = input.shape()[1];
   if (axis == 1) {
-    for (int64_t row = 0; row < rows; ++row) {
-      double acc = 0.0;
-      const int64_t row_offset = row * cols;
-      for (int64_t col = 0; col < cols; ++col) {
-        acc += to_double(data[row_offset + col]);
+    perf::parallel_for(0, rows, 128, [&](int64_t row_begin, int64_t row_end) {
+      for (int64_t row = row_begin; row < row_end; ++row) {
+        double acc = 0.0;
+        const int64_t row_offset = row * cols;
+        for (int64_t col = 0; col < cols; ++col) {
+          acc += to_double(data[row_offset + col]);
+        }
+        values[static_cast<std::size_t>(row)] = acc;
       }
-      values[static_cast<std::size_t>(row)] = acc;
-    }
+    });
     return;
   }
 
@@ -508,6 +705,75 @@ Tensor elementwise_unary_impl(const Tensor& input, DType dtype, Op op) {
   return out;
 }
 
+bool blas_dimensions_supported(int64_t rows, int64_t inner, int64_t cols) {
+  constexpr int64_t max_blas_int = static_cast<int64_t>(std::numeric_limits<int>::max());
+  return rows <= max_blas_int && inner <= max_blas_int && cols <= max_blas_int;
+}
+
+bool try_blas_matmul(
+    Tensor& out,
+    const Tensor& left,
+    const Tensor& right,
+    int64_t rows,
+    int64_t inner,
+    int64_t cols) {
+#if defined(TENSORSTUDIO_HAS_CBLAS) || defined(TENSORSTUDIO_HAS_ACCELERATE)
+  if (!blas_dimensions_supported(rows, inner, cols)) {
+    return false;
+  }
+  if (left.dtype() == DType::Float32 && right.dtype() == DType::Float32 && out.dtype() == DType::Float32) {
+    const auto m = static_cast<int>(rows);
+    const auto n = static_cast<int>(cols);
+    const auto k = static_cast<int>(inner);
+    cblas_sgemm(
+        CblasRowMajor,
+        CblasNoTrans,
+        CblasNoTrans,
+        m,
+        n,
+        k,
+        1.0F,
+        raw_data<float>(left) + left.offset(),
+        k,
+        raw_data<float>(right) + right.offset(),
+        n,
+        0.0F,
+        raw_data<float>(out) + out.offset(),
+        n);
+    return true;
+  }
+  if (left.dtype() == DType::Float64 && right.dtype() == DType::Float64 && out.dtype() == DType::Float64) {
+    const auto m = static_cast<int>(rows);
+    const auto n = static_cast<int>(cols);
+    const auto k = static_cast<int>(inner);
+    cblas_dgemm(
+        CblasRowMajor,
+        CblasNoTrans,
+        CblasNoTrans,
+        m,
+        n,
+        k,
+        1.0,
+        raw_data<double>(left) + left.offset(),
+        k,
+        raw_data<double>(right) + right.offset(),
+        n,
+        0.0,
+        raw_data<double>(out) + out.offset(),
+        n);
+    return true;
+  }
+#else
+  (void)out;
+  (void)left;
+  (void)right;
+  (void)rows;
+  (void)inner;
+  (void)cols;
+#endif
+  return false;
+}
+
 template <typename LeftT, typename RightT>
 void matmul_contiguous_kernel(
     Tensor& out,
@@ -522,17 +788,19 @@ void matmul_contiguous_kernel(
   if constexpr (std::is_same_v<LeftT, float> && std::is_same_v<RightT, float>) {
     if (out.dtype() == DType::Float32) {
       std::vector<float> accumulator(static_cast<std::size_t>(rows * cols), 0.0F);
-      for (int64_t r = 0; r < rows; ++r) {
-        auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
-        const auto* left_row = left_data + r * inner;
-        for (int64_t k = 0; k < inner; ++k) {
-          const float left_value = left_row[k];
-          const auto* right_row = right_data + k * cols;
-          for (int64_t c = 0; c < cols; ++c) {
-            out_row[c] += left_value * right_row[c];
+      perf::parallel_for(0, rows, 8, [&](int64_t row_begin, int64_t row_end) {
+        for (int64_t r = row_begin; r < row_end; ++r) {
+          auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
+          const auto* left_row = left_data + r * inner;
+          for (int64_t k = 0; k < inner; ++k) {
+            const float left_value = left_row[k];
+            const auto* right_row = right_data + k * cols;
+            for (int64_t c = 0; c < cols; ++c) {
+              out_row[c] += left_value * right_row[c];
+            }
           }
         }
-      }
+      });
       auto* out_data = raw_data<float>(out) + out.offset();
       std::copy(accumulator.begin(), accumulator.end(), out_data);
       return;
@@ -541,17 +809,19 @@ void matmul_contiguous_kernel(
 
   std::vector<double> accumulator(static_cast<std::size_t>(rows * cols), 0.0);
 
-  for (int64_t r = 0; r < rows; ++r) {
-    auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
-    const auto* left_row = left_data + r * inner;
-    for (int64_t k = 0; k < inner; ++k) {
-      const double left_value = to_double(left_row[k]);
-      const auto* right_row = right_data + k * cols;
-      for (int64_t c = 0; c < cols; ++c) {
-        out_row[c] += left_value * to_double(right_row[c]);
+  perf::parallel_for(0, rows, 8, [&](int64_t row_begin, int64_t row_end) {
+    for (int64_t r = row_begin; r < row_end; ++r) {
+      auto* out_row = accumulator.data() + static_cast<std::size_t>(r * cols);
+      const auto* left_row = left_data + r * inner;
+      for (int64_t k = 0; k < inner; ++k) {
+        const double left_value = to_double(left_row[k]);
+        const auto* right_row = right_data + k * cols;
+        for (int64_t c = 0; c < cols; ++c) {
+          out_row[c] += left_value * to_double(right_row[c]);
+        }
       }
     }
-  }
+  });
 
   write_contiguous_from_accumulator(out, accumulator);
 }
@@ -690,7 +960,7 @@ Tensor index_impl(const Tensor& input, const std::vector<TensorIndex>& indices, 
 
 Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   Tensor out = elementwise_binary_impl(
-      left, right, promote_types(left.dtype(), right.dtype()), [](double a, double b) { return a + b; }, track_grad);
+      left, right, promote_types(left.dtype(), right.dtype()), AddOp{}, track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left_shape = left.shape(), right_shape = right.shape()](const Tensor& grad) {
       return std::vector<Tensor>{unbroadcast(grad, left_shape), unbroadcast(grad, right_shape)};
@@ -701,7 +971,7 @@ Tensor add_impl(const Tensor& left, const Tensor& right, bool track_grad) {
 
 Tensor sub_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   Tensor out = elementwise_binary_impl(
-      left, right, promote_types(left.dtype(), right.dtype()), [](double a, double b) { return a - b; }, track_grad);
+      left, right, promote_types(left.dtype(), right.dtype()), SubOp{}, track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left_shape = left.shape(), right_shape = right.shape()](const Tensor& grad) {
       return std::vector<Tensor>{unbroadcast(grad, left_shape), unbroadcast(neg_impl(grad, false), right_shape)};
@@ -712,7 +982,7 @@ Tensor sub_impl(const Tensor& left, const Tensor& right, bool track_grad) {
 
 Tensor mul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   Tensor out = elementwise_binary_impl(
-      left, right, promote_types(left.dtype(), right.dtype()), [](double a, double b) { return a * b; }, track_grad);
+      left, right, promote_types(left.dtype(), right.dtype()), MulOp{}, track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
       Tensor left_grad = unbroadcast(mul_impl(grad, right, false), left.shape());
@@ -726,8 +996,7 @@ Tensor mul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
 Tensor div_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   const DType dtype =
       left.dtype() == DType::Float64 || right.dtype() == DType::Float64 ? DType::Float64 : DType::Float32;
-  Tensor out =
-      elementwise_binary_impl(left, right, dtype, [](double a, double b) { return a / b; }, track_grad);
+  Tensor out = elementwise_binary_impl(left, right, dtype, DivOp{}, track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
       Tensor left_grad = unbroadcast(div_impl(grad, right, false), left.shape());
@@ -772,7 +1041,7 @@ Tensor maximum_impl(const Tensor& left, const Tensor& right, bool track_grad) {
       left,
       right,
       promote_types(left.dtype(), right.dtype()),
-      [](double a, double b) { return std::max(a, b); },
+      MaximumOp{},
       track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
@@ -791,7 +1060,7 @@ Tensor minimum_impl(const Tensor& left, const Tensor& right, bool track_grad) {
       left,
       right,
       promote_types(left.dtype(), right.dtype()),
-      [](double a, double b) { return std::min(a, b); },
+      MinimumOp{},
       track_grad);
   if (track_grad) {
     set_history(out, {left, right}, [left, right](const Tensor& grad) {
@@ -871,7 +1140,7 @@ Tensor where_impl(
 }
 
 Tensor neg_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, input.dtype(), [](double value) { return -value; });
+  Tensor out = elementwise_unary_impl(input, input.dtype(), NegOp{});
   if (track_grad) {
     set_history(out, {input}, [](const Tensor& grad) { return std::vector<Tensor>{neg_impl(grad, false)}; });
   }
@@ -908,19 +1177,23 @@ Tensor matmul_impl(const Tensor& left, const Tensor& right, bool track_grad) {
   Tensor out({rows, cols}, promote_types(left.dtype(), right.dtype()), false);
 
   if (left.is_contiguous() && right.is_contiguous()) {
-    matmul_contiguous_fast_path(out, left, right, rows, inner, cols);
-  } else {
-    for (int64_t r = 0; r < rows; ++r) {
-      for (int64_t c = 0; c < cols; ++c) {
-        double acc = 0.0;
-        for (int64_t k = 0; k < inner; ++k) {
-          const int64_t left_storage = left.offset() + r * left.strides()[0] + k * left.strides()[1];
-          const int64_t right_storage = right.offset() + k * right.strides()[0] + c * right.strides()[1];
-          acc += value_at_storage_unchecked(left, left_storage) * value_at_storage_unchecked(right, right_storage);
-        }
-        set_value_at_storage_unchecked(out, r * cols + c, acc);
-      }
+    if (!try_blas_matmul(out, left, right, rows, inner, cols)) {
+      matmul_contiguous_fast_path(out, left, right, rows, inner, cols);
     }
+  } else {
+    perf::parallel_for(0, rows, 8, [&](int64_t row_begin, int64_t row_end) {
+      for (int64_t r = row_begin; r < row_end; ++r) {
+        for (int64_t c = 0; c < cols; ++c) {
+          double acc = 0.0;
+          for (int64_t k = 0; k < inner; ++k) {
+            const int64_t left_storage = left.offset() + r * left.strides()[0] + k * left.strides()[1];
+            const int64_t right_storage = right.offset() + k * right.strides()[0] + c * right.strides()[1];
+            acc += value_at_storage_unchecked(left, left_storage) * value_at_storage_unchecked(right, right_storage);
+          }
+          set_value_at_storage_unchecked(out, r * cols + c, acc);
+        }
+      }
+    });
   }
 
   if (track_grad) {
@@ -1042,8 +1315,10 @@ void conv2d_forward_kernel(
   const int64_t out_h = out.shape()[2];
   const int64_t out_w = out.shape()[3];
 
-  for (int64_t n = 0; n < batch; ++n) {
-    for (int64_t oc = 0; oc < out_channels; ++oc) {
+  perf::parallel_for(0, batch * out_channels, 1, [&](int64_t begin, int64_t end) {
+    for (int64_t task = begin; task < end; ++task) {
+      const int64_t n = task / out_channels;
+      const int64_t oc = task % out_channels;
       const double bias_value =
           bias.has_value() ? value_at_storage_unchecked(*bias, storage_offset_1d(*bias, oc)) : 0.0;
       for (int64_t oh = 0; oh < out_h; ++oh) {
@@ -1072,7 +1347,7 @@ void conv2d_forward_kernel(
         }
       }
     }
-  }
+  });
 }
 
 Tensor conv2d_input_grad(
@@ -1319,8 +1594,10 @@ void max_pool2d_forward_kernel(
   const int64_t out_h = out.shape()[2];
   const int64_t out_w = out.shape()[3];
 
-  for (int64_t n = 0; n < batch; ++n) {
-    for (int64_t c = 0; c < channels; ++c) {
+  perf::parallel_for(0, batch * channels, 1, [&](int64_t begin, int64_t end) {
+    for (int64_t task = begin; task < end; ++task) {
+      const int64_t n = task / channels;
+      const int64_t c = task % channels;
       for (int64_t oh = 0; oh < out_h; ++oh) {
         for (int64_t ow = 0; ow < out_w; ++ow) {
           double max_value = -std::numeric_limits<double>::infinity();
@@ -1347,7 +1624,7 @@ void max_pool2d_forward_kernel(
         }
       }
     }
-  }
+  });
 }
 
 void avg_pool2d_forward_kernel(
@@ -1368,8 +1645,10 @@ void avg_pool2d_forward_kernel(
   const int64_t out_w = out.shape()[3];
   const double padded_window_count = static_cast<double>(kernel_h * kernel_w);
 
-  for (int64_t n = 0; n < batch; ++n) {
-    for (int64_t c = 0; c < channels; ++c) {
+  perf::parallel_for(0, batch * channels, 1, [&](int64_t begin, int64_t end) {
+    for (int64_t task = begin; task < end; ++task) {
+      const int64_t n = task / channels;
+      const int64_t c = task % channels;
       for (int64_t oh = 0; oh < out_h; ++oh) {
         for (int64_t ow = 0; ow < out_w; ++ow) {
           double acc = 0.0;
@@ -1396,7 +1675,7 @@ void avg_pool2d_forward_kernel(
         }
       }
     }
-  }
+  });
 }
 
 Tensor max_pool2d_input_grad(
@@ -2291,7 +2570,7 @@ Tensor arg_extreme_axis_impl(
 }
 
 Tensor relu_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, input.dtype(), [](double value) { return std::max(0.0, value); });
+  Tensor out = elementwise_unary_impl(input, input.dtype(), ReluOp{});
   if (track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       Tensor mask(input.shape(), grad.dtype(), false);
@@ -2305,9 +2584,8 @@ Tensor relu_impl(const Tensor& input, bool track_grad) {
 }
 
 Tensor sigmoid_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
-    return 1.0 / (1.0 + std::exp(-value));
-  });
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, SigmoidOp{});
   if (track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       Tensor y = sigmoid_impl(input, false);
@@ -2319,9 +2597,8 @@ Tensor sigmoid_impl(const Tensor& input, bool track_grad) {
 }
 
 Tensor tanh_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
-    return std::tanh(value);
-  });
+  Tensor out =
+      elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, TanhOp{});
   if (track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       Tensor y = tanh_impl(input, false);
@@ -2333,9 +2610,7 @@ Tensor tanh_impl(const Tensor& input, bool track_grad) {
 }
 
 Tensor exp_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
-    return std::exp(value);
-  });
+  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, ExpOp{});
   if (track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       return std::vector<Tensor>{mul_impl(grad, exp_impl(input, false), false)};
@@ -2345,9 +2620,7 @@ Tensor exp_impl(const Tensor& input, bool track_grad) {
 }
 
 Tensor log_impl(const Tensor& input, bool track_grad) {
-  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, [](double value) {
-    return std::log(value);
-  });
+  Tensor out = elementwise_unary_impl(input, dtype_is_floating(input.dtype()) ? input.dtype() : DType::Float32, LogOp{});
   if (track_grad) {
     set_history(out, {input}, [input](const Tensor& grad) {
       return std::vector<Tensor>{div_impl(grad, input, false)};
