@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.3.1` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.3.2` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, and ONNX-export foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
@@ -18,7 +18,9 @@ tensor semantics.
 - Completed in `1.3.1`: define, expose, test, and document dtype promotion
   rules across binary arithmetic, division, matrix multiplication, and
   comparisons.
-- Add exhaustive broadcasting tests for every elementwise operation.
+- Completed in `1.3.2`: add exhaustive broadcasting tests for every binary
+  elementwise arithmetic and comparison operation, including functional and
+  operator overload paths.
 - Add tuple-axis reductions for `sum`, `mean`, `max`, and `min`.
 - Add arg reductions: `argmax` and `argmin`.
 - Add `where`, `maximum`, `minimum`, `clip`, and richer comparison helpers.

@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## 1.3.2 - 2026-07-07
+
+- Completed the second ordered roadmap item with exhaustive binary
+  elementwise broadcasting tests.
+- Added NumPy comparison coverage for broadcasted `add`, `sub`, `mul`, `div`,
+  equality, inequality, and ordered comparisons.
+- Added incompatible-broadcast error tests and operator-overload broadcasting
+  parity tests.
+
 ## 1.3.1 - 2026-07-07
 
 - Started the ordered roadmap release train with the dtype-promotion contract.
