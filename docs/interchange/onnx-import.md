@@ -1,6 +1,6 @@
 # ONNX Import
 
-TensorStudio `1.12.0` can inspect ONNX files and import a constrained static
+TensorStudio `1.13.0` can inspect ONNX files and import a constrained static
 subset for eager TensorStudio execution.
 
 ## Inspect

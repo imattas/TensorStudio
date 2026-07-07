@@ -1,6 +1,6 @@
 # Vision Transforms
 
-TensorStudio `1.12.0` includes `tensorstudio.vision` batch-aware image
+TensorStudio `1.13.0` includes `tensorstudio.vision` batch-aware image
 transforms and practical augmentations for small local computer-vision
 experiments.
 

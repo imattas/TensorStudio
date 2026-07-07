@@ -46,7 +46,7 @@ backward call only when the same graph must be reused.
 
 ## Supported Gradient Operations
 
-`1.12.0` supports gradients for:
+`1.13.0` supports gradients for:
 
 - `add`
 - `sub`

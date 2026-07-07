@@ -1,6 +1,6 @@
 # SafeTensors
 
-TensorStudio `1.12.0` supports optional SafeTensors weight storage for flat
+TensorStudio `1.13.0` supports optional SafeTensors weight storage for flat
 tensor mappings such as `state_dict()` outputs.
 
 Install the optional dependency:

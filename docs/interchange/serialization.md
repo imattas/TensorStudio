@@ -1,6 +1,6 @@
 # Serialization
 
-TensorStudio `1.12.0` provides trusted pickle roundtrips for internal objects,
+TensorStudio `1.13.0` provides trusted pickle roundtrips for internal objects,
 non-pickle NPZ files for tensor/state_dict interchange, and optional
 SafeTensors support for tensor-only weight maps.
 

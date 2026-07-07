@@ -1,7 +1,7 @@
 # Roadmap
 
-TensorStudio `1.12.0` is a CPU-first tensor, autograd, neural-network, vision,
-project, serialization, and ONNX-export foundation. The long-term direction is
+TensorStudio `1.13.0` is a CPU-first tensor, autograd, neural-network, vision,
+project, serialization, ONNX, and release-automation foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
 such as PyTorch, TensorFlow, NumPy, and JAX.
@@ -184,14 +184,14 @@ compatibility.
 
 Release automation should make every published build reproducible and tested.
 
-- Add clean wheel install tests on Windows, Linux, and macOS.
-- Add clean sdist install tests where source builds are expected.
-- Add manylinux, macOS universal/arm64, and Windows wheel verification.
-- Add benchmark artifacts to release workflows.
-- Add TestPyPI dry-run guidance before every production PyPI release.
-- Prefer PyPI trusted publishing over raw tokens.
-- Add docs publishing automation.
-- Add ABI and platform compatibility notes for native builds.
+- Completed in `1.13.0`: add clean wheel install tests on Windows, Linux, and macOS.
+- Completed in `1.13.0`: add clean sdist install tests where source builds are expected.
+- Completed in `1.13.0`: add manylinux, macOS universal/arm64, and Windows wheel verification.
+- Completed in `1.13.0`: add benchmark artifacts to release workflows.
+- Completed in `1.13.0`: add TestPyPI dry-run guidance before every production PyPI release.
+- Completed in `1.13.0`: prefer PyPI trusted publishing over raw tokens.
+- Completed in `1.13.0`: add docs publishing automation.
+- Completed in `1.13.0`: add ABI and platform compatibility notes for native builds.
 
 ## 10. Hardware Backends
 

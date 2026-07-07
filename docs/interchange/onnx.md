@@ -1,6 +1,6 @@
 # ONNX Interchange
 
-TensorStudio `1.12.0` includes a limited ONNX exporter, ONNX metadata
+TensorStudio `1.13.0` includes a limited ONNX exporter, ONNX metadata
 inspection, and supported-subset ONNX import/execution for TensorStudio module
 stacks.
 

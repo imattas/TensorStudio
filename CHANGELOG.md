@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+## 1.13.0 - 2026-07-07
+
+- Completed the ordered Packaging, CI, And Release Quality roadmap section as
+  one release batch.
+- Added `tools/verify_artifacts.py` for clean wheel and sdist install smoke
+  tests in isolated virtual environments.
+- Expanded CI with cross-platform wheel/sdist artifact smoke jobs on Windows,
+  Linux, and macOS.
+- Hardened wheel, TestPyPI, and PyPI workflows with clean artifact verification
+  before upload.
+- Added benchmark report artifacts to release workflows.
+- Added GitHub Pages docs publishing automation with strict MkDocs builds.
+- Expanded macOS wheel coverage to include universal2 builds where supported by
+  cibuildwheel.
+- Added native ABI, wheel-tag, source-build, BLAS, and platform compatibility
+  documentation.
+
 ## 1.12.0 - 2026-07-07
 
 - Completed the ordered Serialization And Interchange roadmap section as one

@@ -80,6 +80,7 @@ nav:
   - Release:
       - Publishing: release/publishing.md
       - Versioning: release/versioning.md
+      - Platform Compatibility: release/platform-compatibility.md
       - Release Checklist: release/checklist.md
   - Roadmap:
       - Roadmap: roadmap/roadmap.md

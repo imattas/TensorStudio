@@ -70,7 +70,17 @@ numbers can change, but the order should stay foundation-first.
   subset, metadata extraction for NPZ/SafeTensors/ONNX/trusted checkpoints,
   versioned checkpoint metadata, and model-card metadata export.
 
-## Milestone G: Hardware And Scale
+## Milestone G: Packaging And Release Quality
+
+- Add clean artifact install checks on every major platform.
+- Publish benchmark reports as workflow artifacts.
+- Publish docs through GitHub Pages.
+- Prefer PyPI trusted publishing and keep token fallback out of workflows.
+- Completed in `1.13.0`: added cross-platform clean wheel/sdist install
+  verification, benchmark report artifacts, TestPyPI and PyPI trusted-publish
+  workflow hardening, GitHub Pages docs automation, and ABI/platform notes.
+
+## Milestone H: Hardware And Scale
 
 - Introduce a backend interface.
 - Add CPU threading.

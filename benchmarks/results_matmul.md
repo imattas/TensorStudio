@@ -8,7 +8,7 @@ TensorStudio is compared on CPU only and uses the same shapes and dtype.
 - Platform: `Windows-10-10.0.26200-SP0`
 - Processor: `Intel64 Family 6 Model 158 Stepping 10, GenuineIntel`
 - Python: `3.10.11`
-- TensorStudio: `1.12.0`
+- TensorStudio: `1.13.0`
 - TensorStudio threads: `12`
 - TensorStudio BLAS enabled: `False`
 - TensorStudio SIMD level: `sse2`
@@ -31,18 +31,18 @@ TensorStudio did not beat NumPy on this machine for the available benchmark set.
 
 | category | operation | shape | library | median ms | mean ms | min ms | max ms | std ms | TS vs NumPy | TS vs TensorFlow | TS vs PyTorch | TS vs JAX | win vs NumPy | win vs TensorFlow | win vs PyTorch | win vs JAX | fastest library | result |
 |---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|---|---|---|
-| matmul | matmul | `(16, 16)` | TensorStudio | 0.0206 | 0.0212 | 0.0200 | 0.0244 | 0.0016 | 0.1018 | n/a | n/a | 0.5146 | no | n/a | n/a | no | NumPy | loss vs NumPy |
-| matmul | matmul | `(16, 16)` | NumPy | 0.0021 | 0.0021 | 0.0021 | 0.0021 | 0.0000 | 0.1018 | n/a | n/a | 0.5146 | no | n/a | n/a | no | NumPy | NumPy baseline |
-| matmul | matmul | `(16, 16)` | JAX CPU dispatch | 0.0106 | 0.0119 | 0.0098 | 0.0157 | 0.0023 | 0.1018 | n/a | n/a | 0.5146 | no | n/a | n/a | no | NumPy | reference |
-| matmul | matmul | `(64, 64)` | TensorStudio | 0.1104 | 0.1129 | 0.1013 | 0.1376 | 0.0130 | 0.0955 | n/a | n/a | 0.1539 | no | n/a | n/a | no | NumPy | loss vs NumPy |
-| matmul | matmul | `(64, 64)` | NumPy | 0.0105 | 0.0107 | 0.0105 | 0.0110 | 0.0003 | 0.0955 | n/a | n/a | 0.1539 | no | n/a | n/a | no | NumPy | NumPy baseline |
-| matmul | matmul | `(64, 64)` | JAX CPU dispatch | 0.0170 | 0.0173 | 0.0166 | 0.0187 | 0.0008 | 0.0955 | n/a | n/a | 0.1539 | no | n/a | n/a | no | NumPy | reference |
-| matmul | matmul | `(128, 128)` | TensorStudio | 0.4075 | 0.4236 | 0.3913 | 0.4878 | 0.0358 | 0.5939 | n/a | n/a | 0.2170 | no | n/a | n/a | no | JAX CPU dispatch | loss vs NumPy |
-| matmul | matmul | `(128, 128)` | NumPy | 0.2420 | 0.2630 | 0.2330 | 0.3154 | 0.0332 | 0.5939 | n/a | n/a | 0.2170 | no | n/a | n/a | no | JAX CPU dispatch | NumPy baseline |
-| matmul | matmul | `(128, 128)` | JAX CPU dispatch | 0.0884 | 0.0943 | 0.0810 | 0.1129 | 0.0131 | 0.5939 | n/a | n/a | 0.2170 | no | n/a | n/a | no | JAX CPU dispatch | reference |
-| matmul | matmul | `(256, 256)` | TensorStudio | 2.7452 | 2.7106 | 2.5279 | 2.8506 | 0.1145 | 0.1745 | n/a | n/a | 0.1107 | no | n/a | n/a | no | JAX CPU dispatch | loss vs NumPy |
-| matmul | matmul | `(256, 256)` | NumPy | 0.4791 | 0.4947 | 0.4527 | 0.5591 | 0.0420 | 0.1745 | n/a | n/a | 0.1107 | no | n/a | n/a | no | JAX CPU dispatch | NumPy baseline |
-| matmul | matmul | `(256, 256)` | JAX CPU dispatch | 0.3038 | 0.3065 | 0.2338 | 0.4227 | 0.0670 | 0.1745 | n/a | n/a | 0.1107 | no | n/a | n/a | no | JAX CPU dispatch | reference |
+| matmul | matmul | `(16, 16)` | TensorStudio | 0.0205 | 0.0209 | 0.0200 | 0.0221 | 0.0009 | 0.1015 | n/a | n/a | 0.5857 | no | n/a | n/a | no | NumPy | loss vs NumPy |
+| matmul | matmul | `(16, 16)` | NumPy | 0.0021 | 0.0021 | 0.0020 | 0.0022 | 0.0001 | 0.1015 | n/a | n/a | 0.5857 | no | n/a | n/a | no | NumPy | NumPy baseline |
+| matmul | matmul | `(16, 16)` | JAX CPU dispatch | 0.0120 | 0.0155 | 0.0104 | 0.0260 | 0.0060 | 0.1015 | n/a | n/a | 0.5857 | no | n/a | n/a | no | NumPy | reference |
+| matmul | matmul | `(64, 64)` | TensorStudio | 0.1084 | 0.1171 | 0.1018 | 0.1480 | 0.0165 | 0.1771 | n/a | n/a | 0.1498 | no | n/a | n/a | no | JAX CPU dispatch | loss vs NumPy |
+| matmul | matmul | `(64, 64)` | NumPy | 0.0192 | 0.0185 | 0.0167 | 0.0193 | 0.0010 | 0.1771 | n/a | n/a | 0.1498 | no | n/a | n/a | no | JAX CPU dispatch | NumPy baseline |
+| matmul | matmul | `(64, 64)` | JAX CPU dispatch | 0.0162 | 0.0207 | 0.0160 | 0.0386 | 0.0090 | 0.1771 | n/a | n/a | 0.1498 | no | n/a | n/a | no | JAX CPU dispatch | reference |
+| matmul | matmul | `(128, 128)` | TensorStudio | 0.4190 | 0.4156 | 0.3720 | 0.4464 | 0.0246 | 0.7100 | n/a | n/a | 0.2348 | no | n/a | n/a | no | JAX CPU dispatch | loss vs NumPy |
+| matmul | matmul | `(128, 128)` | NumPy | 0.2975 | 0.2908 | 0.2764 | 0.3016 | 0.0107 | 0.7100 | n/a | n/a | 0.2348 | no | n/a | n/a | no | JAX CPU dispatch | NumPy baseline |
+| matmul | matmul | `(128, 128)` | JAX CPU dispatch | 0.0984 | 0.1026 | 0.0939 | 0.1188 | 0.0091 | 0.7100 | n/a | n/a | 0.2348 | no | n/a | n/a | no | JAX CPU dispatch | reference |
+| matmul | matmul | `(256, 256)` | TensorStudio | 2.4819 | 2.5410 | 2.4032 | 2.7732 | 0.1317 | 0.1819 | n/a | n/a | 0.0875 | no | n/a | n/a | no | JAX CPU dispatch | loss vs NumPy |
+| matmul | matmul | `(256, 256)` | NumPy | 0.4515 | 0.4547 | 0.4373 | 0.4796 | 0.0141 | 0.1819 | n/a | n/a | 0.0875 | no | n/a | n/a | no | JAX CPU dispatch | NumPy baseline |
+| matmul | matmul | `(256, 256)` | JAX CPU dispatch | 0.2170 | 0.2222 | 0.2065 | 0.2546 | 0.0167 | 0.1819 | n/a | n/a | 0.0875 | no | n/a | n/a | no | JAX CPU dispatch | reference |
 
 Speedup columns are `competitor median / TensorStudio median`; values above 1.0 mean
 TensorStudio was faster for that specific case.
