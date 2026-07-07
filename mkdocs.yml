@@ -22,12 +22,14 @@ nav:
       - Tensor API: Usage/tensors.md
       - NumPy Interop: Usage/numpy-interop.md
       - Serialization: Usage/serialization.md
+      - ONNX Interchange: Usage/interchange.md
   - Autograd: Autograde/autograd.md
   - Autograd Coverage: Autograde/index.md
   - Neural Networks: Neural Networks/nn.md
   - Neural Network Guides:
       - Modules: Neural Networks/modules.md
       - Training: Neural Networks/training.md
+  - Vision: Vision/index.md
   - Optimizers: Usage/optim.md
   - Data: Usage/data.md
   - Serialization: serialization.md

@@ -1,6 +1,8 @@
 # Serialization
 
-TensorStudio exposes simple pickle-based helpers:
+TensorStudio exposes trusted pickle roundtrips and safer NPZ tensor files.
+
+## Trusted Object Roundtrips
 
 ```python
 import tensorstudio as ts
@@ -45,7 +47,26 @@ deserialization.
 
 Use TensorStudio serialization only for files you created or otherwise trust.
 
-## Future Work
+## NPZ Tensor And State Files
 
-Future releases may add a structured non-executable tensor checkpoint format.
-For `1.1.0`, pickle keeps the implementation small and clear.
+For portable tensor weights, prefer the non-pickle NPZ helpers:
+
+```python
+ts.save_npz(model.state_dict(), "weights.tsnpz")
+model.load_state_dict(ts.load_npz("weights.tsnpz"))
+```
+
+`save_npz` supports a single `Tensor` or a flat `dict[str, Tensor]`, such as an
+`nn.Module.state_dict()`. It stores raw NumPy arrays plus TensorStudio JSON
+metadata and loads with NumPy pickle support disabled.
+
+## ONNX Model Files
+
+TensorStudio can export supported module stacks to ONNX:
+
+```python
+ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
+```
+
+ONNX support is export-only in v1.2 and covers common TensorStudio layers such
+as `Linear`, `Conv2d`, `Flatten`, activations, and 2D pooling.

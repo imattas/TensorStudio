@@ -3,8 +3,9 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.1.0` is a CPU-only stable API foundation for the tensor, autograd,
-neural-network, optimizer, data, docs, packaging, and wheel workflows.
+`1.2.0` is a CPU-only stable API foundation for the tensor, autograd,
+neural-network, optimizer, data, serialization, ONNX export, vision, docs,
+packaging, and wheel workflows.
 
 ## Status
 
@@ -36,8 +37,10 @@ TensorStudio is:
 - Python `optim.SGD`, `optim.Adam`, `optim.AdamW`, gradient clipping helpers,
   and small learning-rate schedulers.
 - Minimal Windows-friendly `Dataset`, `TensorDataset`, and `DataLoader`.
-- NumPy copy interop, pickle-based internal serialization, examples, tests,
-  benchmarks, and GitHub Actions release workflows.
+- NumPy copy interop, pickle-based internal serialization, non-pickle NPZ
+  tensor/state_dict files, limited ONNX export, vision preprocessing and small
+  CNN helpers, examples, tests, benchmarks, and GitHub Actions release
+  workflows.
 
 ## Design Goals
 
@@ -53,13 +56,13 @@ TensorStudio prioritizes:
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
 graph compilation, grouped convolution, adaptive/global pooling, advanced
-indexing, sparse tensors, mixed precision, tuple-axis reductions, or a
-high-performance kernel library. Benchmarks are rough local references only;
-TensorStudio wins some small eager CPU cases but is not faster than PyTorch,
-NumPy, TensorFlow, or JAX overall.
+indexing, sparse tensors, mixed precision, tuple-axis reductions, a high
+performance kernel library, an ONNX runtime, or ONNX import. Benchmarks are
+rough local references only; TensorStudio wins some small eager CPU cases but is
+not faster than PyTorch, NumPy, TensorFlow, or JAX overall.
 
-Serialization uses pickle. Loading pickle files from untrusted sources is
-unsafe.
+Pickle serialization is available for trusted internal objects. Prefer
+`save_npz`/`load_npz` for portable tensor and state_dict files.
 
 ## Next Steps
 
@@ -67,5 +70,7 @@ unsafe.
 - Learn tensor semantics in [Tensors](Usage/tensors.md).
 - Understand gradients in [Autograd](Autograde/autograd.md).
 - Build small models with [Neural Networks](Neural%20Networks/nn.md).
+- Build image classifiers with [Vision](Vision/index.md).
+- Export supported module stacks with [ONNX Interchange](Usage/interchange.md).
 - Use small datasets with [Data](Usage/data.md).
 - Read [Publishing](publishing.md) before release work.

@@ -1,6 +1,6 @@
 # Roadmap
 
-TensorStudio `1.1.0` is a CPU-first foundation. This roadmap describes likely
+TensorStudio `1.2.0` is a CPU-first foundation. This roadmap describes likely
 directions without promising dates.
 
 ## Backend And Performance
@@ -39,7 +39,7 @@ directions without promising dates.
 
 ## Interchange And Tooling
 
-- ONNX import/export
+- ONNX import and broader export coverage
 - Richer serialization format
 - Documentation site publishing
 - More cibuildwheel targets

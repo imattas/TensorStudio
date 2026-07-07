@@ -1,6 +1,10 @@
 # Serialization
 
-TensorStudio `1.1.0` provides simple Python-level serialization:
+TensorStudio `1.2.0` provides two serialization paths: trusted pickle
+roundtrips for internal objects and non-pickle NPZ files for tensor/state_dict
+interchange.
+
+## Trusted Pickle Roundtrips
 
 ```python
 import tensorstudio as ts
@@ -11,12 +15,12 @@ obj = ts.load("object.tsmodel")
 
 ## Security Warning
 
-Serialization uses Python pickle. Pickle can execute arbitrary code during
-deserialization. Only load files from trusted sources.
+`save` and `load` use Python pickle. Pickle can execute arbitrary code during
+deserialization. Only load `.tsmodel` files from trusted sources.
 
 ## What Can Be Saved
 
-The current implementation is intended for TensorStudio objects such as:
+The pickle path is intended for TensorStudio objects such as:
 
 - tensors
 - Python modules made from `tensorstudio.nn`
@@ -32,12 +36,43 @@ ts.save(model, "model.tsmodel")
 loaded = ts.load("model.tsmodel")
 ```
 
-## Version Compatibility
+## Safer NPZ Tensor Files
 
-The release-candidate pickle format is intended for TensorStudio object
-roundtrips. For long-term model exchange, ONNX import/export is planned as
-future work.
+Use `save_npz` and `load_npz` for numeric tensor data and flat module
+`state_dict` mappings:
 
-## Recommended File Extension
+```python
+state = model.state_dict()
+ts.save_npz(state, "weights.tsnpz")
+loaded_state = ts.load_npz("weights.tsnpz")
+model.load_state_dict(loaded_state)
+```
 
-Use `.tsmodel` for TensorStudio pickle files.
+Single tensors are supported too:
+
+```python
+x = ts.tensor([[1.0, 2.0]], requires_grad=True)
+ts.save_npz(x, "tensor.tsnpz")
+roundtrip = ts.load_npz("tensor.tsnpz")
+```
+
+NPZ archives store NumPy arrays and TensorStudio JSON metadata with pickle
+disabled. They do not save arbitrary Python modules, optimizer objects, or
+custom classes.
+
+## ONNX Export
+
+For cross-tool model exchange, TensorStudio can export a supported module graph
+to ONNX when the `onnx` extra is installed:
+
+```python
+ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
+```
+
+See [ONNX Interchange](interchange.md) for supported module types and limits.
+
+## Recommended File Extensions
+
+- Use `.tsmodel` for trusted TensorStudio pickle files.
+- Use `.tsnpz` for tensor and state_dict NPZ files.
+- Use `.onnx` for exported ONNX model files.

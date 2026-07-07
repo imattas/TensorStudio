@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.1.0` is a CPU-only stable API foundation. It is eager-only,
+TensorStudio `1.2.0` is a CPU-only stable API foundation. It is eager-only,
 intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
@@ -23,6 +23,12 @@ From a source checkout:
 ```bash
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
+```
+
+Install optional extras for ONNX export and Pillow-backed image inputs:
+
+```bash
+python -m pip install "tensorstudio[onnx,vision]"
 ```
 
 Build source and wheel distributions:
@@ -148,6 +154,32 @@ print(model.state_dict().keys())
 print(model.parameter_count())
 ```
 
+## Vision
+
+TensorStudio includes a small vision namespace for image preprocessing and
+compact CNN classifiers. Image file decoding remains the job of Pillow or other
+image libraries; TensorStudio converts image-like arrays into channel-first
+tensors and runs the model with its native Conv2d and pooling kernels.
+
+```python
+import numpy as np
+import tensorstudio as ts
+from tensorstudio import nn, optim
+
+image = np.zeros((8, 8, 3), dtype=np.uint8)
+x = ts.vision.to_tensor(image).reshape((1, 3, 8, 8))
+x = ts.vision.normalize(x, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+
+model = ts.vision.TinyConvClassifier((3, 8, 8), num_classes=2)
+target = ts.tensor([1], dtype="int64")
+optimizer = optim.SGD(model.parameters(), lr=0.01)
+
+optimizer.zero_grad()
+loss = nn.CrossEntropyLoss()(model(x), target)
+loss.backward()
+optimizer.step()
+```
+
 ## DataLoader
 
 ```python
@@ -179,10 +211,10 @@ python benchmarks/benchmark_report.py
 columns for NumPy, TensorFlow, PyTorch, and JAX when those libraries are
 available locally.
 
-On one Windows CPython 3.10 development run reporting `1.1.0`, TensorStudio
-beat NumPy on 23 small operation benchmark cases and lost on 80
-NumPy-comparable cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 74
-local cases and lost 34. The strongest local wins were small eager operations,
+On one Windows CPython 3.10 development run reporting `1.2.0`, TensorStudio
+beat NumPy on 26 small operation benchmark cases and lost on 77
+NumPy-comparable cases. Against PyTorch CPU `2.12.1+cpu`, TensorStudio won 75
+local cases and lost 33. The strongest local wins were small eager operations,
 small contiguous axis reductions, and the simple NumPy convolution/pooling
 references where framework dispatch or Python loops dominate; larger matrix
 multiplication, PyTorch convolution and pooling, larger axis reductions, larger
@@ -195,15 +227,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | PyTorch CPU | TS vs NumPy | TS vs PyTorch |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0017 ms | 0.0036 ms | 0.0580 ms | 2.1201x | 33.8536x |
-| `mean` | `(32,)` | 0.0018 ms | 0.0078 ms | 0.0127 ms | 4.2927x | 7.0047x |
-| `sum_axis1` | `(16, 16)` | 0.0021 ms | 0.0029 ms | 0.0068 ms | 1.3727x | 3.2193x |
-| `chain_relu` | `(128,)` | 0.0086 ms | 0.0039 ms | 0.0559 ms | 0.4478x | 6.5042x |
-| `matmul` | `(256, 256)` | 4.1154 ms | 0.3679 ms | 0.0931 ms | 0.0894x | 0.0226x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1788 ms | 1.2241 ms | 0.0131 ms | 6.8478x | 0.0731x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0146 ms | 0.2649 ms | 0.0062 ms | 18.1659x | 0.4242x |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0139 ms | 0.5486 ms | 0.0052 ms | 39.5974x | 0.3748x |
-| `elementwise_backward` | `(1024,)` | 2.3885 ms | n/a | 0.1947 ms | n/a | 0.0815x |
+| `sigmoid` | `(32,)` | 0.0017 ms | 0.0038 ms | 0.0614 ms | 2.1691x | 35.3154x |
+| `mean` | `(32,)` | 0.0029 ms | 0.0131 ms | 0.0186 ms | 4.5638x | 6.4709x |
+| `sum_axis1` | `(16, 16)` | 0.0027 ms | 0.0029 ms | 0.0085 ms | 1.0894x | 3.1408x |
+| `chain_relu` | `(128,)` | 0.0112 ms | 0.0051 ms | 0.0726 ms | 0.4575x | 6.4533x |
+| `matmul` | `(256, 256)` | 4.4121 ms | 0.3779 ms | 0.1669 ms | 0.0856x | 0.0378x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2374 ms | 1.7112 ms | 0.0186 ms | 7.2091x | 0.0784x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0237 ms | 0.2764 ms | 0.0082 ms | 11.6685x | 0.3462x |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0198 ms | 0.7431 ms | 0.0073 ms | 37.4930x | 0.3662x |
+| `elementwise_backward` | `(1024,)` | 3.0196 ms | n/a | 0.2254 ms | n/a | 0.0746x |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -224,6 +256,39 @@ checkpoint = ts.load("checkpoint.tsmodel")
 
 Serialization uses pickle. Loading pickle files from untrusted sources is
 unsafe because pickle can execute arbitrary code.
+
+For safer tensor and `state_dict` interchange, use TensorStudio's non-pickle
+NPZ helpers:
+
+```python
+state = model.state_dict()
+ts.save_npz(state, "weights.tsnpz")
+model.load_state_dict(ts.load_npz("weights.tsnpz"))
+```
+
+## ONNX Export
+
+TensorStudio can export a supported `nn.Sequential` graph to ONNX when the
+optional `onnx` extra is installed:
+
+```python
+import tensorstudio as ts
+from tensorstudio import nn
+
+model = nn.Sequential(
+    nn.Conv2d(1, 2, kernel_size=3, padding=1),
+    nn.ReLU(),
+    nn.MaxPool2d(2),
+    nn.Flatten(),
+    nn.Linear(2 * 2 * 2, 3),
+)
+
+ts.export_onnx(model, "classifier.onnx", input_shape=(1, 1, 4, 4))
+```
+
+The v1.2 exporter supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`,
+`Tanh`, `MaxPool2d`, and `AvgPool2d`. It is an exporter, not an ONNX runtime or
+importer.
 
 ## Development
 
@@ -271,6 +336,9 @@ tokens or print secrets.
 - No graph compiler or distributed runtime.
 - Convolution and pooling support are currently limited to CPU NCHW
   `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
+- Vision utilities are preprocessing and small CNN helpers, not a full computer
+  vision library.
+- ONNX support is export-only for a limited set of TensorStudio modules.
 - Reductions support all-element or single-axis reductions, not tuple-axis
   reductions yet.
 - No sparse tensors or advanced indexing.
@@ -285,7 +353,7 @@ tokens or print secrets.
 - Broader convolution ops, adaptive/global pooling, and image-model examples
 - Richer dataset utilities
 - Model zoo examples
-- ONNX import/export
+- ONNX import and broader export coverage
 - Improved memory allocator
 - SIMD kernels
 - Multithreaded ops

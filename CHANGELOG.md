@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-07-07
+
+- Added `save_npz` and `load_npz` for non-pickle tensor and flat
+  `state_dict` files using NumPy NPZ archives plus TensorStudio JSON metadata.
+- Added optional ONNX export through `tensorstudio.export_onnx` and
+  `tensorstudio.interchange.export_onnx` for supported Sequential module
+  stacks.
+- Added `tensorstudio.vision` with image-to-tensor conversion, normalization,
+  center crop, nearest-neighbor resize, and a small `TinyConvClassifier`.
+- Added tests for NPZ roundtrips, ONNX graph validation, and vision classifier
+  forward/backward behavior.
+- Updated README and MkDocs pages for file formats, ONNX limits, and vision
+  workflows.
+
 ## 1.1.0 - 2026-07-07
 
 - Added native CPU NCHW `conv2d` with stride, padding, dilation, optional bias,

@@ -75,12 +75,8 @@ def main() -> None:
         commands.append([sys.executable, "-m", "pytest", "-q"])
     if not args.skip_examples:
         commands.extend(
-            [
-                [sys.executable, "examples/basic_tensor_ops.py"],
-                [sys.executable, "examples/linear_regression.py"],
-                [sys.executable, "examples/tiny_mlp.py"],
-                [sys.executable, "examples/save_load_model.py"],
-            ]
+            [sys.executable, str(path.relative_to(ROOT))]
+            for path in sorted((ROOT / "examples").glob("*.py"))
         )
     if not args.skip_docs:
         commands.append([sys.executable, "-m", "mkdocs", "build"])

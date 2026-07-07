@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from . import data, nn, optim
+from . import data, interchange, nn, optim, vision
 from ._version import __version__
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
+from .interchange import export_onnx
 from .ops import astype, avg_pool2d, concat, conv2d, max_pool2d, stack
-from .serialization import load, save
+from .serialization import load, load_npz, save, save_npz
 from .tensor import (
     Tensor,
     arange,
@@ -41,12 +42,15 @@ __all__ = [
     "empty",
     "empty_like",
     "eye",
+    "export_onnx",
     "from_numpy",
     "full",
     "full_like",
+    "interchange",
     "is_grad_enabled",
     "linspace",
     "load",
+    "load_npz",
     "manual_seed",
     "max_pool2d",
     "nn",
@@ -59,9 +63,11 @@ __all__ = [
     "randn",
     "randn_like",
     "save",
+    "save_npz",
     "set_grad_enabled",
     "stack",
     "tensor",
+    "vision",
     "zeros",
     "zeros_like",
 ]

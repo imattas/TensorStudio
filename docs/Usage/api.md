@@ -39,9 +39,14 @@ modules, optimizers, data utilities, and serialization helpers.
 - `manual_seed`
 - `save`
 - `load`
+- `save_npz`
+- `load_npz`
+- `export_onnx`
 - `no_grad`
 - `is_grad_enabled`
 - `set_grad_enabled`
+- `interchange`
+- `vision`
 - `data`
 - `nn`
 - `optim`
@@ -253,6 +258,25 @@ Import native exception aliases from `tensorstudio.errors`:
 ```python
 ts.save(obj, "object.tsmodel")
 loaded = ts.load("object.tsmodel")
+ts.save_npz(model.state_dict(), "weights.tsnpz")
+state = ts.load_npz("weights.tsnpz")
 ```
 
-Serialization uses pickle. Only load files from trusted sources.
+`save`/`load` use pickle. Only load pickle files from trusted sources.
+`save_npz`/`load_npz` store tensors and flat state dictionaries without pickle.
+
+## `tensorstudio.interchange`
+
+- `export_onnx(model, path, input_shape, input_name="input", output_name="output")`
+
+ONNX export supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`, `Tanh`,
+`MaxPool2d`, and `AvgPool2d` module stacks.
+
+## `tensorstudio.vision`
+
+- `to_tensor(image, dtype="float32", scale=True, channels_first=None)`
+- `normalize(input, mean, std)`
+- `center_crop(image, size)`
+- `resize_nearest(image, size)`
+- `TinyConvClassifier(input_shape, num_classes, hidden_channels=8)`
+- `make_cnn_classifier(input_shape, num_classes, hidden_channels=8)`

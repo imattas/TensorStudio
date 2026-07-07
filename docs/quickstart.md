@@ -14,7 +14,7 @@ pybind11, and scikit-build-core.
 
 ## Install
 
-From PyPI, after release-candidate wheels are published:
+From PyPI:
 
 ```bash
 python -m pip install tensorstudio
@@ -25,6 +25,12 @@ From a source checkout:
 ```bash
 python -m pip install -U pip
 python -m pip install -e ".[dev]"
+```
+
+Optional file-interchange and image-input extras:
+
+```bash
+python -m pip install "tensorstudio[onnx,vision]"
 ```
 
 Validate the install:
@@ -194,6 +200,23 @@ loss = nn.CrossEntropyLoss()(logits, target)
 loss.backward()
 ```
 
+## Vision
+
+Convert HWC images to channel-first tensors and run a tiny CNN classifier:
+
+```python
+import numpy as np
+
+image = np.zeros((8, 8, 3), dtype=np.uint8)
+x = ts.vision.to_tensor(image).reshape((1, 3, 8, 8))
+x = ts.vision.normalize(x, mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5))
+
+model = ts.vision.TinyConvClassifier((3, 8, 8), num_classes=2)
+logits = model(x)
+
+print(logits.shape)
+```
+
 ## DataLoader
 
 ```python
@@ -217,3 +240,22 @@ loaded = ts.load("checkpoint.tsmodel")
 ```
 
 Only load TensorStudio pickle files from trusted sources.
+
+Use `.tsnpz` files for safer tensor and state_dict storage:
+
+```python
+ts.save_npz(model.state_dict(), "weights.tsnpz")
+model.load_state_dict(ts.load_npz("weights.tsnpz"))
+```
+
+## ONNX Export
+
+Install the ONNX extra, then export supported Sequential models:
+
+```python
+ts.export_onnx(model.model, "classifier.onnx", input_shape=(1, 3, 8, 8))
+```
+
+The exporter covers common TensorStudio modules such as `Linear`, `Conv2d`,
+`Flatten`, activations, and 2D pooling. It does not trace arbitrary Python
+control flow.
