@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from . import data, dtypes, hardware, interchange, math, metrics, nn, optim, project, vision
+from . import data, dtypes, graph, hardware, interchange, math, metrics, nn, optim, project, vision
 from ._version import __version__
 from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
+from .graph import TensorSpec, compile_graph, load_graph, save_graph, trace
 from .hardware import (
     Device,
     available_devices,
@@ -106,6 +107,7 @@ from .tensor import (
 __all__ = [
     "Device",
     "Tensor",
+    "TensorSpec",
     "__version__",
     "acos",
     "all",
@@ -127,6 +129,7 @@ __all__ = [
     "concat",
     "conv2d",
     "conv_transpose2d",
+    "compile_graph",
     "cos",
     "cuda_is_available",
     "data",
@@ -147,6 +150,7 @@ __all__ = [
     "full_like",
     "greater",
     "greater_equal",
+    "graph",
     "hardware",
     "get_num_threads",
     "less",
@@ -158,6 +162,7 @@ __all__ = [
     "is_available",
     "is_grad_enabled",
     "linspace",
+    "load_graph",
     "load",
     "load_npz",
     "load_npz_metadata",
@@ -193,6 +198,7 @@ __all__ = [
     "randn_like",
     "rsqrt",
     "save",
+    "save_graph",
     "save_npz",
     "save_safetensors",
     "set_grad_enabled",
@@ -204,6 +210,7 @@ __all__ = [
     "std",
     "tan",
     "tensor",
+    "trace",
     "transpose",
     "uniform",
     "uniform_like",

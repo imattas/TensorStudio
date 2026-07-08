@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.14.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.15.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
@@ -22,8 +22,11 @@ storage, ONNX metadata inspection, supported-subset ONNX import/execution, and
 model metadata helpers. The hardware layer now exposes formal CPU/CUDA/Metal
 device descriptors, backend availability reporting, device-aware storage
 boundaries, explicit transfer APIs, and backend benchmark artifacts while
-keeping the published wheels honest about CPU-only execution.
-It is eager-only, intentionally compact, and not a replacement for mature ML
+keeping the published wheels honest about CPU-only execution. The graph layer
+adds constrained symbolic tracing, JSON graph serialization, simple graph
+optimization, eager-backed graph execution, profiling hooks, and memory-plan
+metadata.
+It is eager-first, intentionally compact, and not a replacement for mature ML
 frameworks.
 
 ## Install
@@ -258,7 +261,7 @@ classification workflows: Pillow-backed image IO, transform pipelines,
 deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
 bounding-box drawing, and compact CNN classifiers running through native
 Conv2d/pooling kernels.
-The `1.14.0` vision surface includes batch-aware transforms, color jitter, random
+The `1.15.0` vision surface includes batch-aware transforms, color jitter, random
 resized crop, rotation, affine transforms, cutout, mixup, CutMix, detection
 helpers, segmentation mask helpers, detection/segmentation folder datasets,
 ResNet-style blocks, MobileNet-style depthwise blocks, a compact UNet, and
@@ -376,6 +379,35 @@ print(ts.cuda_is_available())
 Passing `device="cuda"` or `device="metal"` on CPU-only wheels raises
 `DeviceError` instead of silently falling back.
 
+## Graph Runtime
+
+TensorStudio `1.15.0` adds a constrained graph runtime for supported tensor
+programs. It traces functions written against symbolic `GraphTensor` inputs,
+serializes the graph to JSON, applies simple inspectable optimization passes,
+and executes the resulting plan through TensorStudio eager tensor operations.
+It does not trace arbitrary Python control flow and is not a machine-code JIT.
+
+```python
+import tensorstudio as ts
+
+
+def model(x):
+    return ((x * 2.0) + 1.0).relu().mean()
+
+
+graph = ts.trace(model, [ts.TensorSpec((4,), dtype="float32", name="x")])
+compiled = ts.compile_graph(graph)
+x = ts.tensor([-2.0, -0.25, 1.0, 3.0])
+
+print(compiled(x).item())
+print(compiled.profile(x)["nodes"])
+print(compiled.memory_plan())
+
+ts.save_graph(graph, "model.tsgraph.json")
+loaded = ts.load_graph("model.tsgraph.json")
+print(loaded.run(x).item())
+```
+
 ## Performance
 
 TensorStudio is optimized for small-to-medium CPU eager workloads, but
@@ -406,11 +438,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.14.0`, with
+On one Windows CPython 3.10 development run reporting `1.15.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 6 local
 benchmark cases and lost on 97 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 38 local cases and lost 60. The
+available on that machine; TensorStudio won 36 local cases and lost 62. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -422,15 +454,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0153 ms | 0.0073 ms | 0.0745 ms | 0.4756x | 4.8586x |
-| `mean` | `(32,)` | 0.0156 ms | 0.0078 ms | 0.0114 ms | 0.4989x | 0.7318x |
-| `sum_axis1` | `(16, 16)` | 0.0158 ms | 0.0026 ms | 0.0121 ms | 0.1664x | 0.7628x |
-| `chain_relu` | `(128,)` | 0.0856 ms | 0.0055 ms | 0.0896 ms | 0.0642x | 1.0463x |
-| `matmul` | `(256, 256)` | 2.0576 ms | 0.4624 ms | 0.2808 ms | 0.2247x | 0.1365x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1832 ms | 1.2897 ms | 0.0998 ms | 7.0413x | 0.5449x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0276 ms | 0.1571 ms | n/a | 5.6964x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0273 ms | 0.5435 ms | n/a | 19.9107x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7089 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0198 ms | 0.0062 ms | 0.0916 ms | 0.3161x | 4.6348x |
+| `mean` | `(32,)` | 0.0166 ms | 0.0108 ms | 0.0148 ms | 0.6528x | 0.8959x |
+| `sum_axis1` | `(16, 16)` | 0.0196 ms | 0.0041 ms | 0.0153 ms | 0.2078x | 0.7818x |
+| `chain_relu` | `(128,)` | 0.0909 ms | 0.0058 ms | 0.0956 ms | 0.0634x | 1.0519x |
+| `matmul` | `(256, 256)` | 2.5387 ms | 0.5193 ms | 0.2421 ms | 0.2045x | 0.0954x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2248 ms | 1.9712 ms | 0.1330 ms | 8.7672x | 0.5916x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0342 ms | 0.1692 ms | n/a | 4.9541x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0312 ms | 0.5922 ms | n/a | 18.9961x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7669 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.

@@ -79,6 +79,12 @@ modules, optimizers, data utilities, and serialization helpers.
 - `concat`
 - `stack`
 - `manual_seed`
+- `TensorSpec`
+- `trace`
+- `compile_graph`
+- `save_graph`
+- `load_graph`
+- `graph`
 - `save`
 - `load`
 - `save_npz`
@@ -484,6 +490,41 @@ pickle for optimizer state and metadata.
 The default wheels report CPU available and CUDA/Metal unavailable. Tensor
 factories accept `device="cpu"` and reject unavailable accelerator targets with
 `DeviceError`.
+
+## `tensorstudio.graph`
+
+- `TensorSpec(shape, dtype="float32", name=None)`
+- `trace(function, input_specs)`
+- `compile_graph(function_or_graph, input_specs=None, optimize=True)`
+- `save_graph(graph, path)`
+- `load_graph(path)`
+- `Graph`
+- `GraphNode`
+- `GraphTensor`
+- `ExecutableGraph`
+
+`trace()` executes a Python callable once with symbolic `GraphTensor`
+placeholders. The function must return a `GraphTensor` or a sequence of
+`GraphTensor` outputs. Supported symbolic operations include binary arithmetic,
+rank-2 matrix multiplication, unary activations, `sum`, `mean`, `reshape`,
+`flatten`, and rank-2 transpose.
+
+`Graph.save()` and `save_graph()` write an inspectable JSON graph payload.
+`Graph.optimize()` currently performs constant folding and scalar
+multiply-add fusion. `Graph.compile()` and `compile_graph()` return an
+`ExecutableGraph` that runs the supported graph through TensorStudio eager
+tensor operations.
+
+```python
+graph = ts.trace(lambda x: (x * 2.0 + 1.0).relu(), [ts.TensorSpec((4,))])
+compiled = graph.compile()
+print(compiled(ts.ones((4,))).tolist())
+print(compiled.profile(ts.ones((4,))))
+print(compiled.memory_plan())
+```
+
+The graph runtime is intentionally constrained in `1.15.0`: it does not capture
+arbitrary Python control flow and does not generate machine code.
 
 ## Error Types
 

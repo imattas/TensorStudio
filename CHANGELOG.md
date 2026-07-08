@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## 1.15.0 - 2026-07-07
+
+- Completed the Graph, Compiler, And Runtime Systems roadmap batch as a
+  constrained, inspectable graph runtime.
+- Added `TensorSpec`, symbolic `GraphTensor` tracing, `trace()`, and
+  `compile_graph()` for a supported subset of TensorStudio tensor programs.
+- Added JSON graph serialization with `save_graph()` and `load_graph()`.
+- Added basic graph optimization passes: constant folding and scalar
+  multiply-add fusion.
+- Added `ExecutableGraph` runtime execution backed by TensorStudio eager tensor
+  operations.
+- Added runtime profiling hooks and static memory-planning metadata for graph
+  execution.
+- Documented graph limitations honestly: no arbitrary Python control-flow
+  capture and no machine-code JIT in this release.
+
 ## 1.14.0 - 2026-07-07
 
 - Completed the safe, testable Hardware Backends roadmap batch without claiming

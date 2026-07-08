@@ -1,7 +1,8 @@
 # Roadmap
 
-TensorStudio `1.14.0` is a CPU-first tensor, autograd, neural-network, vision,
-project, serialization, ONNX, release-automation, and device-API foundation. The long-term direction is
+TensorStudio `1.15.0` is a CPU-first tensor, autograd, neural-network, vision,
+project, serialization, ONNX, release-automation, device-API, and constrained
+graph-runtime foundation. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
 such as PyTorch, TensorFlow, NumPy, and JAX.
@@ -213,12 +214,13 @@ test coverage.
 Graph features are long-term work because they require stable eager semantics
 first.
 
-- Add tracing for a constrained subset of TensorStudio programs.
-- Add graph serialization for supported traced models.
-- Add basic graph optimization passes such as constant folding and op fusion.
-- Add a simple JIT or ahead-of-time execution path for supported graphs.
-- Add runtime profiling hooks.
-- Add memory planning for graph execution.
+- Completed in `1.15.0`: add tracing for a constrained subset of TensorStudio programs.
+- Completed in `1.15.0`: add graph serialization for supported traced models.
+- Completed in `1.15.0`: add basic graph optimization passes such as constant folding and op fusion.
+- Completed in `1.15.0`: add a simple ahead-of-time execution path for supported graphs,
+  backed by TensorStudio eager tensor operations rather than machine-code JIT.
+- Completed in `1.15.0`: add runtime profiling hooks.
+- Completed in `1.15.0`: add memory planning metadata for graph execution.
 
 ## 12. Ecosystem And Advanced Features
 

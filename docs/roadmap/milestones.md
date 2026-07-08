@@ -91,3 +91,16 @@ numbers can change, but the order should stay foundation-first.
   APIs, tensor factory `device=` keywords, backend benchmark coverage, CMake
   accelerator metadata hooks, and hardware docs. CUDA/Metal execution kernels
   remain deferred until accelerator CI can validate them.
+
+## Milestone I: Graph Runtime
+
+- Trace a constrained subset of TensorStudio tensor programs.
+- Serialize supported traced graphs.
+- Add simple graph optimization passes.
+- Add execution, profiling, and memory-plan metadata without hiding the eager
+  runtime underneath.
+- Completed in `1.15.0`: added `TensorSpec`, symbolic `GraphTensor` tracing,
+  JSON graph serialization, constant folding, scalar multiply-add fusion,
+  eager-backed executable graphs, runtime profiling hooks, and static
+  memory-planning metadata. Arbitrary Python control flow and machine-code JIT
+  remain out of scope.

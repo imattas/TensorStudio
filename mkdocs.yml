@@ -78,6 +78,10 @@ nav:
       - Windows: hardware/windows.md
       - Linux: hardware/linux.md
       - macOS: hardware/macos.md
+  - Graph Runtime:
+      - Tracing: graph/tracing.md
+      - Serialization And Optimization: graph/serialization-and-optimization.md
+      - Profiling And Memory Planning: graph/profiling-and-memory.md
   - Development:
       - Contributing: development/contributing.md
       - C++ First Policy: development/cpp-first.md

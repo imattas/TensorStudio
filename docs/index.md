@@ -3,16 +3,18 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.14.0` is a CPU-only stable API foundation for the tensor, autograd,
+`1.15.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
-docs, packaging, wheel workflows, and explicit hardware device APIs.
+docs, packaging, wheel workflows, explicit hardware device APIs, and a
+constrained graph runtime.
 
 ## Status
 
 TensorStudio is:
 
 - CPU-only.
-- Eager-only.
+- Eager-first, with constrained symbolic graph tracing for supported tensor
+  programs.
 - Built around a native `tensorstudio._C` extension.
 - Suitable for learning, experimentation, and lightweight ML workloads.
 - Not intended to replace or broadly outperform mature production ML frameworks.
@@ -61,6 +63,9 @@ TensorStudio is:
   transforms, image augmentations, detection utilities, segmentation helpers,
   vision datasets, metrics, visualization, compact CNN/UNet helpers, examples,
   tests, benchmarks, and GitHub Actions release workflows.
+- Constrained graph tracing with JSON serialization, constant folding, simple
+  multiply-add fusion, eager-backed executable graphs, runtime profiling hooks,
+  and memory-plan metadata.
 
 ## Design Goals
 
@@ -75,7 +80,8 @@ TensorStudio prioritizes:
 ## Boundaries
 
 TensorStudio does not currently include CUDA, Metal, distributed execution,
-graph compilation, advanced list/tensor/boolean indexing, sparse tensors, mixed
+machine-code graph compilation, arbitrary Python graph tracing, advanced
+list/tensor/boolean indexing, sparse tensors, mixed
 precision, a high performance kernel library, pretrained vision model zoo,
 detection/segmentation training stack, video IO, or a full ONNX runtime. ONNX
 import exists for a constrained static subset only. Benchmarks are rough local
@@ -99,6 +105,7 @@ state_dict files.
 - Export supported module stacks with [ONNX](interchange/onnx.md).
 - Use small datasets with [Data](data/datasets-and-dataloaders.md).
 - Batch data predictably with [DataLoader Patterns](data/dataloader-patterns.md).
+- Trace supported tensor programs with [Graph Tracing](graph/tracing.md).
 - Profile runtime behavior with [Profiling](performance/profiling.md).
 - Read [Publishing](release/publishing.md) before release work.
 - Follow release steps in the [Release Checklist](release/checklist.md).
@@ -121,6 +128,8 @@ The docs are organized as multi-page sections:
 - `interchange`: NumPy, serialization, trusted pickle notes, ONNX, and formats.
 - `performance`: benchmark results, profiling guidance, and optimization notes.
 - `hardware`: CPU backend plus platform build notes.
+- `graph`: constrained tracing, graph serialization, optimization, profiling,
+  and memory-planning metadata.
 - `development`: contribution guidance and the C++-first policy.
 - `release`: publishing, versioning, and release checklist.
 - `roadmap`: ordered roadmap, priorities, and release-sized milestones.
