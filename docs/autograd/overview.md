@@ -140,7 +140,8 @@ with ts.no_grad():
 ## Limitations
 
 - No higher-order gradients.
-- No graph compiler or tracing runtime.
+- No higher-order autograd through traced graph execution and no machine-code
+  graph compiler.
 - No checkpointing.
 - Basic indexing and slicing views scatter gradients back into the source.
   Advanced list, tensor, and boolean-mask indexing gradients are not

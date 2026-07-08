@@ -41,6 +41,8 @@ ONNX:
 - TensorStudio can import and execute a constrained static ONNX subset:
   `Gemm`, `Relu`, `Sigmoid`, `Tanh`, `Flatten`, `Conv`, `ConvTranspose`,
   `MaxPool`, and `AveragePool`.
+- `run_onnx()` can delegate execution to the external ONNX Runtime package
+  when installed through `tensorstudio[onnxruntime]`.
 - Unsupported operators, multiple graph inputs or outputs, dynamic graph
   features, and asymmetric padding are rejected clearly.
 
@@ -53,7 +55,7 @@ These formats are intentionally supported:
 - ONNX for static graph exchange when TensorStudio has matching eager tensor
   operations.
 
-These formats are not implemented in `1.14.0`:
+These formats are not implemented in `1.16.0`:
 
 - PyTorch `.pt` and `.pth`: loading general PyTorch files often executes pickle
   and depends on PyTorch-specific module code. TensorStudio should interoperate

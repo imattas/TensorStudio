@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+## 1.16.0 - 2026-07-07
+
+- Completed the Ecosystem And Advanced Features roadmap batch as supported
+  lightweight APIs plus explicit research-stage boundaries.
+- Added experimental COO sparse tensors with dense conversion, coalescing,
+  transpose, and sparse-dense matmul.
+- Added distributed-training research helpers for single-process collectives,
+  environment parsing, and deterministic data-parallel planning metadata.
+- Added a small model-zoo registry with reproducible tiny MLP, CNN, and
+  language-model factories.
+- Added CSV, JSONL, text-line, and LIBSVM dataset loaders for common public
+  data formats.
+- Added language-model helpers: vocabulary building, token/position
+  embeddings, tiny causal language model, causal batches, and LM loss.
+- Added quantization research utilities for affine quantization, fake
+  quantization, state-dict conversion, and parameter-size reports.
+- Added a custom kernel registry for Python or native-extension callables.
+- Added optional ONNX Runtime execution adapter through the
+  `tensorstudio[onnxruntime]` extra, with TensorStudio ONNX import fallback.
+
 ## 1.15.0 - 2026-07-07
 
 - Completed the Graph, Compiler, And Runtime Systems roadmap batch as a

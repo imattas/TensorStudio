@@ -1,8 +1,9 @@
 # Serialization
 
-TensorStudio `1.14.0` provides trusted pickle roundtrips for internal objects,
+TensorStudio provides trusted pickle roundtrips for internal objects,
 non-pickle NPZ files for tensor/state_dict interchange, and optional
-SafeTensors support for tensor-only weight maps.
+SafeTensors support for tensor-only weight maps. ONNX export/import and
+optional ONNX Runtime delegation live in the interchange namespace.
 
 ## Trusted Pickle Roundtrips
 
@@ -86,6 +87,10 @@ ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
 ```
 
 See [ONNX Interchange](onnx.md) for supported module types and limits.
+
+When installed with `tensorstudio[onnxruntime]`, `ts.run_onnx()` can delegate
+execution to the external ONNX Runtime package. TensorStudio's native ONNX
+importer remains a constrained static subset.
 
 ## Recommended File Extensions
 

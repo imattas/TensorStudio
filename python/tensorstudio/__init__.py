@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
-from . import data, dtypes, graph, hardware, interchange, math, metrics, nn, optim, project, vision
+from . import (
+    data,
+    distributed,
+    dtypes,
+    graph,
+    hardware,
+    interchange,
+    kernels,
+    math,
+    metrics,
+    model_zoo,
+    nn,
+    optim,
+    project,
+    quantization,
+    sparse,
+    vision,
+)
 from ._version import __version__
 from .dtypes import dtype_of, normalize_dtype, promote_types, result_type
 from .grad_mode import is_grad_enabled, no_grad, set_grad_enabled
@@ -17,8 +34,24 @@ from .hardware import (
     is_available,
     metal_is_available,
 )
-from .interchange import export_model_card_metadata, export_onnx, import_onnx, inspect_onnx
+from .interchange import (
+    export_model_card_metadata,
+    export_onnx,
+    import_onnx,
+    inspect_onnx,
+    onnxruntime_is_available,
+    run_onnx,
+)
+from .kernels import (
+    call_kernel,
+    get_kernel,
+    kernel_info,
+    list_kernels,
+    register_kernel,
+    unregister_kernel,
+)
 from .math import einsum, norm
+from .model_zoo import create_model, list_models, model_info, register_model
 from .ops import (
     acos,
     all,
@@ -74,6 +107,7 @@ from .serialization import (
     save_npz,
     save_safetensors,
 )
+from .sparse import SparseCOOTensor, sparse_coo_tensor, sparse_from_dense, sparse_mm
 from .tensor import (
     Tensor,
     arange,
@@ -106,6 +140,7 @@ from .tensor import (
 
 __all__ = [
     "Device",
+    "SparseCOOTensor",
     "Tensor",
     "TensorSpec",
     "__version__",
@@ -131,10 +166,13 @@ __all__ = [
     "conv_transpose2d",
     "compile_graph",
     "cos",
+    "call_kernel",
+    "create_model",
     "cuda_is_available",
     "data",
     "device",
     "device_count",
+    "distributed",
     "dtype_of",
     "dtypes",
     "empty",
@@ -153,6 +191,7 @@ __all__ = [
     "graph",
     "hardware",
     "get_num_threads",
+    "get_kernel",
     "less",
     "less_equal",
     "interchange",
@@ -161,7 +200,11 @@ __all__ = [
     "import_onnx",
     "is_available",
     "is_grad_enabled",
+    "kernel_info",
+    "kernels",
     "linspace",
+    "list_kernels",
+    "list_models",
     "load_graph",
     "load",
     "load_npz",
@@ -177,6 +220,8 @@ __all__ = [
     "minimum",
     "math",
     "metrics",
+    "model_info",
+    "model_zoo",
     "nn",
     "no_grad",
     "norm",
@@ -185,10 +230,12 @@ __all__ = [
     "not_equal",
     "ones",
     "ones_like",
+    "onnxruntime_is_available",
     "optim",
     "permute",
     "performance_info",
     "project",
+    "quantization",
     "promote_types",
     "rand",
     "rand_like",
@@ -197,6 +244,9 @@ __all__ = [
     "randn",
     "randn_like",
     "rsqrt",
+    "register_kernel",
+    "register_model",
+    "run_onnx",
     "save",
     "save_graph",
     "save_npz",
@@ -205,6 +255,10 @@ __all__ = [
     "set_num_threads",
     "sin",
     "softmax",
+    "sparse",
+    "sparse_coo_tensor",
+    "sparse_from_dense",
+    "sparse_mm",
     "stack",
     "squeeze",
     "std",
@@ -214,6 +268,7 @@ __all__ = [
     "transpose",
     "uniform",
     "uniform_like",
+    "unregister_kernel",
     "unsqueeze",
     "var",
     "variance",

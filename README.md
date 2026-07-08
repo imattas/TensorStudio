@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.15.0` is a CPU-only stable API foundation with native C++
+TensorStudio `1.16.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
@@ -25,7 +25,10 @@ boundaries, explicit transfer APIs, and backend benchmark artifacts while
 keeping the published wheels honest about CPU-only execution. The graph layer
 adds constrained symbolic tracing, JSON graph serialization, simple graph
 optimization, eager-backed graph execution, profiling hooks, and memory-plan
-metadata.
+metadata. The ecosystem layer adds experimental COO sparse tensors, public
+dataset format readers, tiny model-zoo factories, language-model helpers,
+quantization research utilities, a custom-kernel registry, single-process
+distributed planning helpers, and an optional ONNX Runtime adapter.
 It is eager-first, intentionally compact, and not a replacement for mature ML
 frameworks.
 
@@ -44,10 +47,12 @@ python -m pip install -U pip
 python -m pip install -e ".[dev]"
 ```
 
-Install optional extras for ONNX export and Pillow-backed image inputs:
+Install optional extras for ONNX export, optional ONNX Runtime delegation, and
+Pillow-backed image inputs:
 
 ```bash
 python -m pip install "tensorstudio[onnx,vision]"
+python -m pip install "tensorstudio[onnxruntime]"
 ```
 
 Build source and wheel distributions:
@@ -261,7 +266,7 @@ classification workflows: Pillow-backed image IO, transform pipelines,
 deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
 bounding-box drawing, and compact CNN classifiers running through native
 Conv2d/pooling kernels.
-The `1.15.0` vision surface includes batch-aware transforms, color jitter, random
+The current vision surface includes batch-aware transforms, color jitter, random
 resized crop, rotation, affine transforms, cutout, mixup, CutMix, detection
 helpers, segmentation mask helpers, detection/segmentation folder datasets,
 ResNet-style blocks, MobileNet-style depthwise blocks, a compact UNet, and
@@ -408,6 +413,45 @@ loaded = ts.load_graph("model.tsgraph.json")
 print(loaded.run(x).item())
 ```
 
+## Ecosystem Utilities
+
+TensorStudio `1.16.0` rounds out the late-roadmap ecosystem layer without
+pretending to be a production-scale distributed or accelerator runtime.
+
+```python
+import tensorstudio as ts
+from tensorstudio import nn
+
+sparse = ts.sparse_coo_tensor([[0, 1], [1, 0]], [2.0, 3.0], (2, 2))
+print(sparse.to_dense().tolist())
+print((sparse @ ts.ones((2, 1))).tolist())
+
+model = ts.create_model("tiny_mlp", input_dim=2, hidden_dim=4, output_dim=1)
+print(ts.model_info("tiny_mlp")["task"], model(ts.ones((1, 2))).shape)
+
+vocab = nn.Vocabulary.build(["small tensor models", "small language batch"])
+inputs, targets = nn.make_causal_lm_batch(vocab.encode("small tensor models"), 2)
+lm = nn.CausalLanguageModel(vocab_size=len(vocab), embedding_dim=4, max_length=4)
+print(nn.causal_language_model_loss(lm(inputs), targets).item())
+
+quantized = ts.quantization.quantize_tensor(ts.tensor([-1.0, 0.0, 1.0]))
+print(quantized.dequantize().tolist())
+
+ts.register_kernel("double", lambda x: x * 2.0, overwrite=True)
+print(ts.call_kernel("double", ts.ones((2,))).tolist())
+ts.unregister_kernel("double")
+
+print(ts.distributed.data_parallel_plan(dataset_size=10, batch_size=4))
+```
+
+For ONNX files, TensorStudio has two paths:
+
+- `ts.import_onnx()` imports and executes a constrained static subset through
+  TensorStudio tensor ops.
+- `ts.run_onnx()` can delegate to the optional `onnxruntime` package when
+  installed with `tensorstudio[onnxruntime]`; otherwise it can fall back to the
+  supported TensorStudio importer for compatible graphs.
+
 ## Performance
 
 TensorStudio is optimized for small-to-medium CPU eager workloads, but
@@ -438,11 +482,12 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.15.0`, with
+On one Windows CPython 3.10 development run reporting `1.16.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
 reported, and no BLAS provider found, TensorStudio beat NumPy on 6 local
-benchmark cases and lost on 97 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 36 local cases and lost 62. The
+reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
+benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
+available on that machine; TensorStudio won 48 local cases and lost 50. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -454,15 +499,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0198 ms | 0.0062 ms | 0.0916 ms | 0.3161x | 4.6348x |
-| `mean` | `(32,)` | 0.0166 ms | 0.0108 ms | 0.0148 ms | 0.6528x | 0.8959x |
-| `sum_axis1` | `(16, 16)` | 0.0196 ms | 0.0041 ms | 0.0153 ms | 0.2078x | 0.7818x |
-| `chain_relu` | `(128,)` | 0.0909 ms | 0.0058 ms | 0.0956 ms | 0.0634x | 1.0519x |
-| `matmul` | `(256, 256)` | 2.5387 ms | 0.5193 ms | 0.2421 ms | 0.2045x | 0.0954x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2248 ms | 1.9712 ms | 0.1330 ms | 8.7672x | 0.5916x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0342 ms | 0.1692 ms | n/a | 4.9541x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0312 ms | 0.5922 ms | n/a | 18.9961x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7669 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0154 ms | 0.0044 ms | 0.0742 ms | 0.2895x | 4.8297x |
+| `mean` | `(32,)` | 0.0155 ms | 0.0082 ms | 0.0116 ms | 0.5273x | 0.7478x |
+| `sum_axis1` | `(16, 16)` | 0.0158 ms | 0.0030 ms | 0.0126 ms | 0.1928x | 0.7955x |
+| `chain_relu` | `(128,)` | 0.0852 ms | 0.0056 ms | 0.0926 ms | 0.0662x | 1.0874x |
+| `matmul` | `(256, 256)` | 2.7970 ms | 0.4668 ms | 0.2540 ms | 0.1669x | 0.0908x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1938 ms | 1.2695 ms | 0.1002 ms | 6.5522x | 0.5171x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0282 ms | 0.1632 ms | n/a | 5.7866x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0277 ms | 0.5474 ms | n/a | 19.7400x | n/a |
+| `elementwise_backward` | `(1024,)` | 2.7217 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -585,16 +630,21 @@ tokens or print secrets.
 - Optional BLAS-backed matrix multiplication depends on the build environment
   exposing a compatible CBLAS/Accelerate interface; otherwise TensorStudio uses
   a portable C++ fallback.
-- No graph compiler or distributed runtime.
+- No machine-code graph compiler or production distributed runtime.
+  TensorStudio includes a constrained eager-backed graph runtime and
+  single-process distributed planning helpers.
 - Convolution and pooling support are CPU-only. Native kernels include NCHW
   `conv2d`, grouped/depthwise convolution, `conv_transpose2d`, `max_pool2d`,
   `avg_pool2d`, and embedding lookup; they are not CUDA/cuDNN replacements.
 - Vision covers local image-classification utilities, metrics, visualization,
-  and compact CNNs. It is not an OpenCV replacement and does not include
-  pretrained model zoos, detection/segmentation training stacks, video IO, or
-  GPU image kernels yet.
-- ONNX support covers export, metadata inspection, and import/execution for a
-  limited static subset. It is not a full ONNX runtime.
+  detection/segmentation helpers, compact CNNs, and a compact UNet. It is not
+  an OpenCV replacement and does not include pretrained large model zoos,
+  end-to-end detection/segmentation trainers, video IO, or GPU image kernels
+  yet.
+- ONNX support covers export, metadata inspection, import/execution for a
+  limited static subset, and optional delegation to the external ONNX Runtime
+  package through `tensorstudio[onnxruntime]`. TensorStudio's native importer is
+  not a full ONNX runtime.
 - Reductions support all-element, single-axis, and tuple/list-axis reductions
   for `sum`, `mean`, `max`, and `min`.
 - Arg reductions support all-element flat indices or one axis at a time for
@@ -614,8 +664,8 @@ tokens or print secrets.
 - Graph/JIT mode
 - Broader convolution ops, adaptive/global pooling, and image-model examples
 - Richer dataset utilities
-- Model zoo examples
-- Broader ONNX operator coverage
+- Larger model zoo examples and pretrained-weight metadata
+- Broader ONNX operator coverage and optional runtime providers
 - Runtime-dispatched SIMD kernels
 - Better non-BLAS matrix multiplication tiling
 - More threaded backward kernels

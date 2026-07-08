@@ -1,13 +1,15 @@
 # ONNX Interchange
 
-TensorStudio `1.14.0` includes a limited ONNX exporter, ONNX metadata
+TensorStudio includes a limited ONNX exporter, ONNX metadata
 inspection, and supported-subset ONNX import/execution for TensorStudio module
-stacks.
+stacks. TensorStudio `1.16.0` also adds an optional adapter that can delegate
+execution to the external ONNX Runtime package when it is installed.
 
 Install the optional dependency:
 
 ```bash
 python -m pip install "tensorstudio[onnx]"
+python -m pip install "tensorstudio[onnxruntime]"
 ```
 
 ## Export A Sequential Model
@@ -43,6 +45,21 @@ Import supports a constrained static subset: `Gemm`, `Relu`, `Sigmoid`, `Tanh`,
 operators, dynamic graph features, multiple graph inputs, and asymmetric
 padding are rejected clearly.
 
+## Optional ONNX Runtime Delegation
+
+`run_onnx()` tries ONNX Runtime first when `prefer_onnxruntime=True` and the
+optional dependency is installed. If ONNX Runtime is unavailable, or if you set
+`prefer_onnxruntime=False`, TensorStudio falls back to its constrained static
+importer for compatible graphs.
+
+```python
+print(ts.onnxruntime_is_available())
+output = ts.run_onnx("classifier.onnx", ts.ones((1, 1, 4, 4)))
+```
+
+This is useful for smoke-testing exported models against a standard runtime,
+but it does not make TensorStudio's native importer a full ONNX runtime.
+
 ## Supported Modules
 
 - `nn.Linear`
@@ -76,7 +93,8 @@ path = ts.export_onnx(
 ## Current Limits
 
 - Import is limited to the static subset listed above.
-- No full ONNX runtime is bundled.
+- No full native ONNX runtime is bundled.
+- Optional ONNX Runtime execution requires the external `onnxruntime` package.
 - Arbitrary Python `forward` control flow is not traced.
 - Unsupported modules raise `ValueError` instead of silently producing an
   incomplete graph.

@@ -1,8 +1,8 @@
 # Roadmap
 
-TensorStudio `1.15.0` is a CPU-first tensor, autograd, neural-network, vision,
+TensorStudio `1.16.0` is a CPU-first tensor, autograd, neural-network, vision,
 project, serialization, ONNX, release-automation, device-API, and constrained
-graph-runtime foundation. The long-term direction is
+graph-runtime foundation with lightweight ecosystem utilities. The long-term direction is
 to become a strong compact ML framework for learning, experimentation, and
 lightweight workloads while staying honest about the scale of mature systems
 such as PyTorch, TensorFlow, NumPy, and JAX.
@@ -227,13 +227,21 @@ first.
 These are late-stage features after the core framework is correct, fast, and
 well packaged.
 
-- Add sparse tensors.
-- Add distributed training research.
-- Add model zoo examples with reproducible training scripts.
-- Add dataset utilities for common public formats.
-- Add language-model-oriented layers and examples.
-- Add quantization research.
-- Add plugin extension points for custom kernels.
+- Completed in `1.16.0`: add experimental COO sparse tensors with dense conversion,
+  coalescing, transpose, and sparse-dense matmul.
+- Completed in `1.16.0`: add distributed training research helpers for explicit
+  single-process collectives and deterministic data-parallel planning metadata.
+- Completed in `1.16.0`: add model zoo examples with reproducible tiny MLP, CNN,
+  and language-model factory functions.
+- Completed in `1.16.0`: add dataset utilities for CSV, JSONL, text-line, and
+  LIBSVM-style public formats.
+- Completed in `1.16.0`: add language-model-oriented layers and examples,
+  including vocabulary helpers, learned position embeddings, a tiny causal LM,
+  causal batches, and LM loss.
+- Completed in `1.16.0`: add quantization research helpers for affine
+  quantization, fake quantization, state-dict conversion, and size reports.
+- Completed in `1.16.0`: add plugin extension points through a custom kernel
+  registry for Python or native-extension callables.
 
 ## Non-Goals For The Near Term
 

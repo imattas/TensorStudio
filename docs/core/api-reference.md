@@ -85,6 +85,22 @@ modules, optimizers, data utilities, and serialization helpers.
 - `save_graph`
 - `load_graph`
 - `graph`
+- `SparseCOOTensor`
+- `sparse_coo_tensor`
+- `sparse_from_dense`
+- `sparse_mm`
+- `create_model`
+- `list_models`
+- `model_info`
+- `register_model`
+- `register_kernel`
+- `unregister_kernel`
+- `call_kernel`
+- `list_kernels`
+- `get_kernel`
+- `kernel_info`
+- `run_onnx`
+- `onnxruntime_is_available`
 - `save`
 - `load`
 - `save_npz`
@@ -98,6 +114,11 @@ modules, optimizers, data utilities, and serialization helpers.
 - `dtypes`
 - `math`
 - `project`
+- `distributed`
+- `kernels`
+- `model_zoo`
+- `quantization`
+- `sparse`
 - `data`
 - `nn`
 - `optim`
@@ -440,8 +461,14 @@ Optimizers implement `zero_grad`, `step`, `state_dict`, and `load_state_dict`.
 - `Dataset`
 - `TensorDataset`
 - `DataLoader`
+- `from_csv(path, target_column=None, feature_columns=None, dtype="float32", target_dtype=None)`
+- `from_jsonl(path, feature_key="features", target_key="label", dtype="float32", target_dtype=None)`
+- `from_text_lines(path, strip=True, skip_empty=True)`
+- `from_libsvm(path, num_features=None, dtype="float32", target_dtype="float32")`
 
 `DataLoader` supports batching, shuffle, `drop_last`, and deterministic seed.
+The public-format readers create TensorStudio datasets from common local files
+without running user code from those files.
 
 ## `tensorstudio.math`
 
@@ -526,6 +553,82 @@ print(compiled.memory_plan())
 The graph runtime is intentionally constrained in `1.15.0`: it does not capture
 arbitrary Python control flow and does not generate machine code.
 
+## `tensorstudio.sparse`
+
+- `SparseCOOTensor(indices, values, shape, coalesced=False)`
+- `sparse_coo_tensor(indices, values, shape, dtype=None, coalesced=False)`
+- `sparse_from_dense(input)`
+- `sparse_mm(sparse, dense)`
+
+The sparse API is experimental and stores COO indices plus dense TensorStudio
+values. It supports dense conversion, duplicate coalescing, rank-2 transpose,
+and sparse-dense matrix multiplication. Autograd follows the dense operations
+that consume sparse values; sparse layout mutation is not a full differentiable
+sparse system.
+
+## `tensorstudio.model_zoo`
+
+- `ModelCard(name, task, description, default_kwargs, tags=())`
+- `register_model(card, factory, overwrite=False)`
+- `list_models(task=None, tag=None)`
+- `model_info(name)`
+- `create_model(name, **overrides)`
+
+Built-in factories include `tiny_mlp`, `tiny_cnn`, and
+`tiny_bigram_language_model`. They are deterministic small examples intended
+for tests, examples, and docs rather than pretrained production models.
+
+## `tensorstudio.nn` Language Helpers
+
+- `Vocabulary`
+- `TokenEmbedding`
+- `PositionalEmbedding`
+- `CausalLanguageModel`
+- `make_causal_lm_batch(tokens, sequence_length)`
+- `causal_language_model_loss(logits, targets)`
+
+These helpers cover tiny tokenized examples and causal next-token losses. They
+do not implement transformer attention or tokenizer file formats yet.
+
+## `tensorstudio.quantization`
+
+- `QuantizationConfig(num_bits=8, symmetric=False, per_tensor=True)`
+- `QuantizedTensor`
+- `quantize_tensor(input, config=None)`
+- `dequantize_tensor(quantized)`
+- `fake_quantize(input, config=None)`
+- `quantize_state_dict(state, config=None)`
+- `dequantize_state_dict(state)`
+- `quantization_report(state)`
+
+Quantization utilities are research helpers for affine per-tensor quantization
+and reporting. They do not replace hardware-specific INT8 kernels.
+
+## `tensorstudio.kernels`
+
+- `register_kernel(name, callable, backend="python", description="", overwrite=False)`
+- `unregister_kernel(name)`
+- `call_kernel(name, *args, **kwargs)`
+- `list_kernels()`
+- `get_kernel(name)`
+- `kernel_info(name)`
+
+The registry is a controlled extension point for Python callables or native
+extension callables. It does not load arbitrary shared libraries by itself.
+
+## `tensorstudio.distributed`
+
+- `DistributedConfig(world_size=1, rank=0, local_rank=0, backend="single")`
+- `config_from_env()`
+- `distributed_info(config=None)`
+- `all_reduce_sum(tensor, config=None)`
+- `average_gradients(parameters, config=None)`
+- `data_parallel_plan(dataset_size, batch_size, config=None)`
+
+Only explicit single-process collectives execute in-process. Multi-process
+collectives raise `NotImplementedError` until TensorStudio has a tested
+transport backend.
+
 ## Error Types
 
 Import native exception aliases from `tensorstudio.errors`:
@@ -561,6 +664,8 @@ SafeTensors files, supported ONNX files, and trusted TensorStudio checkpoints.
 - `export_onnx(model, path, input_shape, input_name="input", output_name="output")`
 - `inspect_onnx(path)`
 - `import_onnx(path)`
+- `run_onnx(path, input, prefer_onnxruntime=True, providers=None)`
+- `onnxruntime_is_available()`
 - `export_model_card_metadata(metadata, path)`
 - `save_safetensors(tensors, path, metadata=None)`
 - `load_safetensors(path)`
@@ -569,7 +674,9 @@ SafeTensors files, supported ONNX files, and trusted TensorStudio checkpoints.
 ONNX export supports `Linear`, grouped/depthwise `Conv2d`,
 `ConvTranspose2d`, `Flatten`, `ReLU`, `Sigmoid`, `Tanh`, `MaxPool2d`, and
 `AvgPool2d` module stacks. ONNX import supports a constrained static subset,
-not arbitrary ONNX models.
+not arbitrary ONNX models. `run_onnx()` can delegate to the external
+`onnxruntime` package when installed through `tensorstudio[onnxruntime]`; it is
+not a native TensorStudio full-runtime implementation.
 
 ## `tensorstudio.vision`
 

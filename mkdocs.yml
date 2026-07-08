@@ -82,6 +82,12 @@ nav:
       - Tracing: graph/tracing.md
       - Serialization And Optimization: graph/serialization-and-optimization.md
       - Profiling And Memory Planning: graph/profiling-and-memory.md
+  - Ecosystem:
+      - Sparse Tensors: ecosystem/sparse.md
+      - Public Dataset Formats: ecosystem/datasets.md
+      - Model Zoo And Language: ecosystem/model-zoo-and-language.md
+      - Quantization And Kernels: ecosystem/quantization-and-kernels.md
+      - Distributed And ONNX Runtime: ecosystem/distributed-and-onnx-runtime.md
   - Development:
       - Contributing: development/contributing.md
       - C++ First Policy: development/cpp-first.md

@@ -1,6 +1,6 @@
 # ONNX Import
 
-TensorStudio `1.14.0` can inspect ONNX files and import a constrained static
+TensorStudio can inspect ONNX files and import a constrained static
 subset for eager TensorStudio execution.
 
 ## Inspect
@@ -19,6 +19,16 @@ Inspection does not execute graph nodes.
 model = ts.import_onnx("model.onnx")
 output = model(ts.ones((1, 3)))
 ```
+
+For broader runtime compatibility, install `tensorstudio[onnxruntime]` and use
+the optional ONNX Runtime adapter:
+
+```python
+output = ts.run_onnx("model.onnx", ts.ones((1, 3)))
+```
+
+When `onnxruntime` is unavailable, `run_onnx(..., prefer_onnxruntime=False)`
+uses the same constrained TensorStudio importer described here.
 
 Supported operators:
 

@@ -104,3 +104,16 @@ numbers can change, but the order should stay foundation-first.
   eager-backed executable graphs, runtime profiling hooks, and static
   memory-planning metadata. Arbitrary Python control flow and machine-code JIT
   remain out of scope.
+
+## Milestone J: Ecosystem And Advanced Features
+
+- Add sparse tensor experiments without pretending to be a full sparse backend.
+- Add importable dataset helpers for common public formats.
+- Add tiny model-zoo factories with reproducible local training scripts.
+- Add language-model-oriented layers and examples.
+- Add quantization research helpers and extension points for custom kernels.
+- Completed in `1.16.0`: added COO sparse tensors, distributed research
+  metadata, a model-zoo registry, CSV/JSONL/text/LIBSVM datasets, tiny causal
+  language-model helpers, affine quantization utilities, a custom kernel
+  registry, and optional ONNX Runtime execution through
+  `tensorstudio[onnxruntime]`.

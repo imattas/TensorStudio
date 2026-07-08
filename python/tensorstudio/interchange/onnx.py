@@ -505,6 +505,81 @@ def import_onnx(path: PathLikeStr) -> ImportedOnnxModel:
     return ImportedOnnxModel(path)
 
 
+class OnnxRuntimeModel:
+    """Callable ONNX Runtime session returning TensorStudio tensors.
+
+    This adapter is optional and requires ``onnxruntime`` to be installed. It is
+    intentionally separate from TensorStudio's native supported-subset importer:
+    ONNX Runtime can execute a broader ONNX surface, while TensorStudio import
+    executes only graphs whose operators map to TensorStudio tensor ops.
+    """
+
+    def __init__(
+        self,
+        path: PathLikeStr,
+        *,
+        providers: list[str] | None = None,
+    ) -> None:
+        try:
+            import onnxruntime as ort
+        except ImportError as exc:  # pragma: no cover - optional dependency path
+            raise ImportError(
+                "ONNX Runtime execution requires the optional dependency: "
+                "python -m pip install 'tensorstudio[onnxruntime]'"
+            ) from exc
+        self.path = Path(path)
+        self.session = ort.InferenceSession(str(self.path), providers=providers)
+        self.input_names = [item.name for item in self.session.get_inputs()]
+        self.output_names = [item.name for item in self.session.get_outputs()]
+        if len(self.input_names) != 1:
+            raise ValueError("TensorStudio ONNX Runtime adapter currently supports one input")
+
+    def __call__(self, input: Tensor) -> Tensor:
+        outputs = self.session.run(None, {self.input_names[0]: input.numpy()})
+        if len(outputs) != 1:
+            raise ValueError("TensorStudio ONNX Runtime adapter currently supports one output")
+        return from_numpy(np.asarray(outputs[0]))
+
+
+def onnxruntime_is_available() -> bool:
+    """Return whether optional ONNX Runtime execution is importable."""
+
+    try:
+        import onnxruntime  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def run_onnx(
+    path: PathLikeStr,
+    input: Tensor,
+    *,
+    prefer_onnxruntime: bool = True,
+    providers: list[str] | None = None,
+) -> Tensor:
+    """Run an ONNX file through ONNX Runtime when available, otherwise TensorStudio import."""
+
+    runtime_error: Exception | None = None
+    if prefer_onnxruntime and onnxruntime_is_available():
+        try:
+            return OnnxRuntimeModel(path, providers=providers)(input)
+        except Exception as exc:
+            runtime_error = exc
+
+    try:
+        return import_onnx(path)(input)
+    except Exception as fallback_error:
+        if runtime_error is not None:
+            raise RuntimeError(
+                "ONNX Runtime execution failed and TensorStudio's supported-subset "
+                "fallback could not execute the graph. "
+                f"ONNX Runtime error: {runtime_error}. "
+                f"TensorStudio fallback error: {fallback_error}."
+            ) from fallback_error
+        raise
+
+
 def export_model_card_metadata(
     metadata: dict[str, Any],
     path: PathLikeStr,
@@ -558,8 +633,11 @@ def _pads_to_pair(value: Any) -> tuple[int, int]:
 
 __all__ = [
     "ImportedOnnxModel",
+    "OnnxRuntimeModel",
     "export_model_card_metadata",
     "export_onnx",
     "import_onnx",
     "inspect_onnx",
+    "onnxruntime_is_available",
+    "run_onnx",
 ]
