@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from . import init
+from .attention import (
+    MultiHeadSelfAttention,
+    TransformerEncoderBlock,
+    scaled_dot_product_attention,
+)
 from .functional import (
     adaptive_avg_pool2d,
     adaptive_max_pool2d,
@@ -129,6 +134,7 @@ __all__ = [
     "MSELoss",
     "Mish",
     "Module",
+    "MultiHeadSelfAttention",
     "NLLLoss",
     "Parameter",
     "PositionalEmbedding",
@@ -140,6 +146,7 @@ __all__ = [
     "Softplus",
     "Tanh",
     "TokenEmbedding",
+    "TransformerEncoderBlock",
     "Vocabulary",
     "adaptive_avg_pool2d",
     "adaptive_max_pool2d",
@@ -174,6 +181,7 @@ __all__ = [
     "mse_loss",
     "nll_loss",
     "relu",
+    "scaled_dot_product_attention",
     "selu",
     "sigmoid",
     "silu",

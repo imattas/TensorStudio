@@ -150,6 +150,120 @@ class SparseCOOTensor:
                     )
 
 
+@dataclass(frozen=True)
+class SparseCSRTensor:
+    """Compressed sparse row tensor for rank-2 matrices."""
+
+    crow_indices: Tensor
+    col_indices: Tensor
+    values: Tensor
+    shape: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        if self.crow_indices.dtype not in {"int32", "int64"}:
+            raise ValueError("CSR row pointer indices must have int32 or int64 dtype")
+        if self.col_indices.dtype not in {"int32", "int64"}:
+            raise ValueError("CSR column indices must have int32 or int64 dtype")
+        if self.crow_indices.ndim != 1 or self.col_indices.ndim != 1 or self.values.ndim != 1:
+            raise ValueError("CSR row pointers, columns, and values must be 1D tensors")
+        if len(self.shape) != 2 or any(dim < 0 for dim in self.shape):
+            raise ValueError("CSR shape must contain two non-negative dimensions")
+        if self.crow_indices.shape[0] != self.shape[0] + 1:
+            raise ValueError("CSR row pointer length must equal rows + 1")
+        if self.col_indices.shape[0] != self.values.shape[0]:
+            raise ValueError("CSR columns and values must have the same nnz")
+        self._validate_structure()
+
+    @property
+    def nnz(self) -> int:
+        return int(self.values.shape[0])
+
+    @property
+    def ndim(self) -> int:
+        return 2
+
+    @property
+    def dtype(self) -> str:
+        return self.values.dtype
+
+    @property
+    def density(self) -> float:
+        total = self.shape[0] * self.shape[1]
+        return 0.0 if total == 0 else float(self.nnz) / float(total)
+
+    def to_dense(self) -> Tensor:
+        dense = np.zeros(self.shape, dtype=_numpy_dtype(self.values.dtype))
+        rows = np.asarray(self.crow_indices.tolist(), dtype=np.int64)
+        cols = np.asarray(self.col_indices.tolist(), dtype=np.int64)
+        vals = self.values.numpy()
+        for row in range(self.shape[0]):
+            for ptr in range(int(rows[row]), int(rows[row + 1])):
+                dense[row, int(cols[ptr])] += vals[ptr]
+        return tensor(dense.tolist(), dtype=self.values.dtype)
+
+    def to_coo(self) -> SparseCOOTensor:
+        rows = np.asarray(self.crow_indices.tolist(), dtype=np.int64)
+        cols = np.asarray(self.col_indices.tolist(), dtype=np.int64)
+        indices: list[list[int]] = []
+        for row in range(self.shape[0]):
+            for ptr in range(int(rows[row]), int(rows[row + 1])):
+                indices.append([row, int(cols[ptr])])
+        return sparse_coo_tensor(
+            indices,
+            self.values,
+            self.shape,
+            dtype=self.values.dtype,
+            coalesced=True,
+        )
+
+    def matmul(self, dense: Tensor) -> Tensor:
+        if dense.ndim not in {1, 2}:
+            raise ValueError("CSR matmul expects a dense vector or matrix")
+        if self.shape[1] != dense.shape[0]:
+            raise ValueError(f"CSR matmul shape mismatch: sparse {self.shape}, dense {dense.shape}")
+        rows = np.asarray(self.crow_indices.tolist(), dtype=np.int64)
+        cols = np.asarray(self.col_indices.tolist(), dtype=np.int64)
+        vals = self.values.numpy()
+        dense_array = dense.numpy()
+        if dense.ndim == 1:
+            output = np.zeros((self.shape[0],), dtype=_numpy_dtype(self.values.dtype))
+            for row in range(self.shape[0]):
+                for ptr in range(int(rows[row]), int(rows[row + 1])):
+                    output[row] += vals[ptr] * dense_array[int(cols[ptr])]
+        else:
+            output = np.zeros(
+                (self.shape[0], dense.shape[1]),
+                dtype=_numpy_dtype(self.values.dtype),
+            )
+            for row in range(self.shape[0]):
+                for ptr in range(int(rows[row]), int(rows[row + 1])):
+                    output[row, :] += vals[ptr] * dense_array[int(cols[ptr]), :]
+        return tensor(output.tolist(), dtype=self.values.dtype)
+
+    def __matmul__(self, dense: Tensor) -> Tensor:
+        return self.matmul(dense)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "format": "tensorstudio.sparse_csr",
+            "shape": list(self.shape),
+            "dtype": self.dtype,
+            "crow_indices": self.crow_indices.tolist(),
+            "col_indices": self.col_indices.tolist(),
+            "values": self.values.tolist(),
+        }
+
+    def _validate_structure(self) -> None:
+        rows = [int(value) for value in self.crow_indices.tolist()]
+        cols = [int(value) for value in self.col_indices.tolist()]
+        if not rows or rows[0] != 0 or rows[-1] != self.values.shape[0]:
+            raise ValueError("CSR row pointers must start at 0 and end at nnz")
+        if any(left > right for left, right in zip(rows, rows[1:], strict=False)):
+            raise ValueError("CSR row pointers must be non-decreasing")
+        if any(col < 0 or col >= self.shape[1] for col in cols):
+            raise ValueError("CSR column index out of bounds")
+
+
 def sparse_coo_tensor(
     indices: Tensor | Any,
     values: Tensor | Any,
@@ -167,6 +281,35 @@ def sparse_coo_tensor(
     return SparseCOOTensor(index_tensor, value_tensor, tuple(int(dim) for dim in shape), coalesced)
 
 
+def sparse_csr_tensor(
+    crow_indices: Tensor | Any,
+    col_indices: Tensor | Any,
+    values: Tensor | Any,
+    shape: tuple[int, int] | list[int],
+    *,
+    dtype: str | None = None,
+) -> SparseCSRTensor:
+    row_tensor = (
+        crow_indices if isinstance(crow_indices, Tensor) else tensor(crow_indices, dtype="int64")
+    )
+    col_tensor = (
+        col_indices if isinstance(col_indices, Tensor) else tensor(col_indices, dtype="int64")
+    )
+    value_tensor = (
+        values if isinstance(values, Tensor) else tensor(values, dtype=dtype or "float32")
+    )
+    if dtype is not None and value_tensor.dtype != dtype:
+        value_tensor = tensor(value_tensor.tolist(), dtype=dtype)
+    if len(shape) != 2:
+        raise ValueError("CSR shape must be rank 2")
+    return SparseCSRTensor(
+        row_tensor,
+        col_tensor,
+        value_tensor,
+        (int(shape[0]), int(shape[1])),
+    )
+
+
 def sparse_from_dense(input: Tensor, *, threshold: float = 0.0) -> SparseCOOTensor:
     values = input.numpy()
     mask = np.abs(values) > threshold
@@ -180,7 +323,40 @@ def sparse_from_dense(input: Tensor, *, threshold: float = 0.0) -> SparseCOOTens
     )
 
 
+def csr_from_dense(input: Tensor, *, threshold: float = 0.0) -> SparseCSRTensor:
+    if input.ndim != 2:
+        raise ValueError("CSR conversion expects a rank-2 dense tensor")
+    values = input.numpy()
+    rows = [0]
+    cols: list[int] = []
+    data: list[Any] = []
+    for row in range(values.shape[0]):
+        for col in range(values.shape[1]):
+            value = values[row, col]
+            if abs(float(value)) > threshold:
+                cols.append(col)
+                data.append(value.item() if hasattr(value, "item") else value)
+        rows.append(len(cols))
+    return sparse_csr_tensor(
+        rows,
+        cols,
+        data,
+        (int(input.shape[0]), int(input.shape[1])),
+        dtype=input.dtype,
+    )
+
+
+def csr_from_coo(input: SparseCOOTensor) -> SparseCSRTensor:
+    if input.ndim != 2:
+        raise ValueError("CSR conversion expects a rank-2 COO tensor")
+    return csr_from_dense(input.coalesce().to_dense())
+
+
 def sparse_mm(sparse: SparseCOOTensor, dense: Tensor) -> Tensor:
+    return sparse.matmul(dense)
+
+
+def sparse_csr_mm(sparse: SparseCSRTensor, dense: Tensor) -> Tensor:
     return sparse.matmul(dense)
 
 
@@ -197,7 +373,12 @@ def _numpy_dtype(dtype: str) -> np.dtype[Any]:
 
 __all__ = [
     "SparseCOOTensor",
+    "SparseCSRTensor",
+    "csr_from_coo",
+    "csr_from_dense",
     "sparse_coo_tensor",
+    "sparse_csr_mm",
+    "sparse_csr_tensor",
     "sparse_from_dense",
     "sparse_mm",
 ]

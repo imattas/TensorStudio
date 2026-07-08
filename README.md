@@ -7,7 +7,7 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `1.16.0` is a CPU-only stable API foundation with native C++
+TensorStudio `2.0.0` is a CPU-only stable API foundation with native C++
 threading, storage reuse, SIMD-friendly typed kernels, and optional
 CBLAS/Accelerate matrix multiplication when available. It adds native stable
 softmax/logsumexp, batched matrix multiplication, statistical reductions,
@@ -28,7 +28,10 @@ optimization, eager-backed graph execution, profiling hooks, and memory-plan
 metadata. The ecosystem layer adds experimental COO sparse tensors, public
 dataset format readers, tiny model-zoo factories, language-model helpers,
 quantization research utilities, a custom-kernel registry, single-process
-distributed planning helpers, and an optional ONNX Runtime adapter.
+distributed planning helpers, and an optional ONNX Runtime adapter. The v2
+foundation adds dataset manifests/checksums, a small dataset cache wrapper, CSR
+sparse matrices, compact attention/Transformer encoder blocks, quantization
+calibration, CPU DLPack import, and ONNX Runtime provider diagnostics.
 It is eager-first, intentionally compact, and not a replacement for mature ML
 frameworks.
 
@@ -415,7 +418,7 @@ print(loaded.run(x).item())
 
 ## Ecosystem Utilities
 
-TensorStudio `1.16.0` rounds out the late-roadmap ecosystem layer without
+TensorStudio `2.0.0` expands the late-roadmap ecosystem layer without
 pretending to be a production-scale distributed or accelerator runtime.
 
 ```python
@@ -444,6 +447,20 @@ ts.unregister_kernel("double")
 print(ts.distributed.data_parallel_plan(dataset_size=10, batch_size=4))
 ```
 
+```python
+manifest = ts.data.build_dataset_manifest("data")
+print(manifest.validate())
+
+csr = ts.csr_from_dense(ts.tensor([[0.0, 2.0], [3.0, 0.0]]))
+print((csr @ ts.ones((2, 1))).tolist())
+
+attention = nn.MultiHeadSelfAttention(embed_dim=4, num_heads=2)
+print(attention(ts.randn((1, 3, 4), seed=7), causal=True).shape)
+
+stats = ts.quantization.calibrate_tensor(ts.tensor([-1.0, 0.0, 2.0]))
+print(stats.to_dict())
+```
+
 For ONNX files, TensorStudio has two paths:
 
 - `ts.import_onnx()` imports and executes a constrained static subset through
@@ -451,6 +468,8 @@ For ONNX files, TensorStudio has two paths:
 - `ts.run_onnx()` can delegate to the optional `onnxruntime` package when
   installed with `tensorstudio[onnxruntime]`; otherwise it can fall back to the
   supported TensorStudio importer for compatible graphs.
+- `ts.check_onnxruntime_compatibility()` and
+  `ts.onnxruntime_available_providers()` report runtime/provider availability.
 
 ## Performance
 
@@ -482,12 +501,11 @@ Run the loose local regression thresholds with:
 python benchmark_all.py --check-thresholds
 ```
 
-On one Windows CPython 3.10 development run reporting `1.16.0`, with
+On one Windows CPython 3.10 development run reporting `2.0.0`, with
 TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
-reported, and no BLAS provider found, TensorStudio beat NumPy on 6 local
 reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
 benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 48 local cases and lost 50. The
+available on that machine; TensorStudio won 45 local cases and lost 53. The
 strongest local wins were the simple NumPy convolution/pooling reference loops
 and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
 many elementwise, reduction, matrix multiplication, larger activation, and
@@ -499,15 +517,15 @@ Snapshot from that local run:
 
 | operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0154 ms | 0.0044 ms | 0.0742 ms | 0.2895x | 4.8297x |
-| `mean` | `(32,)` | 0.0155 ms | 0.0082 ms | 0.0116 ms | 0.5273x | 0.7478x |
-| `sum_axis1` | `(16, 16)` | 0.0158 ms | 0.0030 ms | 0.0126 ms | 0.1928x | 0.7955x |
-| `chain_relu` | `(128,)` | 0.0852 ms | 0.0056 ms | 0.0926 ms | 0.0662x | 1.0874x |
-| `matmul` | `(256, 256)` | 2.7970 ms | 0.4668 ms | 0.2540 ms | 0.1669x | 0.0908x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.1938 ms | 1.2695 ms | 0.1002 ms | 6.5522x | 0.5171x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0282 ms | 0.1632 ms | n/a | 5.7866x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0277 ms | 0.5474 ms | n/a | 19.7400x | n/a |
-| `elementwise_backward` | `(1024,)` | 2.7217 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0221 ms | 0.0068 ms | 0.1092 ms | 0.3106x | 4.9529x |
+| `mean` | `(32,)` | 0.0256 ms | 0.0129 ms | 0.0210 ms | 0.5052x | 0.8221x |
+| `sum_axis1` | `(16, 16)` | 0.0290 ms | 0.0034 ms | 0.0187 ms | 0.1170x | 0.6453x |
+| `chain_relu` | `(128,)` | 0.1596 ms | 0.0099 ms | 0.1898 ms | 0.0621x | 1.1892x |
+| `matmul` | `(256, 256)` | 3.6061 ms | 0.5097 ms | 0.3583 ms | 0.1413x | 0.0994x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2448 ms | 1.9636 ms | 0.1606 ms | 8.0224x | 0.6561x |
+| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0392 ms | 0.3468 ms | n/a | 8.8440x | n/a |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0460 ms | 1.0295 ms | n/a | 22.4030x | n/a |
+| `elementwise_backward` | `(1024,)` | 4.1790 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.

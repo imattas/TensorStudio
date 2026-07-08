@@ -67,7 +67,7 @@ def all_reduce_sum(tensor: Tensor, config: DistributedConfig | None = None) -> T
     if cfg.world_size == 1:
         return tensor.clone()
     raise NotImplementedError(
-        "multi-process all_reduce_sum is research-only in TensorStudio 1.16.0"
+        "multi-process all_reduce_sum is research-only in TensorStudio"
     )
 
 

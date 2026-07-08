@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -31,6 +32,47 @@ class QuantizationConfig:
     @property
     def qmax(self) -> int:
         return (2 ** (self.num_bits - 1)) - 1 if self.symmetric else (2**self.num_bits) - 1
+
+
+@dataclass(frozen=True)
+class CalibrationStats:
+    """Observed floating-point range statistics for quantization."""
+
+    min_value: float
+    max_value: float
+    absmax: float
+    mean: float
+    std: float
+    count: int
+
+    def merge(self, other: CalibrationStats) -> CalibrationStats:
+        if self.count == 0:
+            return other
+        if other.count == 0:
+            return self
+        total = self.count + other.count
+        mean = (self.mean * self.count + other.mean * other.count) / total
+        second_a = (self.std**2 + self.mean**2) * self.count
+        second_b = (other.std**2 + other.mean**2) * other.count
+        variance = max((second_a + second_b) / total - mean**2, 0.0)
+        return CalibrationStats(
+            min(self.min_value, other.min_value),
+            max(self.max_value, other.max_value),
+            max(self.absmax, other.absmax),
+            mean,
+            float(np.sqrt(variance)),
+            total,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "min_value": self.min_value,
+            "max_value": self.max_value,
+            "absmax": self.absmax,
+            "mean": self.mean,
+            "std": self.std,
+            "count": self.count,
+        }
 
 
 @dataclass(frozen=True)
@@ -101,6 +143,47 @@ def fake_quantize(input: Tensor, config: QuantizationConfig | None = None) -> Te
     return quantize_tensor(input, config).dequantize()
 
 
+def calibrate_tensor(input: Tensor) -> CalibrationStats:
+    data = input.numpy().astype(np.float64)
+    if data.size == 0:
+        return CalibrationStats(0.0, 0.0, 0.0, 0.0, 0.0, 0)
+    return CalibrationStats(
+        float(np.min(data)),
+        float(np.max(data)),
+        float(np.max(np.abs(data))),
+        float(np.mean(data)),
+        float(np.std(data)),
+        int(data.size),
+    )
+
+
+def calibrate_state_dict(state: dict[str, Tensor]) -> dict[str, CalibrationStats]:
+    return {name: calibrate_tensor(value) for name, value in state.items()}
+
+
+def merge_calibration_stats(stats: Iterable[CalibrationStats]) -> CalibrationStats:
+    merged = CalibrationStats(0.0, 0.0, 0.0, 0.0, 0.0, 0)
+    for item in stats:
+        merged = merged.merge(item)
+    return merged
+
+
+def quantization_error(
+    input: Tensor,
+    config: QuantizationConfig | None = None,
+) -> dict[str, float]:
+    original = input.numpy().astype(np.float64)
+    reconstructed = fake_quantize(input, config).numpy().astype(np.float64)
+    error = reconstructed - original
+    if error.size == 0:
+        return {"mae": 0.0, "mse": 0.0, "max_abs_error": 0.0}
+    return {
+        "mae": float(np.mean(np.abs(error))),
+        "mse": float(np.mean(error * error)),
+        "max_abs_error": float(np.max(np.abs(error))),
+    }
+
+
 def quantize_state_dict(
     state: dict[str, Tensor],
     config: QuantizationConfig | None = None,
@@ -128,11 +211,16 @@ def quantization_report(state: dict[str, Tensor]) -> dict[str, Any]:
 
 
 __all__ = [
+    "CalibrationStats",
     "QuantizationConfig",
     "QuantizedTensor",
+    "calibrate_state_dict",
+    "calibrate_tensor",
     "dequantize_state_dict",
     "dequantize_tensor",
     "fake_quantize",
+    "merge_calibration_stats",
+    "quantization_error",
     "quantization_report",
     "quantize_state_dict",
     "quantize_tensor",

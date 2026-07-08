@@ -55,7 +55,7 @@ These formats are intentionally supported:
 - ONNX for static graph exchange when TensorStudio has matching eager tensor
   operations.
 
-These formats are not implemented in `1.16.0`:
+These formats are not implemented in `2.0.0`:
 
 - PyTorch `.pt` and `.pth`: loading general PyTorch files often executes pickle
   and depends on PyTorch-specific module code. TensorStudio should interoperate

@@ -3,13 +3,15 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-`1.16.0` is a CPU-only stable API foundation for the tensor, autograd,
+`2.0.0` is a CPU-only stable API foundation for the tensor, autograd,
 neural-network, optimizer, data, project, serialization, ONNX export, vision,
 docs, packaging, wheel workflows, explicit hardware device APIs, and a
 constrained graph runtime. It also includes a late-roadmap ecosystem layer with
 experimental sparse tensors, public dataset readers, tiny model-zoo factories,
 language-model helpers, quantization utilities, a custom-kernel registry,
-distributed planning helpers, and optional ONNX Runtime delegation.
+distributed planning helpers, optional ONNX Runtime delegation, dataset
+manifests, CSR sparse matrices, attention blocks, quantization calibration, and
+CPU DLPack import.
 
 ## Status
 
@@ -19,7 +21,8 @@ TensorStudio is:
 - Eager-first, with constrained symbolic graph tracing for supported tensor
   programs.
 - Ecosystem-oriented, with experimental sparse, model-zoo, language,
-  quantization, kernel-registry, and public-format dataset helpers.
+  quantization, kernel-registry, manifest, DLPack-import, and public-format
+  dataset helpers.
 - Built around a native `tensorstudio._C` extension.
 - Suitable for learning, experimentation, and lightweight ML workloads.
 - Not intended to replace or broadly outperform mature production ML frameworks.
@@ -29,7 +32,7 @@ TensorStudio is:
 - C++20 tensor storage with shared storage, shape, strides, offset, dtype,
   device, and autograd metadata.
 - Dtypes: `float32`, `float64`, `int32`, `int64`, and `bool`.
-- Tensor creation helpers: `tensor`, `from_numpy`, `zeros`, `ones`, `full`,
+- Tensor creation helpers: `tensor`, `from_numpy`, `from_dlpack`, `zeros`, `ones`, `full`,
   `empty`, `rand`, `randn`, `uniform`, `normal`, `randint`, `bernoulli`,
   `arange`, `eye`, `linspace`, and matching `*_like` helpers where useful.
 - NumPy-style broadcasting for binary elementwise operations.
@@ -71,9 +74,10 @@ TensorStudio is:
 - Constrained graph tracing with JSON serialization, constant folding, simple
   multiply-add fusion, eager-backed executable graphs, runtime profiling hooks,
   and memory-plan metadata.
-- Experimental COO sparse tensors, CSV/JSONL/text/LIBSVM dataset readers, tiny
-  model-zoo factories, language-model helpers, affine quantization utilities, a
-  custom-kernel registry, single-process distributed planning helpers, and an
+- Experimental COO/CSR sparse tensors, CSV/JSONL/text/LIBSVM dataset readers,
+  dataset manifests/checksums, tiny model-zoo factories, language and attention
+  helpers, affine quantization/calibration utilities, a custom-kernel registry,
+  single-process distributed planning helpers, CPU DLPack import, and an
   optional ONNX Runtime execution adapter.
 
 ## Design Goals

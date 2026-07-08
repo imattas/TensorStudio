@@ -1,6 +1,6 @@
 # Quantization And Custom Kernels
 
-TensorStudio `1.16.0` adds research helpers for affine quantization and a small
+TensorStudio adds research helpers for affine quantization and a small
 custom-kernel registry.
 
 ## Quantization
@@ -19,6 +19,10 @@ print(restored.tolist())
 
 Supported helpers:
 
+- `calibrate_tensor`
+- `calibrate_state_dict`
+- `merge_calibration_stats`
+- `quantization_error`
 - `quantize_tensor`
 - `dequantize_tensor`
 - `fake_quantize`

@@ -31,5 +31,18 @@ logits = model(inputs)
 loss = nn.causal_language_model_loss(logits, targets)
 ```
 
+## Attention Blocks
+
+TensorStudio includes compact attention blocks for small CPU sequence models:
+
+```python
+x = ts.randn((2, 4, 8), seed=7)
+attention = nn.MultiHeadSelfAttention(embed_dim=8, num_heads=2)
+block = nn.TransformerEncoderBlock(embed_dim=8, num_heads=2)
+
+print(attention(x, causal=True).shape)
+print(block(x).shape)
+```
+
 The language utilities are compact training-loop building blocks, not a
-Transformer stack or pretrained language-model runtime.
+pretrained language-model runtime.

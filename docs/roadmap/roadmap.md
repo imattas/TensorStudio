@@ -1,253 +1,138 @@
 # Roadmap
 
-TensorStudio `1.16.0` is a CPU-first tensor, autograd, neural-network, vision,
-project, serialization, ONNX, release-automation, device-API, and constrained
-graph-runtime foundation with lightweight ecosystem utilities. The long-term direction is
-to become a strong compact ML framework for learning, experimentation, and
-lightweight workloads while staying honest about the scale of mature systems
-such as PyTorch, TensorFlow, NumPy, and JAX.
+TensorStudio `2.0.0` is a CPU-first tensor, autograd, neural-network, vision,
+project, serialization, ONNX, graph-runtime, and lightweight ecosystem
+foundation. This page lists only remaining or intentionally deferred work.
+Completed release history belongs in `CHANGELOG.md` and
+`docs/roadmap/milestones.md`.
 
-This roadmap is ordered from highest-priority foundation work to later
-ecosystem-scale features. Earlier phases should generally land before later
-phases, because performance, correctness, and maintainability compound.
+The roadmap stays ordered from core correctness and runtime work to broader
+ecosystem features. TensorStudio should keep improving performance and coverage
+without claiming broad superiority over mature systems such as PyTorch,
+TensorFlow, NumPy, and JAX unless reproducible benchmarks prove a specific
+claim.
 
-## 1. Correctness Foundation
+## 1. Correctness And Autograd Depth
 
-These items should come first because every later feature depends on predictable
-tensor semantics.
-
-- Completed in `1.3.1`: define, expose, test, and document dtype promotion
-  rules across binary arithmetic, division, matrix multiplication, and
-  comparisons.
-- Completed in `1.3.2`: add exhaustive broadcasting tests for every binary
-  elementwise arithmetic and comparison operation, including functional and
-  operator overload paths.
-- Completed in `1.3.4`: add tuple-axis reductions for `sum`, `mean`,
-  `max`, and `min`.
-- Completed in `1.3.5`: add arg reductions: `argmax` and `argmin`.
-- Completed in `1.3.6`: add `where`, `maximum`, `minimum`, `clip`, and richer
-  comparison helpers.
-- Completed in `1.4.0`: add NumPy-style indexing and slicing for common
-  integer, slice, tuple, ellipsis, newaxis, negative-index, negative-step, and
-  scalar-output cases, with clear rejections for unsupported advanced indexing.
-- Completed in `1.5.0`: add more view/layout operations: `squeeze`,
-  `unsqueeze`, `permute`, and general N-dimensional transpose.
-- Completed in `1.5.1`: add clearer shape, dtype, and indexing error
-  messages.
-- Expand numerical tests against NumPy for all new semantics.
+- Expand NumPy-comparison tests for every newly added tensor semantic,
+  especially edge cases around dtype promotion, indexing, reshaping, and
+  reductions.
+- Add full advanced indexing support for list, tensor, and boolean-mask
+  indexing, including clear gradient behavior where differentiable.
+- Add a richer dtype casting policy with explicit safe, same-kind, and unsafe
+  conversion modes.
+- Add higher-order gradients. The current backward engine intentionally
+  detaches backward gradients.
+- Add broader in-place autograd tracking beyond the current small approved
+  mutation set.
+- Add gradient checkpointing for memory-heavy eager models.
+- Keep the public gradient coverage matrix synchronized with every new
+  differentiable operation.
 
 ## 2. CPU Performance Core
 
-These items should land before broad model expansion so the framework has a
-serious runtime base.
+- Add runtime-dispatched SIMD kernels beyond compiler autovectorization.
+- Improve non-BLAS matrix multiplication with blocking, cache-aware tiling, and
+  better small-matrix fast paths.
+- Ship clearer BLAS provider options for Windows wheels and local source builds.
+- Add more threaded backward kernels for reductions, matrix multiplication,
+  convolution, pooling, and normalization.
+- Continue improving storage reuse with allocator telemetry and stricter
+  regression tests.
+- Add benchmark thresholds for new ecosystem surfaces such as sparse operations,
+  language helpers, and ONNX import/runtime paths.
+- Keep benchmark reports honest with win/loss columns against locally available
+  NumPy, PyTorch, TensorFlow, and JAX installs.
 
-- Completed in `1.6.0`: add optional CBLAS/Accelerate-backed `matmul` for
-  contiguous `float32` and `float64` matrices when compatible platform BLAS
-  support is available, with a portable C++ fallback.
-- Completed in `1.6.0`: add platform-specific BLAS selection guidance for
-  Windows, Linux, and macOS.
-- Completed in `1.6.0`: add a small native CPU thread pool for large
-  contiguous elementwise ops, reductions, matrix operations, convolution, and
-  pooling forward kernels.
-- Completed in `1.6.0`: add SIMD-friendly typed `float32` and `float64`
-  contiguous kernels for common elementwise arithmetic and activations.
-- Completed in `1.6.0`: improve storage allocation and reuse with a bounded
-  C++ storage pool.
-- Completed in `1.6.0`: keep scalar broadcasting and same-shape contiguous
-  tensor fast paths and make them threaded for large tensors.
-- Completed in `1.6.0`: add benchmark regression thresholds for core kernels.
-- Completed in `1.6.0`: keep benchmark reports honest, with win/loss columns
-  against available local NumPy, PyTorch, TensorFlow, and JAX installs.
+## 3. Hardware Backends
 
-## 3. Core Math Expansion
+- Implement real CUDA tensor storage and execution kernels. CUDA support should
+  include elementwise ops, reductions, matrix multiplication, convolution,
+  pooling, and autograd kernels before it is advertised as usable.
+- Add CUDA CI and wheel-build coverage before publishing CUDA-capable releases.
+- Implement a Metal/MPS execution backend for Apple platforms after the backend
+  boundary is proven against CUDA and CPU.
+- Add explicit device-to-device copy semantics for every supported backend pair.
+- Add mixed precision only after dtype semantics and hardware kernels are
+  stable.
+- Add backend-specific benchmark suites that compare CPU, CUDA, Metal, and any
+  future devices without hiding losses.
 
-After the tensor semantics and CPU runtime are stronger, expand the math surface
-that models and scientific users expect.
+## 4. Graph, Compiler, And Runtime Systems
 
-- Completed in `1.7.0`: add `logsumexp`, `softmax`, and `log_softmax`
-  native kernels with stable max-shifted numerics.
-- Completed in `1.7.0`: add `var`, `std`, `norm`, and common statistical
-  reductions as Tensor methods or first-class Python API helpers where
-  appropriate.
-- Completed in `1.7.0`: add `einsum` for a documented practical subset of
-  common patterns.
-- Completed in `1.7.0`: add batched matrix multiplication through `bmm` and
-  3D `@` dispatch.
-- Completed in `1.7.0`: add random distributions beyond uniform and normal,
-  including `randint` and `bernoulli`.
-- Completed in `1.7.0`: add stable numerics for cross-entropy-style workloads.
-- Completed in `1.7.0`: add `all`, `any`, and boolean reductions.
+- Expand tracing coverage beyond the current constrained tensor-program subset.
+- Add explicit graph diagnostics for unsupported Python control flow and dynamic
+  shapes.
+- Add stronger graph optimization passes: common subexpression elimination,
+  dead-node elimination, shape propagation, and broader fusion.
+- Add fused eager execution paths for common graph patterns.
+- Research machine-code JIT or ahead-of-time native code generation once eager
+  semantics and kernel coverage are stable.
+- Add graph-level autograd support for compiled/traced programs.
+- Add persistent graph profiling artifacts that can be compared across releases.
 
-## 4. Autograd Coverage And Hardening
+## 5. Distributed And Large Training
 
-Autograd should grow alongside the operation set, with tests that make coverage
-visible.
+- Add real multi-process collectives with a tested transport backend.
+- Add distributed data parallel training with deterministic parameter
+  synchronization and failure handling.
+- Add distributed checkpoint save/load helpers.
+- Add rank-aware logging, metrics, and benchmark reporting.
+- Add CI coverage for at least a local multi-process distributed smoke test.
+- Keep production-scale distributed training out of the public claims until the
+  runtime has real transport, recovery, and scaling tests.
 
-- Completed in `1.8.0`: maintain a documented gradient coverage matrix.
-- Completed in `1.8.0`: add gradients for every new differentiable tensor op
-  from the `1.7.0` math expansion.
-- Completed in `1.8.0`: expand non-scalar backward coverage with explicit
-  gradient tests through newer differentiable ops.
-- Completed in `1.8.0`: add graph lifecycle controls to reduce retained memory,
-  including retained-graph backward and normal graph release.
-- Completed in `1.8.0`: improve leaf tensor semantics and gradient
-  accumulation behavior.
-- Completed in `1.8.0`: add safer in-place semantics for a small approved set
-  of operations.
-- Completed in `1.8.0`: add finite-difference gradient tests for the current
-  differentiable math surface.
-- Deferred beyond `1.8.0`: higher-order gradient support remains a later
-  engine-design milestone because the current backward engine intentionally
-  detaches backward gradients.
+## 6. Serialization, Interchange, And Model Formats
 
-## 5. Neural Network Building Blocks
+- Expand TensorStudio ONNX import/export coverage for more operators and module
+  families.
+- Add TensorStudio-to-DLPack export and non-CPU DLPack ownership after device
+  storage semantics are mature.
+- Research safe metadata inspection for TensorFlow SavedModel, Keras `.keras`,
+  and HDF5 weight files without executing untrusted model code.
+- Add tested tensor-only HDF5 import/export only if a stable schema is defined.
+- Add versioned compatibility checks for every non-pickle storage format.
 
-Once math and autograd are stronger, add the modules needed for real model
-families.
+## 7. Data, Vision, And Model Coverage
 
-- Completed in `1.9.0`: add initializers: Xavier, Kaiming, normal, uniform,
-  zeros, and ones.
-- Completed in `1.9.0`: add `BatchNorm1d`, `BatchNorm2d`, `LayerNorm`, and
-  `Embedding`.
-- Completed in `1.9.0`: add `Conv1d`, grouped convolution, depthwise
-  convolution, and
-  `ConvTranspose2d`.
-- Completed in `1.9.0`: add adaptive pooling and global pooling.
-- Completed in `1.9.0`: add more activation modules: GELU, ELU, SELU, SiLU,
-  and Mish.
-- Completed in `1.9.0`: add more losses: label-smoothing cross entropy,
-  focal loss, KL divergence, negative log likelihood, and cosine embedding
-  loss.
-- Completed in `1.9.0`: add model summary utilities for parameters, shapes,
-  and estimated memory.
+- Add larger model-zoo examples with reproducible training scripts and metadata.
+- Add pretrained-weight metadata only where weights are legally distributable
+  and checksummed.
+- Add end-to-end detection and segmentation training examples.
+- Add video IO helpers after the image path is stable.
+- Add more vision models, including residual, mobile, UNet-style, and simple
+  transformer-backed examples.
+- Add broader transformer stacks and sequence-model examples.
+- Add dataset download/caching workflows with integrity checks for approved
+  public datasets.
 
-## 6. Training And Project Workflows
+## 8. Sparse, Quantization, And Kernel Extensions
 
-The project utilities should evolve into a clean small-project workflow without
-becoming an opaque training framework.
-
-- Completed in `1.10.0`: add dataset creation helpers for images, tabular arrays, labels, and
-  TensorStudio tensors, with deterministic train/validation splitting and
-  metadata summaries.
-- Completed in `1.10.0`: add callbacks for checkpointing, early stopping, CSV logging, and learning
-  rate logging.
-- Completed in `1.10.0`: add a metrics package for regression, classification, and multilabel tasks.
-- Completed in `1.10.0`: add JSON, TOML, and YAML project config loading.
-- Completed in `1.10.0`: add checkpoint resume helpers that restore model, optimizer, scheduler, and
-  epoch state.
-- Completed in `1.10.0`: add train/validation loop support in `Trainer`.
-- Completed in `1.10.0`: add deterministic seeding helpers across TensorStudio, NumPy, and Python
-  random.
-- Completed in `1.10.0`: add generated project templates for classification, regression, and vision.
-
-## 7. Computer Vision Depth
-
-Vision should grow from classification utilities into a compact practical CV
-toolkit.
-
-- Completed in `1.11.0`: add batched image transforms for tensor batches.
-- Completed in `1.11.0`: add color jitter, random resized crop, random rotation, affine transforms,
-  cutout, mixup, and cutmix.
-- Completed in `1.11.0`: add detection utilities: NMS, box encode/decode, IoU variants, and anchor
-  helpers.
-- Completed in `1.11.0`: add segmentation helpers: masks, mask IoU, and simple mask transforms.
-- Completed in `1.11.0`: add reusable model blocks: ResNet-style blocks, MobileNet-style depthwise
-  blocks, and a compact UNet.
-- Completed in `1.11.0`: add dataset helpers for classification, detection, and segmentation folder
-  layouts.
-- Completed in `1.11.0`: add more visualization tools for predictions, masks, and feature maps.
-
-## 8. Serialization And Interchange
-
-Interchange should prioritize safe, inspectable formats before broad runtime
-compatibility.
-
-- Completed in `1.12.0`: expand NPZ metadata for richer model and optimizer state.
-- Completed in `1.12.0`: add `safetensors` support for safe tensor weight storage.
-- Completed in `1.12.0`: expand ONNX export coverage for more TensorStudio modules and ops.
-- Completed in `1.12.0`: add ONNX metadata inspection for supported files, including graph inputs,
-  outputs, opset, initializer summaries, node counts, and model producer
-  fields.
-- Completed in `1.12.0`: add ONNX import for a supported subset of static graphs.
-- Completed in `1.12.0`: add execution support for imported ONNX graphs only where TensorStudio has
-  correct matching tensor ops; clearly reject unsupported operators and dynamic
-  graph features.
-- Completed in `1.12.0`: add model metadata extraction for TensorStudio checkpoints, NPZ bundles, and
-  supported ONNX files. Do not advertise metadata support for formats that
-  cannot be parsed safely or accurately.
-- Completed in `1.12.0`: add import/export research for practical neural-network model formats that
-  can be supported without unsafe execution or fake compatibility layers.
-- Completed in `1.12.0`: add versioned checkpoint metadata and compatibility checks.
-- Completed in `1.12.0`: add model card or metadata export for packaged examples.
-- Consider DLPack-style interop after tensor/device semantics are mature.
+- Expand sparse tensor formats beyond COO/CSR, such as CSC where useful and
+  testable.
+- Add sparse autograd coverage for supported sparse-dense operations.
+- Add quantized inference kernels instead of only affine quantization helpers
+  and fake quantization.
+- Define a stable native plugin ABI for custom C++ kernels.
+- Add safe plugin discovery that does not execute arbitrary untrusted code.
 
 ## 9. Packaging, CI, And Release Quality
 
-Release automation should make every published build reproducible and tested.
-
-- Completed in `1.13.0`: add clean wheel install tests on Windows, Linux, and macOS.
-- Completed in `1.13.0`: add clean sdist install tests where source builds are expected.
-- Completed in `1.13.0`: add manylinux, macOS universal/arm64, and Windows wheel verification.
-- Completed in `1.13.0`: add benchmark artifacts to release workflows.
-- Completed in `1.13.0`: add TestPyPI dry-run guidance before every production PyPI release.
-- Completed in `1.13.0`: prefer PyPI trusted publishing over raw tokens.
-- Completed in `1.13.0`: add docs publishing automation.
-- Completed in `1.13.0`: add ABI and platform compatibility notes for native builds.
-
-## 10. Hardware Backends
-
-New backends should wait until the CPU implementation has strong semantics and
-test coverage.
-
-- Completed in `1.14.0`: add a formal device abstraction for CPU, CUDA, Metal, and future devices.
-- Completed in `1.14.0`: add device-aware storage boundaries plus CUDA/Metal CMake metadata hooks.
-- Deferred beyond `1.14.0`: ship CUDA execution kernels for elementwise ops, reductions,
-  matmul, convolution, and pooling only after CUDA builds and CI can test them.
-- Completed in `1.14.0`: add Metal backend research and documented Apple backend constraints.
-- Completed in `1.14.0`: add explicit device transfer APIs.
-- Completed in `1.14.0`: add backend-specific benchmark suites.
-- Deferred beyond `1.14.0`: add mixed precision only after dtype semantics and hardware kernels are
-  stable.
-
-## 11. Graph, Compiler, And Runtime Systems
-
-Graph features are long-term work because they require stable eager semantics
-first.
-
-- Completed in `1.15.0`: add tracing for a constrained subset of TensorStudio programs.
-- Completed in `1.15.0`: add graph serialization for supported traced models.
-- Completed in `1.15.0`: add basic graph optimization passes such as constant folding and op fusion.
-- Completed in `1.15.0`: add a simple ahead-of-time execution path for supported graphs,
-  backed by TensorStudio eager tensor operations rather than machine-code JIT.
-- Completed in `1.15.0`: add runtime profiling hooks.
-- Completed in `1.15.0`: add memory planning metadata for graph execution.
-
-## 12. Ecosystem And Advanced Features
-
-These are late-stage features after the core framework is correct, fast, and
-well packaged.
-
-- Completed in `1.16.0`: add experimental COO sparse tensors with dense conversion,
-  coalescing, transpose, and sparse-dense matmul.
-- Completed in `1.16.0`: add distributed training research helpers for explicit
-  single-process collectives and deterministic data-parallel planning metadata.
-- Completed in `1.16.0`: add model zoo examples with reproducible tiny MLP, CNN,
-  and language-model factory functions.
-- Completed in `1.16.0`: add dataset utilities for CSV, JSONL, text-line, and
-  LIBSVM-style public formats.
-- Completed in `1.16.0`: add language-model-oriented layers and examples,
-  including vocabulary helpers, learned position embeddings, a tiny causal LM,
-  causal batches, and LM loss.
-- Completed in `1.16.0`: add quantization research helpers for affine
-  quantization, fake quantization, state-dict conversion, and size reports.
-- Completed in `1.16.0`: add plugin extension points through a custom kernel
-  registry for Python or native-extension callables.
+- Keep publishing through trusted GitHub/PyPI release paths where possible.
+- Add release verification for every wheel artifact built on GitHub Actions.
+- Add clean install tests for optional extras such as `onnxruntime`,
+  `safetensors`, and `vision`.
+- Add ABI compatibility notes for each native-extension release.
+- Keep TestPyPI or equivalent dry-run guidance current.
+- Keep docs, examples, benchmark reports, and README claims synchronized with
+  the released package.
 
 ## Non-Goals For The Near Term
 
 - Claiming broad superiority over mature ML frameworks.
-- Production-scale distributed training.
 - Full TensorFlow or PyTorch compatibility.
-- CUDA-first development before the CPU backend is solid.
-- Untrusted pickle loading.
+- Production-scale distributed training before real transport backends exist.
+- CUDA-first development before CPU semantics and tests remain stable.
+- Loading untrusted pickle files.
+- Loading arbitrary neural-network formats by executing untrusted code.
 - Benchmark claims that are not backed by local, reproducible results.

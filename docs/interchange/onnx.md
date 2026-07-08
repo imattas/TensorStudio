@@ -2,7 +2,7 @@
 
 TensorStudio includes a limited ONNX exporter, ONNX metadata
 inspection, and supported-subset ONNX import/execution for TensorStudio module
-stacks. TensorStudio `1.16.0` also adds an optional adapter that can delegate
+stacks. TensorStudio also includes an optional adapter that can delegate
 execution to the external ONNX Runtime package when it is installed.
 
 Install the optional dependency:
@@ -54,6 +54,8 @@ importer for compatible graphs.
 
 ```python
 print(ts.onnxruntime_is_available())
+print(ts.onnxruntime_available_providers())
+print(ts.check_onnxruntime_compatibility("classifier.onnx"))
 output = ts.run_onnx("classifier.onnx", ts.ones((1, 1, 4, 4)))
 ```
 

@@ -44,6 +44,19 @@ def from_numpy(
     return _finish_tensor(_C.from_numpy(np.asarray(array), requires_grad), target_device=device)
 
 
+def from_dlpack(
+    source: Any,
+    requires_grad: bool = False,
+    device: DeviceLike = "cpu",
+) -> Tensor:
+    """Create a Tensor copy from a CPU DLPack-compatible object."""
+
+    if not hasattr(source, "__dlpack__"):
+        raise TypeError("from_dlpack expects an object implementing __dlpack__")
+    array = np.from_dlpack(source)
+    return from_numpy(np.asarray(array), requires_grad=requires_grad, device=device)
+
+
 def zeros(
     shape: int | tuple[int, ...] | list[int],
     dtype: str = "float32",
@@ -397,6 +410,7 @@ __all__ = [
     "empty_like",
     "eye",
     "from_numpy",
+    "from_dlpack",
     "full",
     "full_like",
     "linspace",

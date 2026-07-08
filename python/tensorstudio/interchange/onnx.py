@@ -520,13 +520,8 @@ class OnnxRuntimeModel:
         *,
         providers: list[str] | None = None,
     ) -> None:
-        try:
-            import onnxruntime as ort
-        except ImportError as exc:  # pragma: no cover - optional dependency path
-            raise ImportError(
-                "ONNX Runtime execution requires the optional dependency: "
-                "python -m pip install 'tensorstudio[onnxruntime]'"
-            ) from exc
+        ort = _require_onnxruntime()
+        _validate_onnxruntime_providers(providers)
         self.path = Path(path)
         self.session = ort.InferenceSession(str(self.path), providers=providers)
         self.input_names = [item.name for item in self.session.get_inputs()]
@@ -549,6 +544,43 @@ def onnxruntime_is_available() -> bool:
     except ImportError:
         return False
     return True
+
+
+def onnxruntime_available_providers() -> list[str]:
+    """Return ONNX Runtime execution providers available in this environment."""
+
+    try:
+        ort = _require_onnxruntime()
+    except ImportError:
+        return []
+    return list(ort.get_available_providers())
+
+
+def check_onnxruntime_compatibility(
+    path: PathLikeStr,
+    *,
+    providers: list[str] | None = None,
+) -> dict[str, Any]:
+    """Inspect whether ONNX Runtime can load a model with requested providers."""
+
+    result: dict[str, Any] = {
+        "available": onnxruntime_is_available(),
+        "available_providers": onnxruntime_available_providers(),
+        "requested_providers": list(providers or []),
+        "loadable": False,
+        "error": None,
+    }
+    if not result["available"]:
+        result["error"] = "onnxruntime is not installed"
+        return result
+    try:
+        model = OnnxRuntimeModel(path, providers=providers)
+        result["loadable"] = True
+        result["inputs"] = list(model.input_names)
+        result["outputs"] = list(model.output_names)
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
 
 
 def run_onnx(
@@ -601,6 +633,29 @@ def json_dumps_stable(value: dict[str, Any]) -> str:
     return json.dumps(value, indent=2, sort_keys=True) + "\n"
 
 
+def _require_onnxruntime() -> Any:
+    try:
+        import onnxruntime as ort
+    except ImportError as exc:  # pragma: no cover - optional dependency path
+        raise ImportError(
+            "ONNX Runtime execution requires the optional dependency: "
+            "python -m pip install 'tensorstudio[onnxruntime]'"
+        ) from exc
+    return ort
+
+
+def _validate_onnxruntime_providers(providers: list[str] | None) -> None:
+    if not providers:
+        return
+    available = set(onnxruntime_available_providers())
+    missing = [provider for provider in providers if provider not in available]
+    if missing:
+        raise ValueError(
+            "requested ONNX Runtime providers are unavailable: "
+            f"{missing}; available providers: {sorted(available)}"
+        )
+
+
 def _node_attributes(node: Any) -> dict[str, Any]:
     _, helper, _ = _require_onnx()
     return {attribute.name: helper.get_attribute_value(attribute) for attribute in node.attribute}
@@ -634,10 +689,12 @@ def _pads_to_pair(value: Any) -> tuple[int, int]:
 __all__ = [
     "ImportedOnnxModel",
     "OnnxRuntimeModel",
+    "check_onnxruntime_compatibility",
     "export_model_card_metadata",
     "export_onnx",
     "import_onnx",
     "inspect_onnx",
+    "onnxruntime_available_providers",
     "onnxruntime_is_available",
     "run_onnx",
 ]

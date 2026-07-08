@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 2.0.0 - 2026-07-08
+
+- Added a tested v2 foundation slice from the remaining roadmap while keeping
+  accelerator and production-distributed limitations explicit.
+- Added dataset manifests, SHA-256 file checksums, manifest validation, and a
+  small map-style dataset cache wrapper.
+- Added compact attention APIs: `scaled_dot_product_attention`,
+  `MultiHeadSelfAttention`, and `TransformerEncoderBlock`.
+- Added experimental CSR sparse tensors, dense/COO conversion helpers, and
+  CSR sparse-dense matmul.
+- Added quantization calibration helpers and quantization error reporting.
+- Added CPU `from_dlpack()` import for DLPack-compatible providers via NumPy.
+- Added ONNX Runtime provider discovery and compatibility diagnostics.
+- Reworked the roadmap to show remaining work only.
+
 ## 1.16.0 - 2026-07-07
 
 - Completed the Ecosystem And Advanced Features roadmap batch as supported

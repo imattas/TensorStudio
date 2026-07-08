@@ -35,10 +35,12 @@ from .hardware import (
     metal_is_available,
 )
 from .interchange import (
+    check_onnxruntime_compatibility,
     export_model_card_metadata,
     export_onnx,
     import_onnx,
     inspect_onnx,
+    onnxruntime_available_providers,
     onnxruntime_is_available,
     run_onnx,
 )
@@ -107,7 +109,17 @@ from .serialization import (
     save_npz,
     save_safetensors,
 )
-from .sparse import SparseCOOTensor, sparse_coo_tensor, sparse_from_dense, sparse_mm
+from .sparse import (
+    SparseCOOTensor,
+    SparseCSRTensor,
+    csr_from_coo,
+    csr_from_dense,
+    sparse_coo_tensor,
+    sparse_csr_mm,
+    sparse_csr_tensor,
+    sparse_from_dense,
+    sparse_mm,
+)
 from .tensor import (
     Tensor,
     arange,
@@ -116,6 +128,7 @@ from .tensor import (
     empty,
     empty_like,
     eye,
+    from_dlpack,
     from_numpy,
     full,
     full_like,
@@ -141,6 +154,7 @@ from .tensor import (
 __all__ = [
     "Device",
     "SparseCOOTensor",
+    "SparseCSRTensor",
     "Tensor",
     "TensorSpec",
     "__version__",
@@ -166,7 +180,10 @@ __all__ = [
     "conv_transpose2d",
     "compile_graph",
     "cos",
+    "csr_from_coo",
+    "csr_from_dense",
     "call_kernel",
+    "check_onnxruntime_compatibility",
     "create_model",
     "cuda_is_available",
     "data",
@@ -184,6 +201,7 @@ __all__ = [
     "export_model_card_metadata",
     "export_onnx",
     "from_numpy",
+    "from_dlpack",
     "full",
     "full_like",
     "greater",
@@ -231,6 +249,7 @@ __all__ = [
     "ones",
     "ones_like",
     "onnxruntime_is_available",
+    "onnxruntime_available_providers",
     "optim",
     "permute",
     "performance_info",
@@ -257,6 +276,8 @@ __all__ = [
     "softmax",
     "sparse",
     "sparse_coo_tensor",
+    "sparse_csr_mm",
+    "sparse_csr_tensor",
     "sparse_from_dense",
     "sparse_mm",
     "stack",

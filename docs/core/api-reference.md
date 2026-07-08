@@ -15,6 +15,7 @@ modules, optimizers, data utilities, and serialization helpers.
 - `Tensor`
 - `tensor`
 - `from_numpy`
+- `from_dlpack`
 - `zeros`
 - `zeros_like`
 - `ones`
@@ -86,7 +87,12 @@ modules, optimizers, data utilities, and serialization helpers.
 - `load_graph`
 - `graph`
 - `SparseCOOTensor`
+- `SparseCSRTensor`
+- `csr_from_dense`
+- `csr_from_coo`
 - `sparse_coo_tensor`
+- `sparse_csr_tensor`
+- `sparse_csr_mm`
 - `sparse_from_dense`
 - `sparse_mm`
 - `create_model`
@@ -101,6 +107,8 @@ modules, optimizers, data utilities, and serialization helpers.
 - `kernel_info`
 - `run_onnx`
 - `onnxruntime_is_available`
+- `onnxruntime_available_providers`
+- `check_onnxruntime_compatibility`
 - `save`
 - `load`
 - `save_npz`
@@ -556,15 +564,20 @@ arbitrary Python control flow and does not generate machine code.
 ## `tensorstudio.sparse`
 
 - `SparseCOOTensor(indices, values, shape, coalesced=False)`
+- `SparseCSRTensor(crow_indices, col_indices, values, shape)`
 - `sparse_coo_tensor(indices, values, shape, dtype=None, coalesced=False)`
+- `sparse_csr_tensor(crow_indices, col_indices, values, shape, dtype=None)`
 - `sparse_from_dense(input)`
+- `csr_from_dense(input)`
+- `csr_from_coo(input)`
 - `sparse_mm(sparse, dense)`
+- `sparse_csr_mm(sparse, dense)`
 
-The sparse API is experimental and stores COO indices plus dense TensorStudio
-values. It supports dense conversion, duplicate coalescing, rank-2 transpose,
-and sparse-dense matrix multiplication. Autograd follows the dense operations
-that consume sparse values; sparse layout mutation is not a full differentiable
-sparse system.
+The sparse API is experimental and stores COO or CSR indices plus dense
+TensorStudio values. It supports dense conversion, duplicate coalescing for
+COO, COO-to-CSR conversion, rank-2 transpose for COO, and sparse-dense matrix
+multiplication. Sparse layout mutation is not a full differentiable sparse
+system.
 
 ## `tensorstudio.model_zoo`
 
@@ -584,16 +597,25 @@ for tests, examples, and docs rather than pretrained production models.
 - `TokenEmbedding`
 - `PositionalEmbedding`
 - `CausalLanguageModel`
+- `MultiHeadSelfAttention`
+- `TransformerEncoderBlock`
 - `make_causal_lm_batch(tokens, sequence_length)`
 - `causal_language_model_loss(logits, targets)`
+- `scaled_dot_product_attention(query, key, value, mask=None, causal=False)`
 
 These helpers cover tiny tokenized examples and causal next-token losses. They
-do not implement transformer attention or tokenizer file formats yet.
+include compact attention blocks, but do not implement pretrained tokenizer or
+large language-model runtimes.
 
 ## `tensorstudio.quantization`
 
-- `QuantizationConfig(num_bits=8, symmetric=False, per_tensor=True)`
+- `QuantizationConfig(num_bits=8, symmetric=False, dtype="int32")`
+- `CalibrationStats`
 - `QuantizedTensor`
+- `calibrate_tensor(input)`
+- `calibrate_state_dict(state)`
+- `merge_calibration_stats(stats)`
+- `quantization_error(input, config=None)`
 - `quantize_tensor(input, config=None)`
 - `dequantize_tensor(quantized)`
 - `fake_quantize(input, config=None)`
@@ -666,6 +688,8 @@ SafeTensors files, supported ONNX files, and trusted TensorStudio checkpoints.
 - `import_onnx(path)`
 - `run_onnx(path, input, prefer_onnxruntime=True, providers=None)`
 - `onnxruntime_is_available()`
+- `onnxruntime_available_providers()`
+- `check_onnxruntime_compatibility(path, providers=None)`
 - `export_model_card_metadata(metadata, path)`
 - `save_safetensors(tensors, path, metadata=None)`
 - `load_safetensors(path)`
