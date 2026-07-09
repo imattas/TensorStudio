@@ -63,40 +63,30 @@ def test_export_onnx_configurable_image_classifier(tmp_path) -> None:
     ]
 
 
-def test_onnx_metadata_inspection_and_runtime_diagnostics(tmp_path) -> None:
-    model = nn.Sequential(nn.Linear(2, 3), nn.ReLU(), nn.Linear(3, 1))
-    path = tmp_path / "mlp.onnx"
+def test_inspect_import_onnx_and_model_card_metadata(tmp_path) -> None:
+    ts.manual_seed(0)
+    model = nn.Sequential(nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2))
+    input_tensor = ts.tensor([[1.0, 2.0, 3.0], [0.5, -1.0, 2.0]])
+    path = tmp_path / "linear.onnx"
+    card_path = tmp_path / "model-card.json"
 
-    ts.export_onnx(model, path, input_shape=(4, 2), input_name="features", output_name="score")
-
-    info = ts.inspect_onnx(path)
-    assert info["check_passed"] is True
-    assert info["graph_name"] == "TensorStudioModel"
-    assert info["inputs"] == [{"name": "features", "dtype": "float", "shape": [4, 2]}]
-    assert info["outputs"] == [{"name": "score", "dtype": "float", "shape": [4, 1]}]
-    assert info["node_count"] == 3
-    assert info["op_counts"] == {"Gemm": 2, "Relu": 1}
-    assert "" in info["opsets"]
-
-    runtime = ts.onnx_runtime_info(providers=["DefinitelyMissingProvider"])
-    assert runtime["requested_providers"] == ["DefinitelyMissingProvider"]
-    if runtime["available"]:
-        assert "DefinitelyMissingProvider" in runtime["unsupported_providers"]
-    else:
-        assert runtime["selected_providers"] == []
-        assert "tensorstudio[onnxruntime]" in runtime["reason"]
-
-    compatibility = ts.check_onnx_runtime_compatibility(
-        path,
-        providers=["DefinitelyMissingProvider"],
+    ts.export_onnx(model, path, input_shape=(2, 3))
+    metadata = ts.inspect_onnx(path)
+    imported = ts.import_onnx(path)
+    output = imported(input_tensor)
+    card = ts.export_model_card_metadata(
+        {"name": "linear-demo", "format": metadata["format"]},
+        card_path,
     )
-    assert compatibility["onnx_check_passed"] is True
-    assert compatibility["requested_providers"] == ["DefinitelyMissingProvider"]
-    if compatibility["runtime_available"]:
-        assert compatibility["compatible"] is False
-        assert "DefinitelyMissingProvider" in compatibility["unsupported_providers"]
-    else:
-        assert compatibility["compatible"] is None
+
+    assert metadata["format"] == "onnx"
+    assert metadata["node_count"] == 3
+    assert metadata["operators"] == ["Gemm", "Relu"]
+    assert metadata["initializer_count"] == 4
+    assert card.exists()
+    assert ts.inspect_model_metadata(path)["node_count"] == 3
+    assert output.shape == (2, 2)
+    np.testing.assert_allclose(output.numpy(), model(input_tensor).numpy(), rtol=1e-6, atol=1e-6)
 
 
 def test_run_onnx_inference_matches_tensorstudio_forward(tmp_path) -> None:
@@ -137,5 +127,5 @@ def test_run_onnx_inference_matches_tensorstudio_forward(tmp_path) -> None:
             {"features": x, "extra": x},
             providers=["CPUExecutionProvider"],
         )
-    with pytest.raises(ValueError, match="unsupported ONNX Runtime provider"):
+    with pytest.raises(ValueError, match="requested ONNX Runtime providers are unavailable"):
         ts.run_onnx_inference(path, x, providers=["DefinitelyMissingProvider"])

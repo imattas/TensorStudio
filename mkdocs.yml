@@ -22,6 +22,7 @@ nav:
       - Build From Source: getting-started/source-build.md
   - Core Tensor Engine:
       - Tensor API: core/tensors.md
+      - Math And Statistics: core/math-and-statistics.md
       - Broadcasting: core/broadcasting.md
       - Native C++ Core: core/native-cpp-core.md
       - API Reference: core/api-reference.md
@@ -32,24 +33,37 @@ nav:
   - Neural Networks:
       - Overview: nn/overview.md
       - Modules: nn/modules.md
+      - Initializers: nn/initializers.md
+      - Losses And Summary: nn/losses-and-summary.md
       - Optimizers: nn/optimizers.md
       - Training: nn/training.md
   - Data:
       - Datasets And DataLoaders: data/datasets-and-dataloaders.md
+      - Dataset Creation: data/dataset-creation.md
       - Tensor Datasets: data/tensor-datasets.md
       - DataLoader Patterns: data/dataloader-patterns.md
   - Vision:
       - Overview: vision/overview.md
       - Dataset Creation: vision/dataset-creation.md
+      - Transforms: vision/transforms.md
+      - Detection: vision/detection.md
+      - Segmentation: vision/segmentation.md
+      - Models And Visualization: vision/models-and-visualization.md
   - Project Workflows:
       - Local Projects: project/workflows.md
       - Project Layout: project/project-layout.md
+      - Trainer And Callbacks: project/trainer-and-callbacks.md
+      - Metrics: project/metrics.md
+      - Configs And Templates: project/configs-and-templates.md
       - Checkpoints: project/checkpoints.md
   - Interchange And Serialization:
       - NumPy Interop: interchange/numpy-interop.md
       - TensorStudio Serialization: interchange/serialization.md
+      - SafeTensors: interchange/safetensors.md
+      - Model Metadata: interchange/metadata.md
       - Trusted Pickle Guide: interchange/trusted-serialization.md
       - ONNX: interchange/onnx.md
+      - ONNX Import: interchange/onnx-import.md
       - Model Formats: interchange/model-formats.md
   - Performance:
       - Benchmarks: performance/benchmarks.md
@@ -57,16 +71,31 @@ nav:
       - Optimization Guide: performance/optimization.md
   - Hardware:
       - Backend Architecture: hardware/backend-architecture.md
+      - Device API: hardware/device-api.md
       - CPU Backend: hardware/cpu-backend.md
+      - CUDA Backend: hardware/cuda.md
+      - Metal Backend: hardware/metal.md
+      - Backend Benchmarks: hardware/backend-benchmarks.md
       - Windows: hardware/windows.md
       - Linux: hardware/linux.md
       - macOS: hardware/macos.md
+  - Graph Runtime:
+      - Tracing: graph/tracing.md
+      - Serialization And Optimization: graph/serialization-and-optimization.md
+      - Profiling And Memory Planning: graph/profiling-and-memory.md
+  - Ecosystem:
+      - Sparse Tensors: ecosystem/sparse.md
+      - Public Dataset Formats: ecosystem/datasets.md
+      - Model Zoo And Language: ecosystem/model-zoo-and-language.md
+      - Quantization And Kernels: ecosystem/quantization-and-kernels.md
+      - Distributed And ONNX Runtime: ecosystem/distributed-and-onnx-runtime.md
   - Development:
       - Contributing: development/contributing.md
       - C++ First Policy: development/cpp-first.md
   - Release:
       - Publishing: release/publishing.md
       - Versioning: release/versioning.md
+      - Platform Compatibility: release/platform-compatibility.md
       - Release Checklist: release/checklist.md
   - Roadmap:
       - Roadmap: roadmap/roadmap.md

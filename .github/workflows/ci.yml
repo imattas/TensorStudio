@@ -102,3 +102,24 @@ jobs:
           python benchmark_all.py --help
       - name: Example
         run: python examples/basic_tensor_ops.py
+
+  artifact_smoke:
+    name: Artifact smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel and sdist
+        run: |
+          python -m pip install -U pip build twine
+          python -m build
+          python -m twine check dist/*
+      - name: Clean wheel and sdist install smoke
+        run: python tools/verify_artifacts.py --wheel-dir dist --sdist-dir dist

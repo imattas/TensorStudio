@@ -1,4 +1,4 @@
-﻿# Training Loops
+# Training Loops
 
 TensorStudio training loops are explicit Python loops using eager tensors,
 modules, losses, and optimizers.
@@ -80,8 +80,8 @@ w = ts.randn((4, 4), seed=123)
 
 ## Practical Tips
 
-- Keep tensors modest in `2.1.0`; kernels are native CPU loops with selected
-  threaded paths, not a full high-performance kernel library.
+- Keep tensors modest in `1.14.0`; kernels are CPU-first and still compact
+  compared with mature high-performance ML runtimes.
 - Prefer `float32` unless you need `float64`.
 - Compare with NumPy in tests for expected numerical values.
 - Watch shape errors carefully around broadcasting and matrix multiplication.

@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from tensorstudio.data import Dataset
-from tensorstudio.tensor import Tensor
+from tensorstudio.tensor import Tensor, tensor
 from tensorstudio.typing import PathLikeStr
 
 from .io import load_image
@@ -286,11 +286,126 @@ def validate_image_manifest(
     }
 
 
+class DetectionFolder(Dataset):
+    """Detection dataset laid out as ``root/images`` and ``root/annotations``.
+
+    Annotation files are JSON documents named after the image stem and contain
+    ``boxes`` in ``xyxy`` format plus optional integer ``labels``.
+    """
+
+    def __init__(
+        self,
+        root: PathLikeStr,
+        transform: Callable[[Any], Any] | None = None,
+        target_transform: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
+        images_dir: str = "images",
+        annotations_dir: str = "annotations",
+        mode: str | None = "RGB",
+    ) -> None:
+        self.root = Path(root)
+        self.image_root = self.root / images_dir
+        self.annotation_root = self.root / annotations_dir
+        if not self.image_root.exists():
+            raise FileNotFoundError(f"DetectionFolder image root does not exist: {self.image_root}")
+        if not self.annotation_root.exists():
+            raise FileNotFoundError(
+                f"DetectionFolder annotation root does not exist: {self.annotation_root}"
+            )
+        self.transform = transform
+        self.target_transform = target_transform
+        self.mode = mode
+        self.samples = [
+            path
+            for path in sorted(self.image_root.rglob("*"))
+            if path.is_file() and path.suffix.lower() in IMG_EXTENSIONS
+        ]
+        if not self.samples:
+            raise ValueError(f"DetectionFolder found no supported images in {self.image_root}")
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> tuple[Any, dict[str, Any]]:
+        path = self.samples[index]
+        image: Any = load_image(path, mode=self.mode)
+        image = to_tensor(image) if self.transform is None else self.transform(image)
+        annotation_path = self.annotation_root / f"{path.stem}.json"
+        data = json.loads(annotation_path.read_text(encoding="utf-8"))
+        boxes = data.get("boxes", [])
+        labels = data.get("labels", [1 for _ in boxes])
+        target: dict[str, Any] = {
+            "boxes": tensor(boxes, dtype="float32"),
+            "labels": tensor(labels, dtype="int64"),
+            "image_id": data.get("image_id", path.stem),
+        }
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+        return image, target
+
+
+class SegmentationFolder(Dataset):
+    """Segmentation dataset laid out as ``root/images`` and ``root/masks``."""
+
+    def __init__(
+        self,
+        root: PathLikeStr,
+        transform: Callable[[Any], Any] | None = None,
+        target_transform: Callable[[Any], Any] | None = None,
+        images_dir: str = "images",
+        masks_dir: str = "masks",
+        mode: str | None = "RGB",
+    ) -> None:
+        self.root = Path(root)
+        self.image_root = self.root / images_dir
+        self.mask_root = self.root / masks_dir
+        if not self.image_root.exists():
+            raise FileNotFoundError(
+                f"SegmentationFolder image root does not exist: {self.image_root}"
+            )
+        if not self.mask_root.exists():
+            raise FileNotFoundError(
+                f"SegmentationFolder mask root does not exist: {self.mask_root}"
+            )
+        self.transform = transform
+        self.target_transform = target_transform
+        self.mode = mode
+        self.samples = [
+            path
+            for path in sorted(self.image_root.rglob("*"))
+            if path.is_file() and path.suffix.lower() in IMG_EXTENSIONS
+        ]
+        if not self.samples:
+            raise ValueError(f"SegmentationFolder found no supported images in {self.image_root}")
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> tuple[Any, Any]:
+        path = self.samples[index]
+        image: Any = load_image(path, mode=self.mode)
+        image = to_tensor(image) if self.transform is None else self.transform(image)
+        mask_path = self._mask_path(path.stem)
+        mask: Any = load_image(mask_path, mode="L")
+        mask = tensor(mask.astype("int64").tolist(), dtype="int64")
+        if self.target_transform is not None:
+            mask = self.target_transform(mask)
+        return image, mask
+
+    def _mask_path(self, stem: str) -> Path:
+        for extension in IMG_EXTENSIONS:
+            candidate = self.mask_root / f"{stem}{extension}"
+            if candidate.exists():
+                return candidate
+        raise FileNotFoundError(f"missing mask for image stem {stem!r}")
+
+
 __all__ = [
+    "DetectionFolder",
     "IMG_EXTENSIONS",
     "ImageFolder",
     "ImageList",
     "ImageManifestDataset",
+    "SegmentationFolder",
     "build_image_manifest",
     "load_image_manifest",
     "save_image_manifest",

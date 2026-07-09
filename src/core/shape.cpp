@@ -66,8 +66,11 @@ Shape broadcast_shapes(const Shape& left, const Shape& right) {
     const int64_t left_dim = left_index >= 0 ? left[static_cast<std::size_t>(left_index)] : 1;
     const int64_t right_dim = right_index >= 0 ? right[static_cast<std::size_t>(right_index)] : 1;
     if (left_dim != right_dim && left_dim != 1 && right_dim != 1) {
+      const auto axis_from_end = static_cast<int64_t>(i) + 1;
       throw ShapeError(
-          "cannot broadcast shapes " + shape_to_string(left) + " and " + shape_to_string(right));
+          "cannot broadcast shapes " + shape_to_string(left) + " and " + shape_to_string(right) +
+          ": axis -" + std::to_string(axis_from_end) + " has incompatible dimensions " +
+          std::to_string(left_dim) + " and " + std::to_string(right_dim));
     }
     result[rank - 1 - i] = std::max(left_dim, right_dim);
   }
@@ -124,28 +127,37 @@ Shape normalize_shape(const Shape& shape, int64_t expected_numel) {
     const auto dim = normalized[i];
     if (dim == -1) {
       if (infer_index != -1) {
-        throw ShapeError("only one reshape dimension can be inferred");
+        throw ShapeError(
+            "only one reshape dimension can be inferred for target shape " +
+            shape_to_string(shape));
       }
       infer_index = static_cast<int64_t>(i);
       continue;
     }
     if (dim < 0) {
-      throw ShapeError("reshape dimensions must be non-negative or -1");
+      throw ShapeError(
+          "reshape dimensions must be non-negative or -1, got target shape " +
+          shape_to_string(shape));
     }
     known_product *= dim;
   }
 
   if (infer_index != -1) {
     if (known_product == 0 || expected_numel % known_product != 0) {
-      throw ShapeError("cannot infer reshape dimension for " + shape_to_string(shape));
+      throw ShapeError(
+          "cannot infer reshape dimension for target shape " + shape_to_string(shape) +
+          " with " + std::to_string(expected_numel) +
+          " input elements and known product " + std::to_string(known_product));
     }
     normalized[static_cast<std::size_t>(infer_index)] = expected_numel / known_product;
   }
 
   if (numel(normalized) != expected_numel) {
+    const int64_t requested_numel = numel(normalized);
     throw ShapeError(
         "cannot reshape tensor with " + std::to_string(expected_numel) + " elements to shape " +
-        shape_to_string(shape));
+        shape_to_string(shape) + ": requested shape has " + std::to_string(requested_numel) +
+        " elements");
   }
   return normalized;
 }

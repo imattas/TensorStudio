@@ -35,6 +35,28 @@ pytest -q
 If `nmake`, `cl`, or MSVC tools are missing, source builds will fail. That is a
 toolchain issue, not a TensorStudio runtime requirement for wheel users.
 
+## Optional BLAS
+
+TensorStudio does not require BLAS to build or run. For source builds that want
+the optional CBLAS-backed `float32` and `float64` matrix multiplication path,
+install a CBLAS-compatible provider such as OpenBLAS or MKL and make both the
+library and `cblas.h` visible to CMake.
+
+Common Windows routes:
+
+- vcpkg with OpenBLAS or another CBLAS-compatible package.
+- Intel oneAPI MKL with environment variables initialized before running pip.
+- A system OpenBLAS install on `PATH` plus include/library paths exposed to
+  CMake.
+
+Verify the resulting build with:
+
+```powershell
+python -c "import tensorstudio as ts; print(ts.performance_info())"
+```
+
+If `blas_enabled` is `False`, TensorStudio is using the portable C++ fallback.
+
 ## Build And Check
 
 ```powershell

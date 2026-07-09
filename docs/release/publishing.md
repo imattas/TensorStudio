@@ -36,12 +36,17 @@ exist.
 Workflows:
 
 - `ci.yml`: lint, type check, editable install, import test, pytest, and an
-  example on Windows, Linux, and macOS.
-- `wheels.yml`: parallel cibuildwheel artifacts for Windows AMD64, Linux
-  x86_64/aarch64, macOS x86_64/arm64, plus sdist.
-- `publish.yml`: builds the same full artifact set, verifies every artifact,
-  then publishes through `pypa/gh-action-pypi-publish` using Trusted Publishing
-  only.
+  example on Windows, Linux, and macOS. It also builds wheel/sdist artifacts on
+  each major platform and verifies clean installs with
+  `tools/verify_artifacts.py`.
+- `wheels.yml`: cibuildwheel artifacts for Windows first, Linux second, macOS
+  third, plus sdist, clean wheel/sdist smoke checks, and benchmark report
+  artifacts.
+- `publish.yml`: artifact verification plus PyPI publishing through
+  `pypa/gh-action-pypi-publish` using Trusted Publishing only.
+- `publish-testpypi.yml`: the same artifact path aimed at TestPyPI for dry-run
+  publishing.
+- `docs.yml`: strict MkDocs build and GitHub Pages deployment from `main`.
 
 The publish workflow must include:
 
@@ -81,6 +86,22 @@ deactivate
 ```
 
 Promote to real PyPI only after TestPyPI install and runtime checks pass.
+
+## Artifact Verification
+
+`tools/verify_artifacts.py` is the local and CI clean-install smoke verifier:
+
+```bash
+python tools/verify_artifacts.py --wheel-dir dist --sdist-dir dist
+```
+
+It creates temporary virtual environments, installs the built wheel or sdist,
+imports `tensorstudio._C`, checks the package version, and runs a tiny autograd
+smoke test. This catches missing package data, broken wheel tags, native import
+errors, and source-build regressions before upload.
+
+See [Platform Compatibility](platform-compatibility.md) for wheel tags, ABI
+notes, and source-build expectations.
 
 ## Version Checklist
 

@@ -1,8 +1,8 @@
 # Roadmap
 
-TensorStudio is a CPU-first tensor, autograd, neural-network, vision, project,
-serialization, ONNX, graph-runtime, and lightweight ecosystem foundation. This
-page lists only remaining or intentionally deferred work.
+TensorStudio `2.1.0` is a CPU-first tensor, autograd, neural-network, vision,
+project, serialization, ONNX, graph-runtime, and lightweight ecosystem
+foundation. This page lists only remaining or intentionally deferred work.
 Completed release history belongs in `CHANGELOG.md` and
 `docs/roadmap/milestones.md`.
 
@@ -17,24 +17,28 @@ claim.
 - Expand NumPy-comparison tests for every newly added tensor semantic,
   especially edge cases around dtype promotion, indexing, reshaping, and
   reductions.
+- Add full advanced indexing support for list, tensor, and boolean-mask
+  indexing, including clear gradient behavior where differentiable.
+- Add a richer dtype casting policy with explicit safe, same-kind, and unsafe
+  conversion modes.
 - Add higher-order gradients. The current backward engine intentionally
   detaches backward gradients.
-- Extend storage-version autograd guards to any future public in-place tensor
-  operations as those operations are introduced.
+- Add broader in-place autograd tracking beyond the current small approved
+  mutation set.
+- Add gradient checkpointing for memory-heavy eager models.
 - Keep the public gradient coverage matrix synchronized with every new
   differentiable operation.
 
 ## 2. CPU Performance Core
 
 - Add runtime-dispatched SIMD kernels beyond compiler autovectorization.
-- Extend the new cache-blocked contiguous `float32` matmul path to mixed
-  dtypes, transposed/strided views, batched shapes, and optional BLAS-backed
-  builds.
+- Improve non-BLAS matrix multiplication with blocking, cache-aware tiling, and
+  better small-matrix fast paths.
 - Ship clearer BLAS provider options for Windows wheels and local source builds.
-- Add more threaded kernels for strided paths, backward reductions, matrix
-  multiplication, convolution, pooling, and normalization.
-- Use native storage telemetry to drive storage reuse and caching-allocator
-  work, with stricter regression tests.
+- Add more threaded backward kernels for reductions, matrix multiplication,
+  convolution, pooling, and normalization.
+- Continue improving storage reuse with allocator telemetry and stricter
+  regression tests.
 - Add benchmark thresholds for new ecosystem surfaces such as sparse operations,
   language helpers, and ONNX import/runtime paths.
 - Keep benchmark reports honest with win/loss columns against locally available
@@ -48,6 +52,7 @@ claim.
 - Add CUDA CI and wheel-build coverage before publishing CUDA-capable releases.
 - Implement a Metal/MPS execution backend for Apple platforms after the backend
   boundary is proven against CUDA and CPU.
+- Add explicit device-to-device copy semantics for every supported backend pair.
 - Add mixed precision only after dtype semantics and hardware kernels are
   stable.
 - Add backend-specific benchmark suites that compare CPU, CUDA, Metal, and any
@@ -81,13 +86,12 @@ claim.
 
 - Expand TensorStudio ONNX import/export coverage for more operators and module
   families.
-- Expand tested ONNX Runtime inference coverage beyond the current compatible
-  static-graph helper.
-- Add DLPack-style tensor interop after non-CPU device ownership semantics are
-  mature.
+- Add TensorStudio-to-DLPack export and non-CPU DLPack ownership after device
+  storage semantics are mature.
+- Research safe metadata inspection for TensorFlow SavedModel, Keras `.keras`,
+  and HDF5 weight files without executing untrusted model code.
 - Add tested tensor-only HDF5 import/export only if a stable schema is defined.
-- Add versioned compatibility checks alongside each future non-pickle storage
-  format as it is introduced.
+- Add versioned compatibility checks for every non-pickle storage format.
 
 ## 7. Data, Vision, And Model Coverage
 
@@ -98,21 +102,19 @@ claim.
 - Add video IO helpers after the image path is stable.
 - Add more vision models, including residual, mobile, UNet-style, and simple
   transformer-backed examples.
-- Add attention, transformer encoder blocks, and sequence-model examples.
-- Add richer dataset manifests for tensor/tabular datasets, deterministic
-  train/validation splits, and larger project metadata.
+- Add broader transformer stacks and sequence-model examples.
+- Add dataset download/caching workflows with integrity checks for approved
+  public datasets.
 
 ## 8. Sparse, Quantization, And Kernel Extensions
 
-- Expand sparse tensor formats beyond COO, such as CSR/CSC where they are
-  useful and testable.
+- Expand sparse tensor formats beyond COO/CSR, such as CSC where useful and
+  testable.
 - Add sparse autograd coverage for supported sparse-dense operations.
 - Add quantized inference kernels instead of only affine quantization helpers
   and fake quantization.
-- Add calibration helpers for quantization workflows.
-- Extend the new safe backend/kernel metadata registry, manifest discovery, and
-  C ABI header into audited native plugin loading and execution once storage
-  ownership and security checks are ready.
+- Define a stable native plugin ABI for custom C++ kernels.
+- Add safe plugin discovery that does not execute arbitrary untrusted code.
 
 ## 9. Packaging, CI, And Release Quality
 

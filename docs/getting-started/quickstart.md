@@ -71,24 +71,14 @@ ts.rand((2, 3), seed=123)
 ts.rand_like(x, seed=123)
 ts.randn((2, 3), seed=123)
 ts.randn_like(x, seed=123)
+ts.uniform((2, 3), low=-1.0, high=1.0, seed=123)
+ts.normal((2, 3), mean=5.0, stddev=0.5, seed=123)
+ts.randint((4,), low=0, high=10, seed=123)
+ts.bernoulli((4,), probability=0.25, seed=123)
 ts.arange(0, 10, 2)
 ts.eye(3)
 ts.linspace(-1.0, 1.0, 5)
 ```
-
-Creation helpers accept `device=` and follow the thread-local placement scope
-when omitted:
-
-```python
-with ts.device_scope("cpu"):
-    x = ts.zeros((2, 3))
-
-y = ts.ones((2, 3), device="cpu")
-```
-
-The current build stores and executes tensors on CPU only. CUDA and Metal
-placement descriptors fail clearly until those backends have real storage and
-kernels.
 
 `manual_seed(seed)` seeds TensorStudio's process-local C++ random generator:
 
@@ -112,8 +102,9 @@ print(a.T.tolist())
 print(a[0, :].tolist())
 ```
 
-Supported math includes `sum`, `mean`, `max`, `min`, `relu`, `sigmoid`, `tanh`,
-`exp`, `log`, `log1p`, `sqrt`, `rsqrt`, trigonometric and inverse
+Supported math includes `sum`, `mean`, `var`, `std`, `norm`, `max`, `min`,
+`all`, `any`, `softmax`, `log_softmax`, `logsumexp`, `relu`, `sigmoid`,
+`tanh`, `exp`, `log`, `log1p`, `sqrt`, `rsqrt`, trigonometric and inverse
 trigonometric functions, `abs`, and `clamp`.
 
 ```python
@@ -122,6 +113,28 @@ print(x.abs().tolist())
 print(x.clamp(-1.0, 2.0).tolist())
 print(ts.sin(x).tolist())
 print(ts.math.std(x).item())
+```
+
+Use stable probability helpers for logits:
+
+```python
+logits = ts.tensor([[1000.0, 1001.0, 999.0], [1.0, 2.0, 3.0]])
+
+print(logits.softmax(axis=1).tolist())
+print(logits.log_softmax(axis=1).tolist())
+print(logits.logsumexp(axis=1).tolist())
+```
+
+Batched matrix multiplication works through `@`, `ts.bmm`, and the supported
+`einsum` subset:
+
+```python
+left = ts.randn((2, 3, 4), seed=1)
+right = ts.randn((2, 4, 5), seed=2)
+
+print((left @ right).shape)
+print(ts.bmm(left, right).shape)
+print(ts.einsum("bij,bjk->bik", left, right).shape)
 ```
 
 Reductions can operate over all elements, one axis, or a tuple/list of axes:
@@ -301,12 +314,15 @@ model.load_state_dict(ts.load_npz("weights.tsnpz"))
 
 ## ONNX Export
 
-Install the ONNX extra, then export supported Sequential models:
+Install the ONNX extra, then export, inspect, or import supported static
+Sequential models:
 
 ```python
 ts.export_onnx(model.model, "classifier.onnx", input_shape=(1, 3, 8, 8))
+print(ts.inspect_onnx("classifier.onnx")["operators"])
+imported = ts.import_onnx("classifier.onnx")
 ```
 
 The exporter covers common TensorStudio modules such as `Linear`, `Conv2d`,
-`Flatten`, activations, and 2D pooling. It does not trace arbitrary Python
-control flow.
+`ConvTranspose2d`, `Flatten`, activations, and 2D pooling. Import is limited to
+a constrained static subset and does not trace arbitrary Python control flow.

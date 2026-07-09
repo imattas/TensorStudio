@@ -31,6 +31,7 @@ classifiers = [
 ]
 dependencies = [
   "numpy>=1.24",
+  "PyYAML>=6",
   "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -46,6 +47,7 @@ dev = [
   "pre-commit>=3.7",
   "onnx>=1.16",
   "Pillow>=10",
+  "safetensors>=0.4",
 ]
 docs = [
   "mkdocs>=1.6",
@@ -58,8 +60,17 @@ onnxruntime = [
   "onnx>=1.16",
   "onnxruntime>=1.18",
 ]
+safetensors = [
+  "safetensors>=0.4",
+]
 vision = [
   "Pillow>=10",
+]
+all = [
+  "onnx>=1.16",
+  "onnxruntime>=1.18",
+  "Pillow>=10",
+  "safetensors>=0.4",
 ]
 
 [project.urls]

@@ -1,17 +1,14 @@
-﻿# ONNX Interchange
+# ONNX Interchange
 
-TensorStudio `2.1.0` includes a limited ONNX exporter for supported
-TensorStudio module stacks.
+TensorStudio includes a limited ONNX exporter, ONNX metadata
+inspection, and supported-subset ONNX import/execution for TensorStudio module
+stacks. TensorStudio also includes an optional adapter that can delegate
+execution to the external ONNX Runtime package when it is installed.
 
-Install the optional export/metadata dependency:
+Install the optional dependency:
 
 ```bash
 python -m pip install "tensorstudio[onnx]"
-```
-
-Install optional ONNX Runtime provider diagnostics:
-
-```bash
 python -m pip install "tensorstudio[onnxruntime]"
 ```
 
@@ -33,14 +30,59 @@ ts.export_onnx(model, "classifier.onnx", input_shape=(1, 1, 4, 4))
 ```
 
 The exporter writes an ONNX graph and validates it with `onnx.checker` before
-saving. TensorStudio caps the exported ONNX IR version to a runtime-compatible
-value for the operators it emits so current ONNX Runtime builds can load the
-resulting static graphs.
+saving.
+
+## Inspect And Import
+
+```python
+metadata = ts.inspect_onnx("classifier.onnx")
+imported = ts.import_onnx("classifier.onnx")
+output = imported(ts.ones((1, 1, 4, 4)))
+```
+
+Import supports a constrained static subset: `Gemm`, `Relu`, `Sigmoid`, `Tanh`,
+`Flatten`, `Conv`, `ConvTranspose`, `MaxPool`, and `AveragePool`. Unsupported
+operators, dynamic graph features, multiple graph inputs, and asymmetric
+padding are rejected clearly.
+
+## Optional ONNX Runtime Delegation
+
+`run_onnx()` tries ONNX Runtime first when `prefer_onnxruntime=True` and the
+optional dependency is installed. If ONNX Runtime is unavailable, or if you set
+`prefer_onnxruntime=False`, TensorStudio falls back to its constrained static
+importer for compatible graphs.
+
+```python
+print(ts.onnxruntime_is_available())
+print(ts.onnxruntime_available_providers())
+print(ts.check_onnxruntime_compatibility("classifier.onnx"))
+output = ts.run_onnx("classifier.onnx", ts.ones((1, 1, 4, 4)))
+```
+
+This is useful for smoke-testing exported models against a standard runtime,
+but it does not make TensorStudio's native importer a full ONNX runtime.
+
+For named inputs, selected outputs, and NumPy output mode, use
+`run_onnx_inference()`:
+
+```python
+outputs = ts.run_onnx_inference(
+    "classifier.onnx",
+    {"input": ts.ones((1, 1, 4, 4))},
+    output_names="output",
+    as_tensor=True,
+)
+print(outputs["output"].shape)
+```
+
+By default TensorStudio selects `CPUExecutionProvider` when ONNX Runtime
+reports it as available, which keeps local release checks deterministic.
 
 ## Supported Modules
 
 - `nn.Linear`
-- `nn.Conv2d`
+- `nn.Conv2d`, including grouped/depthwise convolution metadata
+- `nn.ConvTranspose2d`
 - `nn.Flatten`
 - `nn.ReLU`
 - `nn.Sigmoid`
@@ -66,67 +108,11 @@ path = ts.export_onnx(
 )
 ```
 
-## Metadata Inspection
-
-`inspect_onnx` reads model metadata without executing the model:
-
-```python
-info = ts.inspect_onnx("model.onnx")
-same = ts.inspect_model_format("model.onnx")
-
-print(info["inputs"])
-print(info["outputs"])
-print(info["op_counts"])
-print(info["opsets"])
-```
-
-The returned dictionary includes:
-
-- IR version, producer, graph name, and model metadata properties.
-- Opset versions by domain.
-- Graph inputs and outputs with dtype and shape metadata.
-- Initializer names.
-- Node count, operator types, and operator counts.
-- ONNX checker pass/fail status.
-
-## ONNX Runtime Diagnostics
-
-TensorStudio does not bundle an ONNX runtime. When the optional
-`tensorstudio[onnxruntime]` extra is installed, it can ask ONNX Runtime which
-providers are available and whether a model can be loaded with requested
-providers. It can also run compatible static graphs through ONNX Runtime:
-
-```python
-runtime = ts.onnx_runtime_info(providers=["CPUExecutionProvider"])
-compat = ts.check_onnx_runtime_compatibility(
-    "model.onnx",
-    providers=["CPUExecutionProvider"],
-)
-outputs = ts.run_onnx_inference(
-    "model.onnx",
-    {"image": ts.zeros((1, 1, 28, 28))},
-    providers=["CPUExecutionProvider"],
-)
-
-print(runtime["available_providers"])
-print(compat["compatible"])
-print(compat["session_providers"])
-print(outputs["logits"].shape)
-```
-
-`check_onnx_runtime_compatibility` creates an ONNX Runtime session when the
-optional dependency is installed, but it does not run inference.
-`run_onnx_inference` accepts TensorStudio tensors or NumPy-compatible arrays,
-validates input names, defaults to `CPUExecutionProvider` when it is available,
-and returns TensorStudio tensors by default. Use `as_tensor=False` to receive
-NumPy arrays from ONNX Runtime directly.
-
 ## Current Limits
 
-- TensorStudio does not import ONNX models into TensorStudio modules yet.
-- No ONNX runtime is bundled; runtime diagnostics require the optional
-  `tensorstudio[onnxruntime]` extra.
-- ONNX Runtime execution uses ONNX Runtime providers, not TensorStudio kernels.
+- Import is limited to the static subset listed above.
+- No full native ONNX runtime is bundled.
+- Optional ONNX Runtime execution requires the external `onnxruntime` package.
 - Arbitrary Python `forward` control flow is not traced.
 - Unsupported modules raise `ValueError` instead of silently producing an
   incomplete graph.

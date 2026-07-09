@@ -38,7 +38,7 @@ def _remove_inside_repo(path: Path) -> None:
         shutil.rmtree(resolved)
 
 
-def _run_build(out_dir: Path, *, quiet: bool) -> int:
+def _run_build(out_dir: Path, *, quiet: bool, artifact_smoke: bool) -> int:
     _remove_inside_repo(out_dir)
     code = _run([sys.executable, "-m", "build", "--outdir", str(out_dir)], quiet=quiet)
     if code != 0:
@@ -48,7 +48,22 @@ def _run_build(out_dir: Path, *, quiet: bool) -> int:
     if not artifacts:
         print(f"FAILED: no build artifacts found in {out_dir}", file=sys.stderr)
         return 1
-    return _run([sys.executable, "-m", "twine", "check", *artifacts], quiet=quiet)
+    code = _run([sys.executable, "-m", "twine", "check", *artifacts], quiet=quiet)
+    if code != 0:
+        return code
+    if artifact_smoke:
+        return _run(
+            [
+                sys.executable,
+                "tools/verify_artifacts.py",
+                "--wheel-dir",
+                str(out_dir),
+                "--sdist-dir",
+                str(out_dir),
+            ],
+            quiet=quiet,
+        )
+    return 0
 
 
 def main() -> None:
@@ -58,6 +73,11 @@ def main() -> None:
     parser.add_argument("--skip-tests", action="store_true", help="Skip pytest.")
     parser.add_argument("--skip-examples", action="store_true", help="Skip example scripts.")
     parser.add_argument("--skip-build", action="store_true", help="Skip sdist/wheel build checks.")
+    parser.add_argument(
+        "--skip-artifact-smoke",
+        action="store_true",
+        help="Skip clean wheel/sdist install smoke after building artifacts.",
+    )
     parser.add_argument("--skip-docs", action="store_true", help="Skip MkDocs build.")
     parser.add_argument(
         "--quiet",
@@ -87,7 +107,11 @@ def main() -> None:
             raise SystemExit(code)
 
     if not args.skip_build:
-        code = _run_build(ROOT / "build" / "test-all-dist", quiet=args.quiet)
+        code = _run_build(
+            ROOT / "build" / "test-all-dist",
+            quiet=args.quiet,
+            artifact_smoke=not args.skip_artifact_smoke,
+        )
         if code != 0:
             raise SystemExit(code)
 

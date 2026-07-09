@@ -2,107 +2,279 @@
 
 ## Unreleased
 
-- Nothing yet.
-
 ## 2.1.0 - 2026-07-09
 
-- Added native C++ one-axis Python integer-list gather indexing with autograd
-  scatter-back accumulation for repeated indices.
-- Added native C++ one-axis Python boolean-list mask indexing with axis-length
-  validation and autograd scatter-back support.
-- Added one-axis 1D TensorStudio tensor indexing for `int32`, `int64`, and
-  `bool` index tensors through the native gather/mask path.
-- Added full-shape TensorStudio boolean tensor mask indexing through a native
-  flattened gather path with autograd scatter-back support.
-- Added adjacent vectorized multi-axis integer-list and integer-tensor indexing
-  with length-one broadcasting and autograd scatter-back accumulation.
-- Added higher-rank single-axis integer tensor indexing that preserves selector
-  shape and scatters gradients back through repeated selected indices.
-- Added prefix-shape boolean tensor mask indexing that preserves trailing
-  dimensions and scatters gradients back into selected leading blocks.
-- Extended adjacent vectorized multi-axis integer tensor indexing to broadcast
-  higher-rank selector shapes with autograd scatter-back support.
-- Added non-adjacent multi-axis integer advanced-index placement, moving the
-  broadcasted selector shape before remaining basic output dimensions.
-- Added tuple-position partial boolean tensor masks such as `x[:, mask]`,
-  including native C++ forward indexing and autograd scatter-back support.
-- Added multi-axis one-dimensional boolean-mask and mixed boolean/integer
-  advanced indexing through the native vectorized gather path, including
-  gradient scatter-back.
-- Added a large-workload cache-blocked contiguous `float32` matmul path while
-  preserving the faster accumulator strategy for small and medium matrices.
-- Added explicit dtype casting policy helpers: `can_cast`, `cast`, and
-  `casting=` support for `Tensor.astype`, `Tensor.to`, and `ts.astype` with
-  `no`, `equiv`, `safe`, `same_kind`, and `unsafe` modes.
-- Added native backend descriptors, kernel capability metadata, placement
-  diagnostics, transfer diagnostics, and safe external backend metadata
-  registration without enabling fake accelerator storage.
-- Added the first C-compatible `include/tensorstudio/kernel_abi.hpp` custom
-  kernel ABI header for future native plugin packages.
-- Added safe JSON/TOML custom-kernel manifest discovery, validation, and
-  metadata registration without importing modules or loading shared libraries.
-- Added Python hardware helpers for `Device`, `backend_info`,
-  `backend_allocator_info`, `backend_op_info`, `backend_kernel_info`,
-  `kernel_placement_info`, CUDA/Metal availability checks, and plugin
-  descriptor registration.
-- Added TensorFlow-inspired backend operation-interface metadata, allocator
-  metadata, kernel memory-space/execution-mode/determinism/priority metadata,
-  and explicit CPU-fallback placement diagnostics.
-- Added native backend runtime capability metadata for eager execution,
-  graph/compiler boundaries, streams/events, peer access, and host-fallback
-  diagnostics.
-- Added ONNX metadata inspection plus optional ONNX Runtime provider and
-  session-compatibility diagnostics without running inference.
-- Added safe model-format metadata inspection for ONNX, Keras `.keras`
-  archives, TensorFlow SavedModel directories, and HDF5/Keras weight files
-  without executing untrusted model code.
-- Added TensorStudio NPZ metadata inspection and versioned compatibility checks
-  before constructing tensors from non-pickle archives.
-- Added eager gradient checkpointing through `ts.checkpoint`, which runs a
-  Tensor-only function without saving intermediates and recomputes it during
-  backward.
-- Added native storage-version tracking for in-place tensor assignment/update
-  paths so backward raises `AutogradError` instead of silently using stale
-  autograd parents after mutation.
-- Extended tuple-position partial boolean tensor masks to mix with integer and
-  one-dimensional boolean advanced selectors through the native vectorized
-  gather path, including gradient scatter-back.
-- Added TensorFlow-inspired hardware diagnostics for physical device
-  properties, logical devices, and explicit backend execution plans covering
-  selected backend, CPU fallback, transfers, stream requirements, and graph
-  compatibility.
-- Added explicit `Tensor.to_device()` and `ts.to_device()` transfer APIs for
-  supported CPU-to-CPU alias/copy semantics, with clear `DeviceError` failures
-  for non-CPU targets until backend storage and copy kernels exist.
-- Added explicit CMake descriptor flags,
-  `TENSORSTUDIO_ENABLE_CUDA_BACKEND_DESCRIPTOR` and
-  `TENSORSTUDIO_ENABLE_METAL_BACKEND_DESCRIPTOR`, so experimental backend
-  descriptor builds can mark hooks as compiled without implying tensor
-  execution support.
-- Added TensorFlow-style Python placement helpers `current_device`,
-  `set_default_device`, `reset_default_device`, and `device_scope`, plus
-  `device=` support for tensor creation helpers. Non-CPU placement still fails
-  clearly until backend storage and kernels exist.
-- Added native C++ storage allocation telemetry with active/peak allocation and
-  byte counters exposed through `storage_telemetry()` and
-  `reset_storage_telemetry()`.
-- Added a conservative C++ thread dispatcher for large contiguous unary,
-  binary, and full-reduction CPU kernels while keeping small tensors
-  single-threaded.
-- Added `run_onnx_inference()` for optional ONNX Runtime execution of
-  compatible static ONNX graphs with TensorStudio/NumPy input conversion and
-  TensorStudio output conversion.
-- Capped TensorStudio-exported ONNX IR versions to a runtime-compatible value
-  for the supported operator subset emitted by the exporter.
-- Added safe TensorFlow Lite flatbuffer identification through
-  `inspect_tflite()` and `inspect_model_format()`.
-- Added image-folder manifest creation, JSON save/load, checksum validation,
-  and `ImageManifestDataset` for reproducible local vision datasets.
-- Documented the TensorFlow-inspired backend boundary and added hardware
-  tests for CPU, unavailable accelerator, and plugin metadata behavior.
+- Added TensorFlow-style hardware planning metadata for backend allocator,
+  runtime, logical-device, kernel placement, transfer, and execution-plan
+  diagnostics while keeping published wheels CPU-execution only.
+- Added storage allocation telemetry for native CPU storage checkouts,
+  active bytes, cumulative bytes, and peak active usage.
+- Added safe custom-kernel manifest loading, validation, discovery, and
+  registration of descriptor-only backend/kernel metadata without importing
+  modules or loading shared libraries.
+- Added `run_onnx_inference()` for optional ONNX Runtime execution with
+  named inputs, named outputs, provider validation, and TensorStudio/NumPy
+  output modes.
+- Added safe metadata inspection for Keras `.keras`, TensorFlow SavedModel,
+  HDF5/Keras weight files, and TensorFlow Lite flatbuffers.
+- Added deterministic image-folder manifests with SHA-256 validation and an
+  `ImageManifestDataset` for reproducible vision dataset creation.
+- Preserved the v2 graph, sparse, quantization, model-zoo, metrics,
+  SafeTensors, ONNX import, and vision surfaces while tightening the release
+  packaging for source distributions.
+
+## 2.0.0 - 2026-07-08
+
+- Added a tested v2 foundation slice from the remaining roadmap while keeping
+  accelerator and production-distributed limitations explicit.
+- Added dataset manifests, SHA-256 file checksums, manifest validation, and a
+  small map-style dataset cache wrapper.
+- Added compact attention APIs: `scaled_dot_product_attention`,
+  `MultiHeadSelfAttention`, and `TransformerEncoderBlock`.
+- Added experimental CSR sparse tensors, dense/COO conversion helpers, and
+  CSR sparse-dense matmul.
+- Added quantization calibration helpers and quantization error reporting.
+- Added CPU `from_dlpack()` import for DLPack-compatible providers via NumPy.
+- Added ONNX Runtime provider discovery and compatibility diagnostics.
+- Reworked the roadmap to show remaining work only.
+
+## 1.16.0 - 2026-07-07
+
+- Completed the Ecosystem And Advanced Features roadmap batch as supported
+  lightweight APIs plus explicit research-stage boundaries.
+- Added experimental COO sparse tensors with dense conversion, coalescing,
+  transpose, and sparse-dense matmul.
+- Added distributed-training research helpers for single-process collectives,
+  environment parsing, and deterministic data-parallel planning metadata.
+- Added a small model-zoo registry with reproducible tiny MLP, CNN, and
+  language-model factories.
+- Added CSV, JSONL, text-line, and LIBSVM dataset loaders for common public
+  data formats.
+- Added language-model helpers: vocabulary building, token/position
+  embeddings, tiny causal language model, causal batches, and LM loss.
+- Added quantization research utilities for affine quantization, fake
+  quantization, state-dict conversion, and parameter-size reports.
+- Added a custom kernel registry for Python or native-extension callables.
+- Added optional ONNX Runtime execution adapter through the
+  `tensorstudio[onnxruntime]` extra, with TensorStudio ONNX import fallback.
+
+## 1.15.0 - 2026-07-07
+
+- Completed the Graph, Compiler, And Runtime Systems roadmap batch as a
+  constrained, inspectable graph runtime.
+- Added `TensorSpec`, symbolic `GraphTensor` tracing, `trace()`, and
+  `compile_graph()` for a supported subset of TensorStudio tensor programs.
+- Added JSON graph serialization with `save_graph()` and `load_graph()`.
+- Added basic graph optimization passes: constant folding and scalar
+  multiply-add fusion.
+- Added `ExecutableGraph` runtime execution backed by TensorStudio eager tensor
+  operations.
+- Added runtime profiling hooks and static memory-planning metadata for graph
+  execution.
+- Documented graph limitations honestly: no arbitrary Python control-flow
+  capture and no machine-code JIT in this release.
+
+## 1.14.0 - 2026-07-07
+
+- Completed the safe, testable Hardware Backends roadmap batch without claiming
+  CUDA or Metal execution in CPU wheels.
+- Added native CPU/CUDA/Metal `Device` descriptors, parsing, equality, and
+  backend availability metadata.
+- Added top-level Python hardware helpers: `device`, `available_devices`,
+  `backend_info`, `device_count`, `cuda_is_available`, and
+  `metal_is_available`.
+- Added explicit tensor transfer APIs: `Tensor.to_device()`, `Tensor.cpu()`,
+  and `Tensor.to("cpu")` while preserving dtype casts like `Tensor.to("float64")`.
+- Added `device=` keywords to public tensor factory helpers.
+- Made native storage device-aware and reject unsupported accelerator
+  allocation clearly.
+- Added CMake gates for experimental CUDA and Metal metadata hooks.
+- Added backend benchmark coverage and hardware backend documentation.
+- Documented that real CUDA/Metal kernels remain deferred until accelerator
+  builds and CI can validate them.
+
+## 1.13.0 - 2026-07-07
+
+- Completed the ordered Packaging, CI, And Release Quality roadmap section as
+  one release batch.
+- Added `tools/verify_artifacts.py` for clean wheel and sdist install smoke
+  tests in isolated virtual environments.
+- Expanded CI with cross-platform wheel/sdist artifact smoke jobs on Windows,
+  Linux, and macOS.
+- Hardened wheel, TestPyPI, and PyPI workflows with clean artifact verification
+  before upload.
+- Added benchmark report artifacts to release workflows.
+- Added GitHub Pages docs publishing automation with strict MkDocs builds.
+- Expanded macOS wheel coverage to include universal2 builds where supported by
+  cibuildwheel.
+- Added native ABI, wheel-tag, source-build, BLAS, and platform compatibility
+  documentation.
+
+## 1.12.0 - 2026-07-07
+
+- Completed the ordered Serialization And Interchange roadmap section as one
+  release batch.
+- Expanded NPZ archives to version 2 metadata with TensorStudio version,
+  tensor counts, tensor shapes/dtypes, `requires_grad` flags, and user metadata.
+- Added optional SafeTensors save/load support for safe tensor-only weight maps.
+- Added model metadata inspection for TensorStudio NPZ files, SafeTensors,
+  supported ONNX files, and trusted TensorStudio checkpoints.
+- Added versioned checkpoint metadata and compatibility checks for full trusted
+  checkpoints.
+- Expanded ONNX export for grouped convolution metadata and `ConvTranspose2d`.
+- Added ONNX graph metadata inspection and supported-subset ONNX import/execution
+  for static graphs using TensorStudio's eager tensor ops.
+- Added model-card metadata JSON export.
+- Expanded interchange tests and docs for SafeTensors, metadata inspection, and
+  ONNX import.
+
+## 1.11.0 - 2026-07-07
+
+- Completed the ordered Computer Vision Depth roadmap section as one release
+  batch.
+- Added batch-aware resize/crop/normalize helpers plus color jitter, random
+  resized crop, random rotation, affine transforms, cutout, mixup, and CutMix.
+- Added detection utilities for box areas, IoU variants, NMS, box
+  encode/decode, coordinate conversion, and anchor generation.
+- Added segmentation helpers for mask IoU, one-hot conversion, masks-to-boxes,
+  nearest mask resize, and deterministic mask crops.
+- Added `DetectionFolder` and `SegmentationFolder` datasets plus
+  `tensorstudio.data` factory aliases for detection and segmentation folders.
+- Added `ResidualBlock`, `DepthwiseSeparableBlock`, `CompactUNet`, and
+  `make_unet()` vision model helpers using the native-backed neural-network
+  layer stack.
+- Added prediction drawing, mask overlay, and feature-map grid visualization
+  helpers.
+- Expanded vision tests and documentation for transforms, detection,
+  segmentation, model blocks, and visualization.
+
+## 1.10.0 - 2026-07-07
+
+- Completed the ordered Training And Project Workflows roadmap section as one
+  release batch.
+- Added `ArrayDataset`, tensor/array/image-folder dataset factories,
+  deterministic train/validation splitting, and dataset metadata summaries.
+- Added `tensorstudio.metrics` with regression, classification, and multilabel
+  metrics for small supervised workflows.
+- Added trainer validation loops, scheduler stepping, callback context support,
+  learning-rate logging, CSV logging, checkpoint callbacks, and early stopping.
+- Added JSON, TOML, and YAML project config loading plus deterministic seeding
+  across TensorStudio, NumPy, and Python random.
+- Expanded full checkpoints with scheduler and epoch state and added
+  `resume_checkpoint()` for continuing training runs.
+- Added generated regression, classification, and vision project templates.
+- Expanded tests and docs for project workflows, metrics, dataset creation,
+  callbacks, configs, templates, and checkpoint resume.
+
+## 1.9.0 - 2026-07-07
+
+- Completed the ordered Neural Network Building Blocks roadmap section as one
+  release batch.
+- Added native grouped `conv2d`, native `conv_transpose2d`, and native
+  embedding lookup with autograd support.
+- Added Python-level `Conv1d`, `DepthwiseConv2d`, `ConvTranspose2d`,
+  `BatchNorm1d`, `BatchNorm2d`, `LayerNorm`, `Embedding`,
+  adaptive/global pooling, and additional activation modules.
+- Added `tensorstudio.nn.init` with Xavier, Kaiming, normal, uniform, zero, and
+  one initializers.
+- Added label-smoothing cross entropy, focal loss, KL divergence, negative log
+  likelihood, and cosine embedding loss modules and functional helpers.
+- Added module buffers, buffer-aware `state_dict()` support, and model summary
+  utilities for parameters, shapes, and estimated tensor memory.
+- Expanded tests and docs for the section-5 neural-network API surface.
+
+## 1.8.0 - 2026-07-07
+
+- Completed the ordered Autograd Coverage And Hardening roadmap section as one
+  release batch.
+- Added `retain_graph` support to `Tensor.backward()` and
+  `tensorstudio.autograd.backward()`.
+- Added graph lifecycle hardening: normal backward frees non-leaf graph history,
+  repeated backward through a freed graph raises a clear error, and retained
+  graphs clear intermediate gradients between backward passes.
+- Added Tensor `is_leaf`, `clear_history()`, and `detach_()` controls for
+  explicit graph lifecycle management.
+- Added guarded public in-place methods `zero_()`, `fill_()`, and `add_()`.
+  They reject gradient-tracked mutation while grad mode is enabled and work
+  inside `tensorstudio.no_grad()`.
+- Expanded non-scalar backward and finite-difference gradient tests for stable
+  probability ops, statistics, norms, and batched matrix multiplication.
+- Expanded autograd documentation with a coverage matrix, lifecycle notes, and
+  explicit higher-order-gradient limitations.
+
+## 1.7.0 - 2026-07-07
+
+- Completed the ordered Core Math Expansion roadmap section as one release
+  batch.
+- Added native C++ `logsumexp`, `softmax`, and `log_softmax` operations with
+  max-shifted stable numerics and autograd support.
+- Added native C++ batched matrix multiplication through `bmm` and 3D `@`
+  dispatch, including reverse-mode gradients for both operands.
+- Added native C++ `var`, `variance`, `std`, `all`, and `any` operations, plus
+  Tensor methods and top-level Python exports where appropriate.
+- Added Tensor-level `norm()` and expanded `tensorstudio.math` with
+  `logsumexp`, `softmax`, `log_softmax`, boolean reductions, and a documented
+  practical `einsum` subset.
+- Added seeded native random distributions: `uniform`, `normal`, `randint`,
+  and `bernoulli`, with Python `*_like` helpers where useful.
+- Switched neural-network functional softmax/log-softmax and cross entropy to
+  the native stable kernels.
+- Added NumPy parity and autograd tests for the expanded math surface.
+
+## 1.6.0 - 2026-07-07
+
+- Completed the ordered CPU Performance Core roadmap section as one release
+  batch.
+- Added optional CBLAS/Accelerate-backed `matmul` for contiguous `float32` and
+  `float64` matrices when the source build environment exposes a compatible
+  BLAS library and header; portable C++ kernels remain the fallback path.
+- Added a small native C++ CPU thread pool, configurable with
+  `tensorstudio.set_num_threads()` and `TENSORSTUDIO_NUM_THREADS`, and used it
+  for large contiguous elementwise ops, reductions, matrix multiplication,
+  convolution, and pooling forward kernels.
+- Added SIMD-friendly typed `float32`/`float64` contiguous kernels for common
+  elementwise arithmetic and activations, while preserving mixed-dtype fallback
+  behavior.
+- Added a bounded C++ storage reuse pool for tensor allocations, with
+  `TENSORSTUDIO_DISABLE_STORAGE_POOL=1` and
+  `TENSORSTUDIO_STORAGE_POOL_MAX_BLOCK_BYTES` controls.
+- Added `tensorstudio.performance_info()`, `get_num_threads()`, and
+  `set_num_threads()` diagnostics/configuration helpers.
+- Added benchmark threshold support via `benchmark_all.py --check-thresholds`
+  and `benchmarks/thresholds.json`.
+- Expanded performance, CPU backend, and platform docs for BLAS selection,
+  threading, storage reuse, benchmark thresholds, and honest interpretation.
+
+## 1.5.1 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with clearer native
+  shape, dtype, and indexing error messages.
+- Broadcasting errors now include the mismatched axis and dimensions.
+- Reshape errors now include requested element counts and inferred-shape
+  context.
+- DType errors now validate Python dtype inputs and list supported dtype names
+  and aliases.
+- Indexing errors now include tensor shape/rank context and the unsupported
+  Python index type/value where practical.
+- Added focused regression tests for the improved diagnostics.
+
+## 1.5.0 - 2026-07-07
+
+- Completed the next ordered correctness-roadmap item with native C++ view and
+  layout operations: `squeeze`, `unsqueeze`, `permute`, and general
+  N-dimensional transpose.
+- Added Python Tensor methods, functional APIs, top-level exports, and type
+  stubs for the new layout operations.
+- Added autograd support for the new metadata views, including non-contiguous
+  gradient handling through reshape chains.
+- Added NumPy parity tests for view semantics, strides, shape errors, and
+  autograd behavior.
+- Updated tensor, API, autograd, and roadmap docs for the expanded view API.
 
 ## 1.4.0 - 2026-07-07
 
+- Supersedes the short-lived `1.3.7` indexing release as a minor version
+  because the indexing/view API is a larger public surface change than a patch.
 - Completed the next ordered correctness-roadmap item with native C++ basic
   indexing and slicing views.
 - Added Python `Tensor.__getitem__` support for integers, slices with steps,

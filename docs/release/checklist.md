@@ -7,8 +7,11 @@ Use this checklist before publishing a TensorStudio release.
 ```bash
 python -m pip install -e ".[dev]"
 python test_all.py --quiet
-python benchmark_all.py
+python -m mkdocs build --strict
+python benchmark_all.py --check-thresholds
 python -m build
+python -m twine check dist/*
+python tools/verify_artifacts.py --wheel-dir dist --sdist-dir dist
 ```
 
 Confirm:
@@ -18,6 +21,8 @@ Confirm:
 - Docs build.
 - Wheel and sdist build.
 - `twine check` passes.
+- Clean wheel install passes.
+- Clean sdist install passes.
 - Benchmark report is refreshed when performance code changed.
 
 ## Repository Checks
@@ -28,6 +33,8 @@ Confirm:
 - Generated `build/`, `dist/`, `site/`, and cache folders are not committed.
 - Docs navigation includes new pages.
 - GitHub Actions workflows are expected to run for the release trigger.
+- Platform compatibility notes match the wheel matrix.
+- Benchmark artifacts are attached to the release workflow run.
 
 ## Publish Flow
 

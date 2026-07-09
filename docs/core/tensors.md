@@ -88,33 +88,6 @@ ts.result_type("int64", "int32", op="div") # "float32"
 ts.result_type("int64", "float32", op="gt") # "bool"
 ```
 
-## DType Casting Policy
-
-TensorStudio exposes explicit casting modes through `can_cast`, `cast`,
-`astype`, and `to`:
-
-```python
-ts.can_cast("int32", "int64", casting="safe")      # True
-ts.can_cast("int32", "float32", casting="safe")    # False
-ts.can_cast("float64", "float32", casting="same_kind") # True
-
-x = ts.tensor([1.2, 2.8], dtype="float64")
-x.astype("float32", casting="same_kind")
-x.to("int32")  # default casting="unsafe", matching NumPy-style astype behavior
-```
-
-Supported modes:
-
-- `no` and `equiv`: exact canonical dtype matches only.
-- `safe`: every value representable by the source dtype must be exactly
-  representable by the target dtype.
-- `same_kind`: `safe` casts plus casts within integer or floating dtype
-  families.
-- `unsafe`: any supported TensorStudio dtype conversion.
-
-The native C++ kernel performs the actual conversion; the Python policy layer
-decides whether a requested conversion is allowed.
-
 ## Creation
 
 ```python
@@ -131,6 +104,10 @@ ts.rand((2, 3), seed=123)
 ts.rand_like(x, seed=123)
 ts.randn((2, 3), seed=123)
 ts.randn_like(x, seed=123)
+ts.uniform((2, 3), low=-1.0, high=1.0, seed=123)
+ts.normal((2, 3), mean=5.0, stddev=0.5, seed=123)
+ts.randint((4,), low=0, high=10, seed=123)
+ts.bernoulli((4,), probability=0.25, seed=123)
 ts.arange(0, 10, 2)
 ts.eye(3)
 ts.linspace(0.0, 1.0, 5)
@@ -138,19 +115,6 @@ ts.linspace(0.0, 1.0, 5)
 
 `empty` does not guarantee any particular values. Current storage may appear
 zeroed on some platforms, but code should fill it before use.
-
-Creation helpers accept `device=`. When it is omitted, TensorStudio uses the
-thread-local `current_device()` placement:
-
-```python
-with ts.device_scope("cpu"):
-    x = ts.zeros((2, 3))
-
-y = ts.ones((2, 3), device="cpu")
-```
-
-The current runtime only supports CPU tensor storage. Non-CPU placement raises
-`DeviceError` instead of silently falling back.
 
 The `*_like` helpers copy shape, dtype, and the default `requires_grad` flag
 from an existing tensor unless an override is provided:
@@ -188,44 +152,30 @@ Supported views:
 
 - `reshape`
 - `flatten`
-- 2D `transpose`
-- 2D `T` property
+- `transpose()` for reversed axes
+- `transpose(axis0, axis1)` for axis swaps
+- `permute`
+- `squeeze`
+- `unsqueeze`
+- `T` property
 - Basic indexing and slicing with integers, slices, tuples, ellipsis, and
   `None`/newaxis
-- One-axis Python integer-list gather indexing, materialized as a tensor copy
-- One-axis Python boolean-list mask indexing, materialized as a tensor copy
-- One-axis TensorStudio integer-index tensor indexing, materialized as a tensor
-  copy and preserving the selector shape
-- One-axis 1D TensorStudio boolean-mask tensor indexing, materialized as a
-  tensor copy
-- Full-shape TensorStudio boolean-mask indexing, materialized as a flattened
-  tensor copy
-- Prefix-shape TensorStudio boolean-mask indexing, materialized as selected
-  leading blocks with trailing dimensions preserved
-- Tuple-position partial TensorStudio boolean-mask indexing, materialized as
-  selected blocks at the mask position
-- Adjacent multi-axis 1D integer-list or integer-tensor indexing, paired
-  element-by-element like NumPy advanced indexing
-- Adjacent multi-axis 1D boolean-list, boolean-tensor, and mixed
-  boolean/integer indexing, paired through the same native vectorized gather
-  path
-- Adjacent multi-axis integer-tensor indexing with broadcasted selector shapes
-- Non-adjacent multi-axis integer-list or integer-tensor indexing, with the
-  broadcasted selector shape placed before the remaining basic dimensions
-- Non-adjacent mixed one-dimensional boolean/integer advanced axes, with the
-  broadcasted selector shape placed before the remaining basic dimensions
-- Tuple-position partial boolean masks mixed with integer or one-dimensional
-  boolean advanced selectors
 
 ```python
 x = ts.arange(6).reshape((2, 3))
 print(x.flatten().tolist())
 print(x.T.shape)
 print(x[0, :].tolist())
+
+y = ts.arange(24).reshape((2, 3, 4))
+print(y.permute(2, 0, 1).shape)
+print(y.transpose(0, 2).shape)
+print(y.unsqueeze(0).squeeze(0).shape)
 ```
 
-`reshape` currently requires a contiguous tensor. `transpose` returns a strided
-view. Basic slicing also returns a view where possible.
+`reshape` currently requires a contiguous tensor. `transpose`, `permute`,
+`squeeze`, `unsqueeze`, and basic slicing return metadata views that share the
+same storage where possible.
 
 Indexing supports common NumPy-style read cases:
 
@@ -238,56 +188,10 @@ x[..., -1]        # ellipsis
 x[None, :, 0, :]  # new leading axis
 x[::-1, :, ::2]   # negative and stepped slices
 x[1, 2, 3].item() # scalar zero-dimensional tensor
-x[:, [2, 0], :]   # one integer-list gather axis, returns a copy
-x[[True, False]]  # one boolean-list mask axis, returns a copy
-x[ts.tensor([1, 0], dtype="int64")]        # one integer tensor gather axis
-x[ts.tensor([[1, 0], [0, 1]], dtype="int64")] # selector shape is preserved
-x[ts.tensor([True, False], dtype="bool")]  # one tensor mask axis
-x[x.greater(2)]   # full-shape boolean tensor mask, returns a flat copy
-
-y = ts.arange(24).reshape((2, 3, 4))
-y[ts.tensor([[True, False, True], [False, True, False]], dtype="bool")]
-y[:, ts.tensor([[True, False, True, False],
-                [False, True, False, True],
-                [True, False, False, False]], dtype="bool")]
-y[[1, 0], [2, 1]] # paired row/column advanced indexing
-y[[True, False], [False, True, True]] # paired boolean masks
-y[ts.tensor([True, False], dtype="bool"), ts.tensor([1, 2], dtype="int64")]
-y[ts.tensor([[1], [0]], dtype="int64"), ts.tensor([[2, 0]], dtype="int64")]
-y[[1, 0], :, [3, 1]] # separated advanced axes move selector shape first
-y[[True, False], :, [1, 3]] # separated mixed boolean/integer axes
-y[:, ts.tensor([[True, False, False, True],
-                [False, True, False, False],
-                [True, False, True, False]], dtype="bool"),
-  ts.tensor([0, 2, 3, 1, 0], dtype="int64")]
 ```
 
-Integer-list gather supports negative entries, repeated entries, and empty
-lists. Integer tensor gathers support `int32` and `int64` 1D index tensors.
-Tensor integer gathers support `int32` and `int64` selectors with rank one or
-higher for a single advanced axis. Boolean-list and tensor masks must match the
-length of the axis they consume.
-Full-shape boolean tensor masks must match the complete tensor shape and return
-a flattened tensor of selected values. Prefix-shape boolean tensor masks must
-match the leading dimensions of the indexed tensor and return selected leading
-blocks with trailing dimensions preserved. Multi-dimensional boolean tensor
-masks can also appear inside a tuple, such as `x[:, mask]`, where the mask
-shape must match the consecutive tensor axes at that tuple position and the
-output keeps one selected dimension for the mask.
-Adjacent multi-axis integer and one-dimensional boolean selectors are broadcast
-across their advanced selector shapes. Selectors with the same shape are paired
-element-by-element, and singleton selector dimensions broadcast across the
-other selector shapes. When advanced integer or one-dimensional boolean
-selectors are separated by basic indexing components, their broadcasted
-selector shape is placed before the remaining basic output dimensions,
-matching the common NumPy advanced-indexing layout.
-Tuple-position partial boolean masks are expanded to coordinate gathers, so
-they can participate in those same vectorized advanced-index broadcasts with
-integer and one-dimensional boolean selectors.
-When differentiable, backward scatters gradients back to the source tensor and
-accumulates repeated gather indices. Full NumPy advanced-indexing parity is
-still incomplete; use comparison tensors with `where` for elementwise
-selection.
+Advanced list, tensor, and boolean-mask indexing are not implemented yet.
+Use comparison tensors with `where` for elementwise selection.
 
 ## Math
 
@@ -329,12 +233,21 @@ condition, but it does route gradients into the selected branch values.
 Matrix and reductions:
 
 - `matmul` / `@` for 2D tensors
+- `bmm` / `@` for two 3D batched tensors
 - `sum`
 - `mean`
+- `var` / `variance`
+- `std`
+- `norm`
 - `max`
 - `min`
 - `argmax`
 - `argmin`
+- `all`
+- `any`
+- `logsumexp`
+- `softmax`
+- `log_softmax`
 
 Reductions operate over all elements by default and support an int axis or a
 tuple/list of axes with `keepdims`:
@@ -347,20 +260,41 @@ x.max(axis=-1)
 x.reshape((1, 2, 3)).sum(axis=(0, 2))
 x.argmax()
 x.argmin(axis=1)
+x.softmax(axis=1)
+x.logsumexp(axis=1)
+x.var(axis=0)
+x.std(axis=1)
+x.norm(ord=2)
+```
+
+For two 3D tensors, `@` dispatches to batched matrix multiplication:
+
+```python
+left = ts.randn((2, 3, 4), seed=1)
+right = ts.randn((2, 4, 5), seed=2)
+
+left @ right       # shape (2, 3, 5)
+ts.bmm(left, right)
 ```
 
 Higher-level helpers in `tensorstudio.math` include variance, standard
-deviation, norms, square, and reciprocal:
+deviation, norms, stable probability helpers, boolean reductions, a practical
+`einsum` subset, square, and reciprocal:
 
 ```python
 ts.math.variance(x)
 ts.math.std(x, axis=0)
 ts.math.norm(x, ord=2)
+ts.math.softmax(x, axis=1)
+ts.math.logsumexp(x, axis=1)
+ts.math.einsum("ij,ij->", x, x)
 ```
 
 Image-style functional operations:
 
 - `conv2d`
+- `conv_transpose2d`
+- `embedding`
 - `max_pool2d`
 - `avg_pool2d`
 
@@ -371,9 +305,8 @@ portable eager kernels rather than CUDA/cuDNN-style throughput.
 
 ```python
 x = ts.tensor([[1.2, 2.8]])
-ts.cast(x, "float64", casting="safe")
 x.astype("int32")
-x.to("float64", casting="same_kind")
+x.to("float64")
 
 ts.concat([x, x], axis=0)
 ts.stack([x, x], axis=1)
@@ -388,19 +321,32 @@ dimensions. `stack` requires identical shapes and inserts a new axis.
 array = x.numpy()
 values = x.tolist()
 scalar = x.sum().item()
-same_storage = x.to_device("cpu")
-copied = ts.to_device(x, "cpu", copy=True)
 ```
 
 NumPy interop copies data in both directions. Mutating the NumPy array returned
 by `numpy()` does not mutate the TensorStudio tensor.
 
-`to_device("cpu", copy=False)` returns a CPU tensor alias that shares storage.
-`copy=True` returns a clone. Non-CPU targets raise `DeviceError` until real
-backend storage and copy kernels are implemented.
-
 ## Mutation
 
-General in-place tensor math is intentionally limited in v1.
-`+=` raises a clear error. Optimizers use private assignment helpers to update
-parameters after gradients are computed.
+General in-place tensor math is intentionally limited in v1. `+=` raises a
+clear error.
+
+Approved public in-place helpers:
+
+- `zero_()`
+- `fill_(value)`
+- `add_(other, alpha=1.0)`
+
+They reject mutation of tensors that require gradients while grad mode is
+enabled:
+
+```python
+x = ts.ones((2,), requires_grad=True)
+
+with ts.no_grad():
+    x.zero_()
+    x.fill_(1.0)
+```
+
+Optimizers use private assignment helpers to update parameters after gradients
+are computed.

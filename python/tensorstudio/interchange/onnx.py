@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-from collections import Counter
 from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -13,6 +12,7 @@ import numpy as np
 from tensorstudio.nn import (
     AvgPool2d,
     Conv2d,
+    ConvTranspose2d,
     Flatten,
     Linear,
     MaxPool2d,
@@ -22,6 +22,7 @@ from tensorstudio.nn import (
     Sigmoid,
     Tanh,
 )
+from tensorstudio.ops import avg_pool2d, conv2d, conv_transpose2d, max_pool2d
 from tensorstudio.tensor import Tensor, from_numpy
 from tensorstudio.typing import PathLikeStr
 
@@ -43,28 +44,6 @@ def _require_onnx() -> tuple[Any, Any, Any]:
             "python -m pip install 'tensorstudio[onnx]'"
         ) from exc
     return TensorProto, helper, numpy_helper
-
-
-def _load_onnx(path: PathLikeStr) -> Any:
-    _require_onnx()
-    import onnx
-
-    return onnx.load(Path(path))
-
-
-def _value_info_metadata(value_info: Any, tensor_proto: Any) -> dict[str, Any]:
-    tensor_type = value_info.type.tensor_type
-    elem_type = int(tensor_type.elem_type)
-    dtype = str(tensor_proto.DataType.Name(elem_type)).lower()
-    shape: list[int | str | None] = []
-    for dim in tensor_type.shape.dim:
-        if dim.dim_param:
-            shape.append(str(dim.dim_param))
-        elif dim.HasField("dim_value"):
-            shape.append(int(dim.dim_value))
-        else:
-            shape.append(None)
-    return {"name": str(value_info.name), "dtype": dtype, "shape": shape}
 
 
 def _onnx_dtype(dtype: str) -> int:
@@ -230,6 +209,7 @@ def export_onnx(
                     strides=list(layer.stride),
                     pads=pads,
                     dilations=list(layer.dilation),
+                    group=layer.groups,
                 )
             )
             current_shape = _conv_output_shape(
@@ -240,6 +220,47 @@ def export_onnx(
                 layer.padding,
                 layer.dilation,
             )
+        elif isinstance(layer, ConvTranspose2d):
+            weight_name = f"conv_transpose_{index}_weight"
+            inputs = [current_name, weight_name]
+            initializers.append(_tensor_initializer(weight_name, layer.weight, numpy_helper))
+            if layer.bias is not None:
+                bias_name = f"conv_transpose_{index}_bias"
+                inputs.append(bias_name)
+                initializers.append(_tensor_initializer(bias_name, layer.bias, numpy_helper))
+            pads = [layer.padding[0], layer.padding[1], layer.padding[0], layer.padding[1]]
+            nodes.append(
+                helper.make_node(
+                    "ConvTranspose",
+                    inputs,
+                    [next_name],
+                    name=f"ConvTranspose2d_{index}",
+                    kernel_shape=list(layer.kernel_size),
+                    strides=list(layer.stride),
+                    pads=pads,
+                    dilations=list(layer.dilation),
+                    output_padding=list(layer.output_padding),
+                    group=layer.groups,
+                )
+            )
+            if len(current_shape) != 4:
+                raise ValueError("ConvTranspose2d ONNX export expects input shape (N, C, H, W)")
+            batch, _, height, width = current_shape
+            out_h = (
+                (height - 1) * layer.stride[0]
+                - 2 * layer.padding[0]
+                + layer.dilation[0] * (layer.kernel_size[0] - 1)
+                + layer.output_padding[0]
+                + 1
+            )
+            out_w = (
+                (width - 1) * layer.stride[1]
+                - 2 * layer.padding[1]
+                + layer.dilation[1] * (layer.kernel_size[1] - 1)
+                + layer.output_padding[1]
+                + 1
+            )
+            current_shape = (batch, layer.out_channels, out_h, out_w)
         elif isinstance(layer, Flatten):
             nodes.append(
                 helper.make_node(
@@ -337,108 +358,255 @@ def export_onnx(
     return output_path
 
 
-def inspect_onnx(path: PathLikeStr, *, check: bool = True) -> dict[str, Any]:
-    """Inspect ONNX model metadata without executing the model.
+class ImportedOnnxModel:
+    """Executable TensorStudio representation of a supported static ONNX graph."""
 
-    The returned dictionary contains graph IO metadata, node/operator counts,
-    opset versions, initializer names, producer metadata, and checker status.
-    """
+    def __init__(self, path: PathLikeStr) -> None:
+        _, _, numpy_helper = _require_onnx()
+        import onnx
 
-    TensorProto, _, _ = _require_onnx()
+        self.path = Path(path)
+        self.model = onnx.load(self.path)
+        self.initializers: dict[str, Tensor] = {
+            initializer.name: from_numpy(np.array(numpy_helper.to_array(initializer), copy=True))
+            for initializer in self.model.graph.initializer
+        }
+        self.input_names = [
+            value.name
+            for value in self.model.graph.input
+            if value.name not in self.initializers
+        ]
+        self.output_names = [value.name for value in self.model.graph.output]
+        self.nodes = list(self.model.graph.node)
+        unsupported = sorted({node.op_type for node in self.nodes} - _SUPPORTED_IMPORT_OPS)
+        if unsupported:
+            raise ValueError(f"unsupported ONNX operators for TensorStudio import: {unsupported}")
+        if len(self.input_names) != 1:
+            raise ValueError("TensorStudio ONNX import currently supports exactly one graph input")
+
+    def __call__(self, input: Tensor) -> Tensor:
+        values: dict[str, Tensor] = dict(self.initializers)
+        values[self.input_names[0]] = input
+        for node in self.nodes:
+            self._execute_node(node, values)
+        if len(self.output_names) != 1:
+            raise ValueError("TensorStudio ONNX import currently supports exactly one graph output")
+        return values[self.output_names[0]]
+
+    def _execute_node(self, node: Any, values: dict[str, Tensor]) -> None:
+        attrs = _node_attributes(node)
+        inputs = [values[name] for name in node.input if name]
+        op_type = node.op_type
+        if op_type == "Gemm":
+            left = inputs[0].T if int(attrs.get("transA", 0)) else inputs[0]
+            right = inputs[1].T if int(attrs.get("transB", 0)) else inputs[1]
+            output = left @ right
+            if len(inputs) > 2:
+                output = output + inputs[2]
+        elif op_type == "Relu":
+            output = inputs[0].relu()
+        elif op_type == "Sigmoid":
+            output = inputs[0].sigmoid()
+        elif op_type == "Tanh":
+            output = inputs[0].tanh()
+        elif op_type == "Flatten":
+            axis = int(attrs.get("axis", 1))
+            shape = inputs[0].shape
+            normalized = axis if axis >= 0 else len(shape) + axis
+            prefix = shape[:normalized]
+            flattened = math.prod(shape[normalized:]) if normalized < len(shape) else 1
+            output = inputs[0].reshape((*prefix, flattened))
+        elif op_type == "Conv":
+            output = conv2d(
+                inputs[0],
+                inputs[1],
+                inputs[2] if len(inputs) > 2 else None,
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+                groups=int(attrs.get("group", 1)),
+            )
+        elif op_type == "ConvTranspose":
+            output = conv_transpose2d(
+                inputs[0],
+                inputs[1],
+                inputs[2] if len(inputs) > 2 else None,
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                output_padding=_attr_pair(attrs, "output_padding", (0, 0)),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+                groups=int(attrs.get("group", 1)),
+            )
+        elif op_type == "MaxPool":
+            output = max_pool2d(
+                inputs[0],
+                kernel_size=_attr_pair(attrs, "kernel_shape", (1, 1)),
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                dilation=_attr_pair(attrs, "dilations", (1, 1)),
+            )
+        elif op_type == "AveragePool":
+            output = avg_pool2d(
+                inputs[0],
+                kernel_size=_attr_pair(attrs, "kernel_shape", (1, 1)),
+                stride=_attr_pair(attrs, "strides", (1, 1)),
+                padding=_pads_to_pair(attrs.get("pads", [0, 0, 0, 0])),
+                count_include_pad=bool(attrs.get("count_include_pad", 0)),
+            )
+        else:  # pragma: no cover - guarded in __init__
+            raise ValueError(f"unsupported ONNX operator: {op_type}")
+        values[node.output[0]] = output
+
+
+_SUPPORTED_IMPORT_OPS = {
+    "AveragePool",
+    "Conv",
+    "ConvTranspose",
+    "Flatten",
+    "Gemm",
+    "MaxPool",
+    "Relu",
+    "Sigmoid",
+    "Tanh",
+}
+
+
+def inspect_onnx(path: PathLikeStr) -> dict[str, Any]:
+    """Inspect supported ONNX metadata without executing the graph."""
+
+    _, _, numpy_helper = _require_onnx()
     import onnx
 
-    model = _load_onnx(path)
-    checker_error: str | None = None
-    if check:
-        try:
-            onnx.checker.check_model(model)
-        except Exception as exc:  # pragma: no cover - depends on malformed external files
-            checker_error = str(exc)
-
-    initializer_names = {initializer.name for initializer in model.graph.initializer}
-    op_counts = Counter(str(node.op_type) for node in model.graph.node)
-    metadata_props = {prop.key: prop.value for prop in model.metadata_props}
-
-    return {
-        "path": str(Path(path)),
-        "ir_version": int(model.ir_version),
-        "producer_name": str(model.producer_name),
-        "producer_version": str(model.producer_version),
-        "domain": str(model.domain),
-        "model_version": int(model.model_version),
-        "graph_name": str(model.graph.name),
-        "opsets": {
-            str(opset.domain): int(opset.version)
-            for opset in model.opset_import
-        },
-        "inputs": [
-            _value_info_metadata(value_info, TensorProto)
-            for value_info in model.graph.input
-            if value_info.name not in initializer_names
-        ],
-        "outputs": [
-            _value_info_metadata(value_info, TensorProto)
-            for value_info in model.graph.output
-        ],
-        "initializers": sorted(initializer_names),
-        "node_count": len(model.graph.node),
-        "op_types": sorted(op_counts),
-        "op_counts": dict(sorted(op_counts.items())),
-        "metadata": metadata_props,
-        "check_passed": checker_error is None,
-        "check_error": checker_error,
-    }
-
-
-def onnx_runtime_info(providers: Iterable[str] | None = None) -> dict[str, Any]:
-    """Return optional ONNX Runtime provider availability metadata."""
-
-    requested = list(providers) if providers is not None else []
+    model = onnx.load(Path(path))
     try:
-        import onnxruntime as ort
-    except ImportError:
-        return {
-            "available": False,
-            "version": None,
-            "available_providers": [],
-            "requested_providers": requested,
-            "selected_providers": [],
-            "unsupported_providers": requested,
-            "reason": (
-                "install the optional dependency with: "
-                "python -m pip install 'tensorstudio[onnxruntime]'"
-            ),
+        onnx.checker.check_model(model)
+        check_passed = True
+        check_error = None
+    except Exception as exc:
+        check_passed = False
+        check_error = str(exc)
+    op_counts: dict[str, int] = {}
+    for node in model.graph.node:
+        op_counts[node.op_type] = op_counts.get(node.op_type, 0) + 1
+    initializers = [
+        {
+            "name": initializer.name,
+            "shape": list(numpy_helper.to_array(initializer).shape),
+            "dtype": str(numpy_helper.to_array(initializer).dtype),
         }
-
-    available = list(ort.get_available_providers())
-    unsupported = [provider for provider in requested if provider not in available]
-    selected = requested if requested and not unsupported else ([] if requested else available)
+        for initializer in model.graph.initializer
+    ]
     return {
-        "available": True,
-        "version": str(ort.__version__),
-        "available_providers": available,
-        "requested_providers": requested,
-        "selected_providers": selected,
-        "unsupported_providers": unsupported,
-        "reason": (
-            ""
-            if not unsupported
-            else "one or more requested ONNX Runtime providers are unavailable"
-        ),
+        "format": "onnx",
+        "check_passed": check_passed,
+        "check_error": check_error,
+        "producer_name": model.producer_name,
+        "producer_version": model.producer_version,
+        "opsets": {item.domain or "": item.version for item in model.opset_import},
+        "graph_name": model.graph.name,
+        "inputs": [value.name for value in model.graph.input],
+        "outputs": [value.name for value in model.graph.output],
+        "node_count": len(model.graph.node),
+        "operators": sorted({node.op_type for node in model.graph.node}),
+        "op_counts": op_counts,
+        "initializer_count": len(initializers),
+        "initializers": initializers,
     }
 
 
-def _selected_runtime_providers(providers: Iterable[str] | None = None) -> list[str]:
-    runtime = onnx_runtime_info(providers)
-    if not runtime["available"]:
-        raise ImportError(str(runtime["reason"]))
-    if runtime["unsupported_providers"]:
-        missing = ", ".join(str(provider) for provider in runtime["unsupported_providers"])
-        raise ValueError(f"unsupported ONNX Runtime provider(s): {missing}")
-    selected = list(runtime["selected_providers"])
-    if providers is None and "CPUExecutionProvider" in runtime["available_providers"]:
+def import_onnx(path: PathLikeStr) -> ImportedOnnxModel:
+    """Import a supported static ONNX graph as a callable TensorStudio model."""
+
+    return ImportedOnnxModel(path)
+
+
+class OnnxRuntimeModel:
+    """Callable ONNX Runtime session returning TensorStudio tensors.
+
+    This adapter is optional and requires ``onnxruntime`` to be installed. It is
+    intentionally separate from TensorStudio's native supported-subset importer:
+    ONNX Runtime can execute a broader ONNX surface, while TensorStudio import
+    executes only graphs whose operators map to TensorStudio tensor ops.
+    """
+
+    def __init__(
+        self,
+        path: PathLikeStr,
+        *,
+        providers: list[str] | None = None,
+    ) -> None:
+        ort = _require_onnxruntime()
+        _validate_onnxruntime_providers(providers)
+        self.path = Path(path)
+        self.session = ort.InferenceSession(str(self.path), providers=providers)
+        self.input_names = [item.name for item in self.session.get_inputs()]
+        self.output_names = [item.name for item in self.session.get_outputs()]
+        if len(self.input_names) != 1:
+            raise ValueError("TensorStudio ONNX Runtime adapter currently supports one input")
+
+    def __call__(self, input: Tensor) -> Tensor:
+        outputs = self.session.run(None, {self.input_names[0]: input.numpy()})
+        if len(outputs) != 1:
+            raise ValueError("TensorStudio ONNX Runtime adapter currently supports one output")
+        return from_numpy(np.asarray(outputs[0]))
+
+
+def onnxruntime_is_available() -> bool:
+    """Return whether optional ONNX Runtime execution is importable."""
+
+    try:
+        import onnxruntime  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def onnxruntime_available_providers() -> list[str]:
+    """Return ONNX Runtime execution providers available in this environment."""
+
+    try:
+        ort = _require_onnxruntime()
+    except ImportError:
+        return []
+    return list(ort.get_available_providers())
+
+
+def check_onnxruntime_compatibility(
+    path: PathLikeStr,
+    *,
+    providers: list[str] | None = None,
+) -> dict[str, Any]:
+    """Inspect whether ONNX Runtime can load a model with requested providers."""
+
+    result: dict[str, Any] = {
+        "available": onnxruntime_is_available(),
+        "available_providers": onnxruntime_available_providers(),
+        "requested_providers": list(providers or []),
+        "loadable": False,
+        "error": None,
+    }
+    if not result["available"]:
+        result["error"] = "onnxruntime is not installed"
+        return result
+    try:
+        model = OnnxRuntimeModel(path, providers=providers)
+        result["loadable"] = True
+        result["inputs"] = list(model.input_names)
+        result["outputs"] = list(model.output_names)
+    except Exception as exc:
+        result["error"] = str(exc)
+    return result
+
+
+def _selected_onnxruntime_providers(providers: Iterable[str] | None = None) -> list[str] | None:
+    requested = list(providers) if providers is not None else None
+    _validate_onnxruntime_providers(requested)
+    if requested:
+        return requested
+    available = onnxruntime_available_providers()
+    if "CPUExecutionProvider" in available:
         return ["CPUExecutionProvider"]
-    return selected
+    return None
 
 
 def _onnx_input_array(value: Any) -> np.ndarray:
@@ -464,16 +632,14 @@ def run_onnx_inference(
 ) -> dict[str, Tensor | np.ndarray]:
     """Run a compatible ONNX model with ONNX Runtime.
 
-    The helper never executes Python code from the model file; execution is
-    delegated to ONNX Runtime. By default, CPUExecutionProvider is selected
-    when it is available so local runs do not accidentally depend on optional
-    accelerator providers.
+    The helper executes the model through ONNX Runtime rather than importing
+    TensorFlow/PyTorch/Keras code. CPUExecutionProvider is selected by default
+    when it is available so local runs are deterministic across machines.
     """
 
-    selected_providers = _selected_runtime_providers(providers)
-    import onnxruntime as ort
-
-    session = ort.InferenceSession(str(Path(path)), providers=selected_providers or None)
+    ort = _require_onnxruntime()
+    selected_providers = _selected_onnxruntime_providers(providers)
+    session = ort.InferenceSession(str(Path(path)), providers=selected_providers)
     model_inputs = [item.name for item in session.get_inputs()]
     if isinstance(inputs, Mapping):
         feed = {str(name): _onnx_input_array(value) for name, value in inputs.items()}
@@ -502,64 +668,119 @@ def run_onnx_inference(
     return result
 
 
-def check_onnx_runtime_compatibility(
+def run_onnx(
     path: PathLikeStr,
+    input: Tensor,
     *,
-    providers: Iterable[str] | None = None,
-) -> dict[str, Any]:
-    """Check ONNX checker status and optional ONNX Runtime session creation.
+    prefer_onnxruntime: bool = True,
+    providers: list[str] | None = None,
+) -> Tensor:
+    """Run an ONNX file through ONNX Runtime when available, otherwise TensorStudio import."""
 
-    This loads the ONNX model into ONNX Runtime when the optional dependency is
-    installed, but it does not run inference.
-    """
-
-    model_info = inspect_onnx(path)
-    runtime = onnx_runtime_info(providers)
-    result: dict[str, Any] = {
-        "path": str(Path(path)),
-        "onnx_check_passed": model_info["check_passed"],
-        "runtime_available": runtime["available"],
-        "runtime_version": runtime["version"],
-        "available_providers": runtime["available_providers"],
-        "requested_providers": runtime["requested_providers"],
-        "selected_providers": runtime["selected_providers"],
-        "unsupported_providers": runtime["unsupported_providers"],
-        "compatible": None,
-        "session_providers": [],
-        "reason": runtime["reason"],
-    }
-    if not model_info["check_passed"]:
-        result["compatible"] = False
-        result["reason"] = model_info["check_error"]
-        return result
-    if not runtime["available"]:
-        return result
-    if runtime["unsupported_providers"]:
-        result["compatible"] = False
-        return result
-
-    import onnxruntime as ort
+    runtime_error: Exception | None = None
+    if prefer_onnxruntime and onnxruntime_is_available():
+        try:
+            return OnnxRuntimeModel(path, providers=providers)(input)
+        except Exception as exc:
+            runtime_error = exc
 
     try:
-        session = ort.InferenceSession(
-            str(Path(path)),
-            providers=runtime["selected_providers"] or None,
-        )
-    except Exception as exc:  # pragma: no cover - provider/runtime dependent
-        result["compatible"] = False
-        result["reason"] = str(exc)
-        return result
+        return import_onnx(path)(input)
+    except Exception as fallback_error:
+        if runtime_error is not None:
+            raise RuntimeError(
+                "ONNX Runtime execution failed and TensorStudio's supported-subset "
+                "fallback could not execute the graph. "
+                f"ONNX Runtime error: {runtime_error}. "
+                f"TensorStudio fallback error: {fallback_error}."
+            ) from fallback_error
+        raise
 
-    result["compatible"] = True
-    result["session_providers"] = list(session.get_providers())
-    result["reason"] = ""
-    return result
+
+def export_model_card_metadata(
+    metadata: dict[str, Any],
+    path: PathLikeStr,
+) -> Path:
+    """Write a small JSON model-card metadata file."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(
+        json_dumps_stable(metadata),
+        encoding="utf-8",
+    )
+    return output_path
+
+
+def json_dumps_stable(value: dict[str, Any]) -> str:
+    import json
+
+    return json.dumps(value, indent=2, sort_keys=True) + "\n"
+
+
+def _require_onnxruntime() -> Any:
+    try:
+        import onnxruntime as ort
+    except ImportError as exc:  # pragma: no cover - optional dependency path
+        raise ImportError(
+            "ONNX Runtime execution requires the optional dependency: "
+            "python -m pip install 'tensorstudio[onnxruntime]'"
+        ) from exc
+    return ort
+
+
+def _validate_onnxruntime_providers(providers: list[str] | None) -> None:
+    if not providers:
+        return
+    available = set(onnxruntime_available_providers())
+    missing = [provider for provider in providers if provider not in available]
+    if missing:
+        raise ValueError(
+            "requested ONNX Runtime providers are unavailable: "
+            f"{missing}; available providers: {sorted(available)}"
+        )
+
+
+def _node_attributes(node: Any) -> dict[str, Any]:
+    _, helper, _ = _require_onnx()
+    return {attribute.name: helper.get_attribute_value(attribute) for attribute in node.attribute}
+
+
+def _attr_pair(
+    attrs: dict[str, Any],
+    name: str,
+    default: tuple[int, int],
+) -> tuple[int, int]:
+    value = attrs.get(name, default)
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if isinstance(value, (int, float)):
+        return (int(value), int(value))
+    if len(value) != 2:
+        raise ValueError(f"ONNX attribute {name!r} must contain two values")
+    return (int(value[0]), int(value[1]))
+
+
+def _pads_to_pair(value: Any) -> tuple[int, int]:
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if len(value) == 2:
+        return (int(value[0]), int(value[1]))
+    if len(value) == 4 and int(value[0]) == int(value[2]) and int(value[1]) == int(value[3]):
+        return (int(value[0]), int(value[1]))
+    raise ValueError("TensorStudio ONNX import supports symmetric 2D padding only")
 
 
 __all__ = [
-    "check_onnx_runtime_compatibility",
+    "ImportedOnnxModel",
+    "OnnxRuntimeModel",
+    "check_onnxruntime_compatibility",
+    "export_model_card_metadata",
     "export_onnx",
+    "import_onnx",
     "inspect_onnx",
-    "onnx_runtime_info",
+    "onnxruntime_available_providers",
+    "onnxruntime_is_available",
+    "run_onnx",
     "run_onnx_inference",
 ]

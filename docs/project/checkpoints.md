@@ -1,7 +1,7 @@
 # Checkpoints
 
-Checkpoints capture model state and optional optimizer state so a training run
-can be resumed or inspected later.
+Checkpoints capture model state and optional optimizer, scheduler, epoch, and
+metadata state so a training run can be resumed or inspected later.
 
 ## State Dictionaries
 
@@ -19,23 +19,40 @@ Prefer it when you only need model parameters.
 
 ## Full Checkpoints
 
-Use full checkpoints when optimizer state and metadata matter:
+Use full checkpoints when optimizer state, scheduler state, epoch counters, and
+metadata matter:
 
 ```python
-from tensorstudio.project import save_checkpoint, load_checkpoint
+from tensorstudio.project import load_checkpoint, resume_checkpoint, save_checkpoint
 
 save_checkpoint(
     model,
     "checkpoints/latest.tsckpt",
     optimizer=optimizer,
-    metadata={"epoch": 10, "loss": 0.031},
+    scheduler=scheduler,
+    epoch=10,
+    metadata={"loss": 0.031},
 )
 
-metadata = load_checkpoint(model, "checkpoints/latest.tsckpt", optimizer=optimizer)
+checkpoint = load_checkpoint(
+    model,
+    "checkpoints/latest.tsckpt",
+    optimizer=optimizer,
+    scheduler=scheduler,
+)
+next_epoch = resume_checkpoint(
+    model,
+    "checkpoints/latest.tsckpt",
+    optimizer=optimizer,
+    scheduler=scheduler,
+)
 ```
 
 Full checkpoints may include trusted pickle data for Python optimizer state and
 metadata. Only load them from sources you trust.
+
+`resume_checkpoint` restores the checkpoint and returns `epoch + 1`, which is
+convenient for continuing a loop with `Trainer.fit(..., start_epoch=next_epoch)`.
 
 ## Strict Loading
 

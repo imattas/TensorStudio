@@ -22,22 +22,6 @@ python -m twine check dist/*
 The wheel should contain the compiled native extension inside the
 `tensorstudio` package directory.
 
-## Backend Descriptor Flags
-
-TensorStudio's default build is CPU-only. Two CMake flags can mark future
-backend descriptor hooks as compiled for diagnostics, without enabling tensor
-storage or kernel execution on those devices:
-
-```bash
-python -m pip install -e ".[dev]" \
-  -Ccmake.define.TENSORSTUDIO_ENABLE_CUDA_BACKEND_DESCRIPTOR=ON
-python -m pip install -e ".[dev]" \
-  -Ccmake.define.TENSORSTUDIO_ENABLE_METAL_BACKEND_DESCRIPTOR=ON
-```
-
-These flags are for backend-boundary experiments only. They do not make CUDA
-or Metal tensors usable.
-
 ## Platform Compilers
 
 Windows:
@@ -63,3 +47,4 @@ python test_all.py --quiet
 
 This runs linting, type checks, tests, examples, docs build, package build, and
 Twine metadata validation.
+

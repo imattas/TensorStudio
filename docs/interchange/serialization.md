@@ -1,8 +1,9 @@
-﻿# Serialization
+# Serialization
 
-TensorStudio `2.1.0` provides two serialization paths: trusted pickle
-roundtrips for internal objects and non-pickle NPZ files for tensor/state_dict
-interchange.
+TensorStudio provides trusted pickle roundtrips for internal objects,
+non-pickle NPZ files for tensor/state_dict interchange, and optional
+SafeTensors support for tensor-only weight maps. ONNX export/import and
+optional ONNX Runtime delegation live in the interchange namespace.
 
 ## Trusted Pickle Roundtrips
 
@@ -44,7 +45,6 @@ Use `save_npz` and `load_npz` for numeric tensor data and flat module
 ```python
 state = model.state_dict()
 ts.save_npz(state, "weights.tsnpz")
-print(ts.check_npz_compatibility("weights.tsnpz"))
 loaded_state = ts.load_npz("weights.tsnpz")
 model.load_state_dict(loaded_state)
 ```
@@ -54,17 +54,28 @@ Single tensors are supported too:
 ```python
 x = ts.tensor([[1.0, 2.0]], requires_grad=True)
 ts.save_npz(x, "tensor.tsnpz")
-metadata = ts.inspect_npz("tensor.tsnpz")
 roundtrip = ts.load_npz("tensor.tsnpz")
 ```
 
 NPZ archives store NumPy arrays and TensorStudio JSON metadata with pickle
-disabled. They do not save arbitrary Python modules, optimizer objects, or
+disabled. `save_npz(..., metadata={...})` records user metadata alongside tensor
+names, dtypes, shapes, and `requires_grad` flags. Use `load_npz_metadata()` or
+`inspect_model_metadata()` to inspect metadata without loading every tensor
+payload. NPZ files do not save arbitrary Python modules, optimizer objects, or
 custom classes.
-`inspect_npz` reports archive format, version, kind, tensor entries, missing
-arrays, extra arrays, and compatibility without constructing TensorStudio
-tensors. `check_npz_compatibility` returns a smaller summary for release checks
-and migration scripts.
+
+## SafeTensors
+
+```python
+ts.save_safetensors(model.state_dict(), "weights.safetensors")
+state = ts.load_safetensors("weights.safetensors")
+```
+
+SafeTensors support is optional and requires:
+
+```bash
+python -m pip install "tensorstudio[safetensors]"
+```
 
 ## ONNX Export
 
@@ -77,8 +88,13 @@ ts.export_onnx(model, "model.onnx", input_shape=(1, 1, 28, 28))
 
 See [ONNX Interchange](onnx.md) for supported module types and limits.
 
+When installed with `tensorstudio[onnxruntime]`, `ts.run_onnx()` can delegate
+execution to the external ONNX Runtime package. TensorStudio's native ONNX
+importer remains a constrained static subset.
+
 ## Recommended File Extensions
 
 - Use `.tsmodel` for trusted TensorStudio pickle files.
 - Use `.tsnpz` for tensor and state_dict NPZ files.
+- Use `.safetensors` for safe tensor-only weight maps.
 - Use `.onnx` for exported ONNX model files.

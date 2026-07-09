@@ -31,6 +31,7 @@ enough to justify the added surface area.
 - Better error messages.
 - More examples.
 - More API reference detail.
+- Reusable small-project workflow helpers that stay easy to inspect.
 - Clear migration notes between releases.
 
 ## Priority 5: Scale

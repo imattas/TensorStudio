@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Protocol, cast
 
+from tensorstudio._version import __version__
 from tensorstudio.nn import Module
 from tensorstudio.serialization import load, load_npz, save, save_npz
 from tensorstudio.tensor import Tensor
@@ -11,6 +12,12 @@ from tensorstudio.typing import PathLikeStr
 
 
 class StatefulOptimizer(Protocol):
+    def state_dict(self) -> dict[str, object]: ...
+
+    def load_state_dict(self, state: dict[str, object]) -> None: ...
+
+
+class StatefulScheduler(Protocol):
     def state_dict(self) -> dict[str, object]: ...
 
     def load_state_dict(self, state: dict[str, object]) -> None: ...
@@ -39,6 +46,8 @@ def save_checkpoint(
     path: PathLikeStr,
     *,
     optimizer: StatefulOptimizer | None = None,
+    scheduler: StatefulScheduler | None = None,
+    epoch: int | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> None:
     """Save a trusted full checkpoint with pickle.
@@ -49,11 +58,18 @@ def save_checkpoint(
     """
 
     checkpoint: dict[str, Any] = {
+        "format": "tensorstudio.checkpoint",
+        "version": 2,
+        "tensorstudio_version": __version__,
         "model": model.state_dict(),
         "metadata": dict(metadata or {}),
     }
+    if epoch is not None:
+        checkpoint["epoch"] = int(epoch)
     if optimizer is not None:
         checkpoint["optimizer"] = optimizer.state_dict()
+    if scheduler is not None:
+        checkpoint["scheduler"] = scheduler.state_dict()
     save(checkpoint, path)
 
 
@@ -62,6 +78,7 @@ def load_checkpoint(
     path: PathLikeStr,
     *,
     optimizer: StatefulOptimizer | None = None,
+    scheduler: StatefulScheduler | None = None,
     strict: bool = True,
 ) -> dict[str, Any]:
     """Load a trusted full checkpoint and restore model and optimizer state."""
@@ -69,6 +86,9 @@ def load_checkpoint(
     checkpoint = load(path)
     if not isinstance(checkpoint, dict) or "model" not in checkpoint:
         raise ValueError("checkpoint must contain a 'model' state_dict")
+    version = checkpoint.get("version", 1)
+    if not isinstance(version, int) or version > 2:
+        raise ValueError(f"unsupported TensorStudio checkpoint version: {version!r}")
     model_state = checkpoint["model"]
     if not isinstance(model_state, dict):
         raise ValueError("checkpoint 'model' must be a state_dict mapping")
@@ -79,13 +99,40 @@ def load_checkpoint(
         if not isinstance(optimizer_state, dict):
             raise ValueError("checkpoint 'optimizer' must be a state_dict mapping")
         optimizer.load_state_dict(cast(dict[str, object], optimizer_state))
+    if scheduler is not None and "scheduler" in checkpoint:
+        scheduler_state = checkpoint["scheduler"]
+        if not isinstance(scheduler_state, dict):
+            raise ValueError("checkpoint 'scheduler' must be a state_dict mapping")
+        scheduler.load_state_dict(cast(dict[str, object], scheduler_state))
     return cast(dict[str, Any], checkpoint)
+
+
+def resume_checkpoint(
+    model: Module,
+    path: PathLikeStr,
+    *,
+    optimizer: StatefulOptimizer | None = None,
+    scheduler: StatefulScheduler | None = None,
+    strict: bool = True,
+) -> int:
+    """Load a trusted checkpoint and return the next epoch index."""
+
+    checkpoint = load_checkpoint(
+        model,
+        path,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        strict=strict,
+    )
+    return int(checkpoint.get("epoch", 0)) + 1
 
 
 __all__ = [
     "StatefulOptimizer",
+    "StatefulScheduler",
     "load_checkpoint",
     "load_state_dict",
+    "resume_checkpoint",
     "save_checkpoint",
     "save_state_dict",
 ]

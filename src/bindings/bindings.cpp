@@ -6,6 +6,7 @@
 #include "tensorstudio/device.hpp"
 #include "tensorstudio/dtype.hpp"
 #include "tensorstudio/errors.hpp"
+#include "tensorstudio/perf.hpp"
 #include "tensorstudio/storage.hpp"
 #include "tensorstudio/version.hpp"
 
@@ -389,6 +390,19 @@ PYBIND11_MODULE(_C, module) {
     info.reason = reason;
     tensorstudio::register_backend_kernel(std::move(info));
   }, py::arg("backend"), py::arg("op"), py::arg("dtypes"), py::arg("forward") = true, py::arg("backward") = false, py::arg("available") = true, py::arg("reason") = "", py::arg("memory_space") = "device", py::arg("execution_mode") = "sync", py::arg("deterministic") = true, py::arg("priority") = 50);
+  module.def("get_num_threads", &tensorstudio::perf::get_num_threads);
+  module.def("set_num_threads", &tensorstudio::perf::set_num_threads, py::arg("count"));
+  module.def("performance_info", []() {
+    const tensorstudio::perf::PerformanceInfo info = tensorstudio::perf::performance_info();
+    py::dict result;
+    result["num_threads"] = info.num_threads;
+    result["threads_enabled"] = info.threads_enabled;
+    result["storage_pool_enabled"] = info.storage_pool_enabled;
+    result["blas_enabled"] = info.blas_enabled;
+    result["simd_enabled"] = info.simd_enabled;
+    result["simd_level"] = info.simd_level;
+    return result;
+  });
   module.def("storage_telemetry", storage_telemetry_dict);
   module.def("reset_storage_telemetry", &tensorstudio::reset_storage_telemetry);
 

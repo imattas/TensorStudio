@@ -10,22 +10,34 @@ from .model_formats import (
     inspect_tflite,
 )
 from .onnx import (
-    check_onnx_runtime_compatibility,
+    ImportedOnnxModel,
+    OnnxRuntimeModel,
+    check_onnxruntime_compatibility,
+    export_model_card_metadata,
     export_onnx,
+    import_onnx,
     inspect_onnx,
-    onnx_runtime_info,
+    onnxruntime_available_providers,
+    onnxruntime_is_available,
+    run_onnx,
     run_onnx_inference,
 )
 
 __all__ = [
-    "check_onnx_runtime_compatibility",
+    "ImportedOnnxModel",
+    "OnnxRuntimeModel",
+    "check_onnxruntime_compatibility",
+    "export_model_card_metadata",
     "export_onnx",
+    "import_onnx",
     "inspect_hdf5",
     "inspect_keras",
     "inspect_model_format",
     "inspect_onnx",
     "inspect_saved_model",
     "inspect_tflite",
-    "onnx_runtime_info",
+    "onnxruntime_available_providers",
+    "onnxruntime_is_available",
+    "run_onnx",
     "run_onnx_inference",
 ]

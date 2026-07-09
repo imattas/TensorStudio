@@ -1,7 +1,6 @@
 #include "bindings.hpp"
 
 #include <algorithm>
-#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <optional>
@@ -38,6 +37,14 @@ bool is_sequence_like(py::handle object) {
   return PySequence_Check(object.ptr()) != 0 && !py::isinstance<py::array>(object);
 }
 
+std::string py_type_name(py::handle object) {
+  return py::cast<std::string>(py::type::of(object).attr("__name__"));
+}
+
+std::string py_repr_string(py::handle object) {
+  return py::cast<std::string>(py::repr(object));
+}
+
 void parse_nested(py::handle object, std::size_t depth, ParsedData& parsed) {
   if (is_sequence_like(object)) {
     py::sequence sequence = py::reinterpret_borrow<py::sequence>(object);
@@ -68,7 +75,9 @@ void parse_nested(py::handle object, std::size_t depth, ParsedData& parsed) {
     parsed.values.push_back(static_cast<double>(py::cast<int64_t>(object)));
     return;
   }
-  throw DTypeError("tensor data must contain numeric Python scalars");
+  throw DTypeError(
+      "tensor data must contain numeric Python scalars, got " + py_type_name(object) +
+      " value " + py_repr_string(object));
 }
 
 DType infer_dtype(const ParsedData& parsed) {
@@ -152,6 +161,13 @@ py::object none_if_undefined(const Tensor& tensor) {
   return py::cast(tensor);
 }
 
+std::optional<uint64_t> optional_seed_from_py(py::object seed) {
+  if (seed.is_none()) {
+    return std::nullopt;
+  }
+  return py::cast<uint64_t>(seed);
+}
+
 py::tuple shape_tuple(const Shape& shape) {
   py::tuple result(shape.size());
   for (std::size_t i = 0; i < shape.size(); ++i) {
@@ -215,18 +231,26 @@ DType dtype_from_py(py::object object, DType fallback) {
   if (object.is_none()) {
     return fallback;
   }
+  if (!py::isinstance<py::str>(object)) {
+    throw DTypeError("dtype must be a string or None, got " + py_type_name(object));
+  }
   return dtype_from_string(py::cast<std::string>(object));
 }
 
 Shape shape_from_py(py::object object) {
-  if (py::isinstance<py::int_>(object)) {
+  if (py::isinstance<py::int_>(object) && !py::isinstance<py::bool_>(object)) {
     return Shape{py::cast<int64_t>(object)};
   }
   if (!is_sequence_like(object)) {
-    throw ShapeError("shape must be an int or a sequence of ints");
+    throw ShapeError("shape must be an int or a sequence of ints, got " + py_type_name(object));
   }
   Shape shape;
   for (py::handle item : py::reinterpret_borrow<py::sequence>(object)) {
+    if (!py::isinstance<py::int_>(item) || py::isinstance<py::bool_>(item)) {
+      throw ShapeError(
+          "shape entries must be integers, got " + py_type_name(item) + " value " +
+          py_repr_string(item));
+    }
     shape.push_back(py::cast<int64_t>(item));
   }
   validate_shape(shape);
@@ -333,168 +357,37 @@ Tensor arg_reduce_from_py(
   return reduce_axis(input, normalize_reduction_axis(input, py::cast<int64_t>(axis), op_name), keepdims);
 }
 
+Shape shape_from_varargs(py::args args, const std::string& op_name) {
+  if (args.size() == 1 && !py::isinstance<py::int_>(args[0])) {
+    return shape_from_py(py::reinterpret_borrow<py::object>(args[0]));
+  }
+  Shape shape;
+  shape.reserve(args.size());
+  for (py::handle arg : args) {
+    if (!py::isinstance<py::int_>(arg) || py::isinstance<py::bool_>(arg)) {
+      throw ShapeError(op_name + " axes must be integers");
+    }
+    shape.push_back(py::cast<int64_t>(arg));
+  }
+  return shape;
+}
+
+Tensor transpose_from_args(const Tensor& self, py::args args) {
+  if (args.empty()) {
+    return transpose(self);
+  }
+  if (args.size() == 2) {
+    return transpose(self, py::cast<int64_t>(args[0]), py::cast<int64_t>(args[1]));
+  }
+  throw ShapeError("transpose expects no axes or exactly two axes");
+}
+
 bool is_ellipsis(py::handle object) {
   return object.ptr() == Py_Ellipsis;
 }
 
 bool is_slice(py::handle object) {
   return PySlice_Check(object.ptr()) != 0;
-}
-
-enum class PythonIndexListKind {
-  Integer,
-  BooleanMask,
-};
-
-struct PythonIndexList {
-  PythonIndexListKind kind{PythonIndexListKind::Integer};
-  std::vector<int64_t> integers{};
-  std::vector<uint8_t> mask{};
-};
-
-PythonIndexList list_index_from_py(py::handle object) {
-  py::list list = py::reinterpret_borrow<py::list>(object);
-  PythonIndexList result;
-  result.integers.reserve(list.size());
-  result.mask.reserve(list.size());
-  bool saw_integer = false;
-  bool saw_bool = false;
-  for (py::handle item : list) {
-    if (py::isinstance<py::bool_>(item)) {
-      if (saw_integer) {
-        throw ShapeError("advanced index lists cannot mix booleans and integers");
-      }
-      saw_bool = true;
-      result.mask.push_back(py::cast<bool>(item) ? 1U : 0U);
-      continue;
-    }
-    if (py::isinstance<py::int_>(item)) {
-      if (saw_bool) {
-        throw ShapeError("advanced index lists cannot mix booleans and integers");
-      }
-      saw_integer = true;
-      result.integers.push_back(py::cast<int64_t>(item));
-      continue;
-    }
-    throw ShapeError("advanced index lists must contain only integers or booleans");
-  }
-  if (saw_bool) {
-    result.kind = PythonIndexListKind::BooleanMask;
-  }
-  return result;
-}
-
-TensorIndex tensor_index_from_py(const Tensor& tensor_index) {
-  if (tensor_index.dtype() == DType::Bool) {
-    if (tensor_index.ndim() != 1) {
-      throw ShapeError(
-          "axis boolean tensor masks must be one-dimensional unless they match the full tensor shape; got shape " +
-          shape_to_string(tensor_index.shape()));
-    }
-    std::vector<uint8_t> mask;
-    mask.reserve(static_cast<std::size_t>(tensor_index.numel()));
-    for (int64_t i = 0; i < tensor_index.numel(); ++i) {
-      mask.push_back(tensor_index.value_at_logical(i) != 0.0 ? 1U : 0U);
-    }
-    return TensorIndex::boolean_mask(std::move(mask));
-  }
-
-  if (tensor_index.dtype() == DType::Int32 || tensor_index.dtype() == DType::Int64) {
-    if (tensor_index.ndim() == 0) {
-      throw ShapeError("integer tensor indices must have rank at least 1");
-    }
-    std::vector<int64_t> indices;
-    indices.reserve(static_cast<std::size_t>(tensor_index.numel()));
-    for (int64_t i = 0; i < tensor_index.numel(); ++i) {
-      indices.push_back(static_cast<int64_t>(tensor_index.value_at_logical(i)));
-    }
-    return TensorIndex::gather(std::move(indices), tensor_index.shape());
-  }
-
-  throw ShapeError(
-      "tensor indices must have dtype int32, int64, or bool; got dtype " +
-      dtype_name(tensor_index.dtype()));
-}
-
-TensorIndex full_shape_boolean_mask_from_py(const Tensor& input, const Tensor& mask) {
-  if (mask.dtype() != DType::Bool) {
-    throw ShapeError("full-shape mask indexing requires a bool tensor");
-  }
-  if (mask.shape() != input.shape()) {
-    throw ShapeError(
-        "full-shape boolean mask shape " + shape_to_string(mask.shape()) +
-        " does not match tensor shape " + shape_to_string(input.shape()));
-  }
-  std::vector<int64_t> indices;
-  indices.reserve(static_cast<std::size_t>(mask.numel()));
-  for (int64_t i = 0; i < mask.numel(); ++i) {
-    if (mask.value_at_logical(i) != 0.0) {
-      indices.push_back(i);
-    }
-  }
-  return TensorIndex::flat_gather(std::move(indices));
-}
-
-TensorIndex prefix_boolean_mask_from_py(const Tensor& input, const Tensor& mask) {
-  if (mask.dtype() != DType::Bool) {
-    throw ShapeError("prefix mask indexing requires a bool tensor");
-  }
-  if (mask.ndim() == 0 || mask.ndim() > input.ndim()) {
-    throw ShapeError(
-        "prefix boolean mask shape " + shape_to_string(mask.shape()) +
-        " is not a valid prefix of tensor shape " + shape_to_string(input.shape()));
-  }
-  for (std::size_t i = 0; i < mask.shape().size(); ++i) {
-    if (mask.shape()[i] != input.shape()[i]) {
-      throw ShapeError(
-          "prefix boolean mask shape " + shape_to_string(mask.shape()) +
-          " does not match tensor leading shape " + shape_to_string(input.shape()));
-    }
-  }
-
-  std::vector<int64_t> indices;
-  indices.reserve(static_cast<std::size_t>(mask.numel()));
-  for (int64_t i = 0; i < mask.numel(); ++i) {
-    if (mask.value_at_logical(i) != 0.0) {
-      indices.push_back(i);
-    }
-  }
-  return TensorIndex::prefix_mask(std::move(indices), mask.shape());
-}
-
-TensorIndex partial_boolean_mask_from_py(const Tensor& input, const Tensor& mask, int64_t input_dim) {
-  if (mask.dtype() != DType::Bool) {
-    throw ShapeError("partial boolean mask indexing requires a bool tensor");
-  }
-  if (mask.ndim() <= 1) {
-    throw ShapeError(
-        "partial boolean mask shape " + shape_to_string(mask.shape()) +
-        " must have rank at least 2; use a one-dimensional axis mask for a single axis");
-  }
-  if (input_dim < 0 || input_dim + mask.ndim() > input.ndim()) {
-    throw ShapeError(
-        "partial boolean mask shape " + shape_to_string(mask.shape()) +
-        " cannot be applied at axis " + std::to_string(input_dim) +
-        " of tensor shape " + shape_to_string(input.shape()));
-  }
-  for (std::size_t i = 0; i < mask.shape().size(); ++i) {
-    const auto axis = static_cast<std::size_t>(input_dim + static_cast<int64_t>(i));
-    if (input.shape()[axis] != mask.shape()[i]) {
-      throw ShapeError(
-          "partial boolean mask shape " + shape_to_string(mask.shape()) +
-          " does not match tensor axes starting at " + std::to_string(input_dim) +
-          " for tensor shape " + shape_to_string(input.shape()));
-    }
-  }
-
-  std::vector<int64_t> indices;
-  indices.reserve(static_cast<std::size_t>(mask.numel()));
-  for (int64_t i = 0; i < mask.numel(); ++i) {
-    if (mask.value_at_logical(i) != 0.0) {
-      indices.push_back(i);
-    }
-  }
-  return TensorIndex::block_mask(std::move(indices), mask.shape());
 }
 
 std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
@@ -509,18 +402,6 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
     raw_items.push_back(std::move(key));
   }
 
-  if (raw_items.size() == 1 && py::isinstance<Tensor>(raw_items[0])) {
-    Tensor tensor_key = py::cast<Tensor>(raw_items[0]);
-    if (tensor_key.dtype() == DType::Bool) {
-      if (tensor_key.ndim() == input.ndim()) {
-        return {full_shape_boolean_mask_from_py(input, tensor_key)};
-      }
-      if (tensor_key.ndim() > 1) {
-        return {prefix_boolean_mask_from_py(input, tensor_key)};
-      }
-    }
-  }
-
   int64_t ellipsis_count = 0;
   int64_t consuming_count = 0;
   for (const py::object& item : raw_items) {
@@ -532,36 +413,29 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
       continue;
     }
     if (py::isinstance<py::bool_>(item)) {
-      throw ShapeError("boolean tensor indexing is not supported; use comparison masks with where");
-    }
-    if (py::isinstance<py::list>(item)) {
-      (void)list_index_from_py(item);
-      ++consuming_count;
-      continue;
-    }
-    if (py::isinstance<Tensor>(item)) {
-      Tensor tensor_item = py::cast<Tensor>(item);
-      if (tensor_item.dtype() == DType::Bool && tensor_item.ndim() > 1) {
-        consuming_count += tensor_item.ndim();
-      } else {
-        (void)tensor_index_from_py(tensor_item);
-        ++consuming_count;
-      }
-      continue;
+      throw ShapeError(
+          "boolean tensor indexing is not supported: boolean scalar indexing for tensor shape " +
+          shape_to_string(input.shape()) + "; use comparison masks with where");
     }
     if (py::isinstance<py::int_>(item) || is_slice(item)) {
       ++consuming_count;
       continue;
     }
-    throw ShapeError("unsupported tensor index type; use integers, slices, ellipsis, or None/newaxis");
+    throw ShapeError(
+        "unsupported tensor index type " + py_type_name(item) + " value " +
+        py_repr_string(item) + "; use integers, slices, ellipsis, or None/newaxis");
   }
 
   if (ellipsis_count > 1) {
-    throw ShapeError("an index can contain at most one ellipsis");
+    throw ShapeError(
+        "an index can contain at most one ellipsis for tensor shape " +
+        shape_to_string(input.shape()));
   }
   if (consuming_count > input.ndim()) {
     throw ShapeError(
-        "too many indices for tensor with shape " + shape_to_string(input.shape()));
+        "too many indices: got " + std::to_string(consuming_count) +
+        " indexing entries for rank " + std::to_string(input.ndim()) +
+        " tensor with shape " + shape_to_string(input.shape()));
   }
 
   std::vector<TensorIndex> indices;
@@ -580,36 +454,12 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
       indices.push_back(TensorIndex::new_axis());
       continue;
     }
-    if (py::isinstance<py::list>(item)) {
-      if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
-      }
-      PythonIndexList parsed = list_index_from_py(item);
-      if (parsed.kind == PythonIndexListKind::BooleanMask) {
-        indices.push_back(TensorIndex::boolean_mask(std::move(parsed.mask)));
-      } else {
-        indices.push_back(TensorIndex::gather(std::move(parsed.integers)));
-      }
-      ++input_dim;
-      continue;
-    }
-    if (py::isinstance<Tensor>(item)) {
-      if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
-      }
-      Tensor tensor_item = py::cast<Tensor>(item);
-      if (tensor_item.dtype() == DType::Bool && tensor_item.ndim() > 1) {
-        indices.push_back(partial_boolean_mask_from_py(input, tensor_item, input_dim));
-        input_dim += tensor_item.ndim();
-      } else {
-        indices.push_back(tensor_index_from_py(tensor_item));
-        ++input_dim;
-      }
-      continue;
-    }
     if (py::isinstance<py::int_>(item) && !py::isinstance<py::bool_>(item)) {
       if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+        throw ShapeError(
+            "too many indices: got more indexing entries than rank " +
+            std::to_string(input.ndim()) + " for tensor with shape " +
+            shape_to_string(input.shape()));
       }
       indices.push_back(TensorIndex::at(py::cast<int64_t>(item)));
       ++input_dim;
@@ -617,7 +467,10 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
     }
     if (is_slice(item)) {
       if (input_dim >= input.ndim()) {
-        throw ShapeError("too many indices for tensor with shape " + shape_to_string(input.shape()));
+        throw ShapeError(
+            "too many indices: got more indexing entries than rank " +
+            std::to_string(input.ndim()) + " for tensor with shape " +
+            shape_to_string(input.shape()));
       }
       const auto dim_size = static_cast<Py_ssize_t>(input.shape()[static_cast<std::size_t>(input_dim)]);
       Py_ssize_t start = 0;
@@ -626,7 +479,10 @@ std::vector<TensorIndex> indices_from_py(const Tensor& input, py::object key) {
       Py_ssize_t length = 0;
       if (PySlice_GetIndicesEx(item.ptr(), dim_size, &start, &stop, &step, &length) != 0) {
         PyErr_Clear();
-        throw ShapeError("invalid slice for tensor axis " + std::to_string(input_dim));
+        throw ShapeError(
+            "invalid slice " + py_repr_string(item) + " for axis " +
+            std::to_string(input_dim) + " with size " + std::to_string(dim_size) +
+            " in tensor shape " + shape_to_string(input.shape()));
       }
       indices.push_back(TensorIndex::slice(
           static_cast<int64_t>(start),
@@ -670,6 +526,78 @@ py::object tensor_to_py_list(const Tensor& tensor) {
   return nested_list_from_tensor(tensor, 0, linear);
 }
 
+Tensor variance_from_py(const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+  if (axis.is_none()) {
+    return variance(input, correction);
+  }
+  if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+    throw ShapeError("var axis must be None or an int; use tensorstudio.math.variance for tuple axes");
+  }
+  return variance(input, py::cast<int64_t>(axis), keepdims, correction);
+}
+
+Tensor stddev_from_py(const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
+  if (axis.is_none()) {
+    return stddev(input, correction);
+  }
+  if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
+    throw ShapeError("std axis must be None or an int; use tensorstudio.math.std for tuple axes");
+  }
+  return stddev(input, py::cast<int64_t>(axis), keepdims, correction);
+}
+
+Tensor norm_from_py(const Tensor& input, py::object ord, py::object axis, bool keepdims) {
+  Tensor magnitude = tensorstudio::abs(input);
+  bool use_l1 = false;
+  bool use_l2 = false;
+  bool use_inf = false;
+
+  if (py::isinstance<py::str>(ord)) {
+    const std::string name = py::cast<std::string>(ord);
+    if (name == "fro") {
+      use_l2 = true;
+    } else if (name == "inf") {
+      use_inf = true;
+    } else {
+      throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+    }
+  } else if (py::isinstance<py::int_>(ord) && !py::isinstance<py::bool_>(ord)) {
+    const int64_t value = py::cast<int64_t>(ord);
+    if (value == 1) {
+      use_l1 = true;
+    } else if (value == 2) {
+      use_l2 = true;
+    } else {
+      throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+    }
+  } else {
+    throw ShapeError("norm ord must be 1, 2, 'fro', or 'inf'");
+  }
+
+  if (use_l1) {
+    return reduce_from_py(magnitude, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+      return sum(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return sum(tensor, normalized_axis, keep);
+    });
+  }
+  if (use_inf) {
+    return reduce_from_py(magnitude, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+      return max(tensor);
+    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+      return max(tensor, normalized_axis, keep);
+    });
+  }
+
+  Tensor squared = mul(input, input);
+  Tensor reduced = reduce_from_py(squared, std::move(axis), keepdims, "norm", [](const Tensor& tensor) {
+    return sum(tensor);
+  }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
+    return sum(tensor, normalized_axis, keep);
+  });
+  return sqrt(reduced);
+}
+
 void bind_tensor(py::module_& module) {
   py::class_<Tensor>(module, "Tensor")
       .def("__repr__", &Tensor::repr)
@@ -686,6 +614,7 @@ void bind_tensor(py::module_& module) {
       .def_property_readonly("ndim", &Tensor::ndim)
       .def_property_readonly("size", &Tensor::size)
       .def_property_readonly("is_contiguous", &Tensor::is_contiguous)
+      .def_property_readonly("is_leaf", &Tensor::is_leaf)
       .def_property_readonly("T", [](const Tensor& self) { return transpose(self); })
       .def("__getitem__", [](const Tensor& self, py::object key) {
         return index(self, indices_from_py(self, std::move(key)));
@@ -695,18 +624,29 @@ void bind_tensor(py::module_& module) {
       .def("item", &tensor_to_py_scalar)
       .def("clone", &Tensor::clone)
       .def("detach", &Tensor::detach)
+      .def("detach_", [](Tensor& self) {
+        self.detach_();
+        return self;
+      })
+      .def("clear_history", [](Tensor& self) {
+        self.clear_history();
+        return self;
+      })
       .def("reshape", [](const Tensor& self, py::args args) {
-        if (args.size() == 1 && !py::isinstance<py::int_>(args[0])) {
-          return reshape(self, shape_from_py(py::reinterpret_borrow<py::object>(args[0])));
-        }
-        Shape shape;
-        for (py::handle arg : args) {
-          shape.push_back(py::cast<int64_t>(arg));
-        }
-        return reshape(self, shape);
+        return reshape(self, shape_from_varargs(args, "reshape"));
       })
       .def("flatten", &flatten)
-      .def("transpose", &transpose)
+      .def("transpose", &transpose_from_args)
+      .def("permute", [](const Tensor& self, py::args args) {
+        return permute(self, shape_from_varargs(args, "permute"));
+      })
+      .def("squeeze", [](const Tensor& self, py::object axis) {
+        if (axis.is_none()) {
+          return squeeze(self);
+        }
+        return squeeze(self, py::cast<int64_t>(axis));
+      }, py::arg("axis") = py::none())
+      .def("unsqueeze", &unsqueeze, py::arg("axis"))
       .def("sum", [](const Tensor& self, py::object axis, bool keepdims) {
         return reduce_from_py(self, std::move(axis), keepdims, "sum", [](const Tensor& input) {
           return sum(input);
@@ -721,6 +661,10 @@ void bind_tensor(py::module_& module) {
           return mean(input, normalized_axis, keep);
         });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("var", &variance_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("variance", &variance_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("std", &stddev_from_py, py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0)
+      .def("norm", &norm_from_py, py::arg("ord") = 2, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("max", [](const Tensor& self, py::object axis, bool keepdims) {
         return reduce_from_py(self, std::move(axis), keepdims, "max", [](const Tensor& input) {
           return max(input);
@@ -749,11 +693,34 @@ void bind_tensor(py::module_& module) {
           return argmin(input, normalized_axis, keep);
         });
       }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("all", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "all", [](const Tensor& input) {
+          return tensorstudio::all(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return tensorstudio::all(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("any", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "any", [](const Tensor& input) {
+          return tensorstudio::any(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return tensorstudio::any(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
       .def("relu", &relu)
       .def("sigmoid", &sigmoid)
       .def("tanh", &tanh)
       .def("exp", &exp)
       .def("log", &log)
+      .def("logsumexp", [](const Tensor& self, py::object axis, bool keepdims) {
+        return reduce_from_py(self, std::move(axis), keepdims, "logsumexp", [](const Tensor& input) {
+          return logsumexp(input);
+        }, [](const Tensor& input, int64_t normalized_axis, bool keep) {
+          return logsumexp(input, normalized_axis, keep);
+        });
+      }, py::arg("axis") = py::none(), py::arg("keepdims") = false)
+      .def("softmax", &softmax, py::arg("axis") = -1)
+      .def("log_softmax", &log_softmax, py::arg("axis") = -1)
       .def("log1p", &log1p)
       .def("sqrt", &sqrt)
       .def("rsqrt", &rsqrt)
@@ -770,19 +737,42 @@ void bind_tensor(py::module_& module) {
         return astype(self, dtype_from_py(dtype, self.dtype()));
       }, py::arg("dtype"))
       .def("to", [](const Tensor& self, py::object dtype) {
+        if (py::isinstance<Device>(dtype)) {
+          return self.to_device(py::cast<Device>(dtype));
+        }
+        if (py::isinstance<py::str>(dtype)) {
+          const std::string text = py::cast<std::string>(dtype);
+          if (text == "cpu" || text.rfind("cuda", 0) == 0 || text.rfind("gpu", 0) == 0 ||
+              text.rfind("metal", 0) == 0 || text.rfind("mps", 0) == 0) {
+            return self.to_device(parse_device(text));
+          }
+        }
         return astype(self, dtype_from_py(dtype, self.dtype()));
-      }, py::arg("dtype"))
-      .def("to_device", [](const Tensor& self, py::object target, bool copy) {
-        return self.to_device(device_from_py(std::move(target)), copy);
-      }, py::arg("device") = "cpu", py::arg("copy") = false)
-      .def("backward", [](Tensor& self, py::object gradient) {
+      }, py::arg("target"))
+      .def("to_device", [](const Tensor& self, py::object device) {
+        return self.to_device(device_from_py(std::move(device)));
+      }, py::arg("device"))
+      .def("cpu", &Tensor::cpu)
+      .def("backward", [](Tensor& self, py::object gradient, bool retain_graph) {
         if (gradient.is_none()) {
-          backward(self);
+          backward(self, std::nullopt, retain_graph);
           return;
         }
-        backward(self, ensure_tensor(gradient));
-      }, py::arg("gradient") = py::none())
+        backward(self, ensure_tensor(gradient), retain_graph);
+      }, py::arg("gradient") = py::none(), py::arg("retain_graph") = false)
       .def("zero_grad", &Tensor::zero_grad)
+      .def("zero_", [](Tensor& self) {
+        self.zero_();
+        return self;
+      })
+      .def("fill_", [](Tensor& self, double value) {
+        self.fill_(value);
+        return self;
+      }, py::arg("value"))
+      .def("add_", [](Tensor& self, py::object other, double alpha) {
+        self.add_(ensure_tensor(std::move(other)), alpha);
+        return self;
+      }, py::arg("other"), py::arg("alpha") = 1.0)
       .def("_assign", &Tensor::copy_from)
       .def("_add_scaled_", &Tensor::add_scaled_)
       .def("equal", [](const Tensor& self, py::object other) { return binary_tensor_op(self, other, equal); }, py::arg("other"))
@@ -845,14 +835,6 @@ void bind_tensor(py::module_& module) {
       [](py::array array, bool requires_grad) { return tensor_from_numpy(array, requires_grad); },
       py::arg("array"),
       py::arg("requires_grad") = false);
-  module.def(
-      "to_device",
-      [](const Tensor& input, py::object target, bool copy) {
-        return input.to_device(device_from_py(std::move(target)), copy);
-      },
-      py::arg("input"),
-      py::arg("device") = "cpu",
-      py::arg("copy") = false);
   module.def("zeros", [](py::object shape, py::object dtype) { return zeros(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
   module.def("ones", [](py::object shape, py::object dtype) { return ones(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
   module.def("empty", [](py::object shape, py::object dtype) { return empty(shape_from_py(shape), dtype_from_py(dtype)); }, py::arg("shape"), py::arg("dtype") = "float32");
@@ -860,11 +842,7 @@ void bind_tensor(py::module_& module) {
   module.def(
       "rand",
       [](py::object shape, py::object dtype, py::object seed) {
-        std::optional<uint64_t> cpp_seed;
-        if (!seed.is_none()) {
-          cpp_seed = py::cast<uint64_t>(seed);
-        }
-        return rand(shape_from_py(shape), dtype_from_py(dtype), cpp_seed);
+        return rand(shape_from_py(shape), dtype_from_py(dtype), optional_seed_from_py(seed));
       },
       py::arg("shape"),
       py::arg("dtype") = "float32",
@@ -872,14 +850,49 @@ void bind_tensor(py::module_& module) {
   module.def(
       "randn",
       [](py::object shape, py::object dtype, py::object seed) {
-        std::optional<uint64_t> cpp_seed;
-        if (!seed.is_none()) {
-          cpp_seed = py::cast<uint64_t>(seed);
-        }
-        return randn(shape_from_py(shape), dtype_from_py(dtype), cpp_seed);
+        return randn(shape_from_py(shape), dtype_from_py(dtype), optional_seed_from_py(seed));
       },
       py::arg("shape"),
       py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "uniform",
+      [](py::object shape, double low, double high, py::object dtype, py::object seed) {
+        return uniform(shape_from_py(shape), low, high, dtype_from_py(dtype), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("low") = 0.0,
+      py::arg("high") = 1.0,
+      py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "normal",
+      [](py::object shape, double mean, double stddev, py::object dtype, py::object seed) {
+        return normal(shape_from_py(shape), mean, stddev, dtype_from_py(dtype), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("mean") = 0.0,
+      py::arg("stddev") = 1.0,
+      py::arg("dtype") = "float32",
+      py::arg("seed") = py::none());
+  module.def(
+      "randint",
+      [](py::object shape, int64_t low, int64_t high, py::object dtype, py::object seed) {
+        return randint(shape_from_py(shape), low, high, dtype_from_py(dtype, DType::Int64), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("low"),
+      py::arg("high"),
+      py::arg("dtype") = "int64",
+      py::arg("seed") = py::none());
+  module.def(
+      "bernoulli",
+      [](py::object shape, double probability, py::object dtype, py::object seed) {
+        return bernoulli(shape_from_py(shape), probability, dtype_from_py(dtype, DType::Bool), optional_seed_from_py(seed));
+      },
+      py::arg("shape"),
+      py::arg("probability") = 0.5,
+      py::arg("dtype") = "bool",
       py::arg("seed") = py::none());
   module.def(
       "arange",

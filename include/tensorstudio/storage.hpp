@@ -5,6 +5,7 @@
 #include <memory>
 #include <vector>
 
+#include "tensorstudio/device.hpp"
 #include "tensorstudio/dtype.hpp"
 
 namespace tensorstudio {
@@ -21,26 +22,21 @@ struct StorageTelemetry {
 class Storage {
  public:
   Storage() = default;
-  explicit Storage(std::size_t size_bytes);
-  ~Storage();
-
-  Storage(const Storage&) = delete;
-  Storage& operator=(const Storage&) = delete;
-  Storage(Storage&&) = delete;
-  Storage& operator=(Storage&&) = delete;
+  explicit Storage(std::size_t size_bytes, Device device = cpu_device());
 
   static std::shared_ptr<Storage> allocate(int64_t elements, DType dtype);
+  static std::shared_ptr<Storage> allocate(int64_t elements, DType dtype, const Device& device);
 
   std::byte* data();
   const std::byte* data() const;
   std::size_t size_bytes() const;
-  std::uint64_t version() const;
-  void bump_version();
+  Device device() const;
 
  private:
+  static void release(Storage* storage);
+
   std::vector<std::byte> data_;
-  std::uint64_t version_{0};
-  bool tracked_{false};
+  Device device_{};
 };
 
 StorageTelemetry storage_telemetry();

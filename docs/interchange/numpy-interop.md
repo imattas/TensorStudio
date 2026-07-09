@@ -30,6 +30,19 @@ array = x.numpy()
 
 `numpy()` returns a copy. Mutating the returned array does not affect the tensor.
 
+## DLPack Import
+
+`from_dlpack()` can copy CPU tensors from libraries that expose `__dlpack__`
+through NumPy's DLPack bridge:
+
+```python
+array = np.asarray([1.0, 2.0], dtype=np.float32)
+x = ts.from_dlpack(array)
+```
+
+TensorStudio does not yet expose non-CPU DLPack ownership or zero-copy device
+transfers.
+
 ## Dtype Mapping
 
 TensorStudio supports these NumPy dtype roundtrips:
