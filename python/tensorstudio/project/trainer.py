@@ -19,7 +19,7 @@ class OptimizerLike(Protocol):
 
 MetricFn = Callable[[Tensor, Tensor], float]
 LossFn = Callable[..., Tensor]
-Callback = Any
+Callback = Callable[[dict[str, float]], None]
 
 
 @dataclass(slots=True)
@@ -67,40 +67,19 @@ class Trainer:
         loader: Iterable[Any],
         *,
         epochs: int = 1,
-        validation_loader: Iterable[Any] | None = None,
-        scheduler: Any | None = None,
         callbacks: Sequence[Callback] | None = None,
-        start_epoch: int = 1,
     ) -> History:
         if epochs <= 0:
             raise ValueError("epochs must be positive")
         callbacks = callbacks or ()
         history = History()
-        self.stop_training = False
-        for epoch in range(start_epoch, start_epoch + epochs):
-            self.model.train()
+        self.model.train()
+        for epoch in range(1, epochs + 1):
             record = self._run_epoch(loader, train=True)
             record["epoch"] = float(epoch)
-            if validation_loader is not None:
-                validation = self.evaluate(validation_loader)
-                record.update({f"val_{key}": value for key, value in validation.items()})
-            if scheduler is not None:
-                scheduler.step()
-            context = {
-                "model": self.model,
-                "optimizer": self.optimizer,
-                "scheduler": scheduler,
-                "history": history,
-                "record": record,
-                "stop_training": False,
-            }
-            self._run_callbacks(callbacks, context)
             history.append(record)
-            self.stop_training = bool(context.get("stop_training")) or any(
-                bool(getattr(callback, "stop_training", False)) for callback in callbacks
-            )
-            if self.stop_training:
-                break
+            for callback in callbacks:
+                callback(dict(record))
         return history
 
     def evaluate(self, loader: Iterable[Any]) -> dict[str, float]:
@@ -133,14 +112,6 @@ class Trainer:
         if self.metric_fn is not None:
             record["metric"] = total_metric / batches
         return record
-
-    @staticmethod
-    def _run_callbacks(callbacks: Sequence[Callback], context: dict[str, Any]) -> None:
-        for callback in callbacks:
-            if hasattr(callback, "on_epoch_end"):
-                callback.on_epoch_end(context)
-            else:
-                callback(dict(context["record"]))
 
     def _forward(self, inputs: Any) -> Tensor:
         output = self.model(*inputs) if isinstance(inputs, tuple) else self.model(inputs)

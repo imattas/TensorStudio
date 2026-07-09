@@ -1,7 +1,9 @@
 #include "tensorstudio/autograd.hpp"
 
 #include <algorithm>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 #include "tensorstudio/errors.hpp"
 #include "tensorstudio/ops.hpp"
@@ -27,6 +29,15 @@ void set_grad_enabled(bool enabled) {
   grad_enabled_state = enabled;
 }
 
+std::vector<std::uint64_t> capture_parent_versions(const std::vector<Tensor>& parents) {
+  std::vector<std::uint64_t> versions;
+  versions.reserve(parents.size());
+  for (const auto& parent : parents) {
+    versions.push_back(parent.defined() ? parent.storage_version() : 0);
+  }
+  return versions;
+}
+
 void set_history(Tensor& output, std::vector<Tensor> parents, BackwardFn backward_fn) {
   if (!output.defined()) {
     throw TensorStudioError("cannot set autograd history on an undefined tensor");
@@ -40,11 +51,12 @@ void set_history(Tensor& output, std::vector<Tensor> parents, BackwardFn backwar
   if (!any_requires_grad(parents)) {
     return;
   }
+  auto parent_versions = capture_parent_versions(parents);
   output.set_requires_grad(true);
   auto meta = output.impl()->autograd;
   meta->parents = std::move(parents);
+  meta->parent_versions = std::move(parent_versions);
   meta->backward = std::move(backward_fn);
-  meta->graph_consumed = false;
 }
 
 void accumulate_grad(Tensor& tensor, const Tensor& gradient) {
@@ -88,48 +100,44 @@ void build_topology(
   topo.push_back(tensor);
 }
 
-void release_graph(const std::vector<Tensor>& topo) {
-  for (const Tensor& tensor : topo) {
-    const auto meta = tensor.impl()->autograd;
-    if (!meta || !meta->backward) {
-      continue;
-    }
-    meta->parents.clear();
-    meta->backward = {};
-    meta->graph_consumed = true;
+void validate_saved_versions(const Tensor& tensor) {
+  const auto meta = tensor.impl()->autograd;
+  if (!meta || meta->parents.empty()) {
+    return;
   }
-}
-
-void clear_intermediate_grads(const std::vector<Tensor>& topo) {
-  for (const Tensor& tensor : topo) {
-    const auto meta = tensor.impl()->autograd;
-    if (!meta || !meta->backward) {
+  if (meta->parent_versions.size() != meta->parents.size()) {
+    throw AutogradError("autograd metadata is missing saved tensor version information");
+  }
+  for (std::size_t i = 0; i < meta->parents.size(); ++i) {
+    const Tensor& parent = meta->parents[i];
+    if (!parent.defined()) {
       continue;
     }
-    Tensor current = tensor;
-    current.zero_grad();
+    const auto current_version = parent.storage_version();
+    const auto saved_version = meta->parent_versions[i];
+    if (current_version != saved_version) {
+      throw AutogradError(
+          "a tensor needed for gradient computation was modified in-place after autograd history was "
+          "recorded: parent " +
+          std::to_string(i) + " with shape " + shape_to_string(parent.shape()) + " is at storage version " +
+          std::to_string(current_version) + ", expected version " + std::to_string(saved_version));
+    }
   }
 }
 
 }  // namespace
 
-void backward(Tensor& output, const std::optional<Tensor>& gradient, bool retain_graph) {
+void backward(Tensor& output, const std::optional<Tensor>& gradient) {
   if (!output.defined()) {
     throw AutogradError("cannot run backward on an undefined tensor");
   }
   if (!output.requires_grad()) {
     return;
   }
-  const auto output_meta = output.impl()->autograd;
-  if (output_meta && output_meta->graph_consumed) {
-    throw AutogradError(
-        "cannot run backward through a graph that has already been freed; pass retain_graph=True "
-        "on the first backward call if the graph must be reused");
-  }
 
   Tensor initial_grad;
   if (gradient.has_value()) {
-    initial_grad = gradient->detach();
+    initial_grad = *gradient;
     if (initial_grad.shape() != output.shape()) {
       throw ShapeError(
           "backward gradient shape " + shape_to_string(initial_grad.shape()) +
@@ -144,11 +152,11 @@ void backward(Tensor& output, const std::optional<Tensor>& gradient, bool retain
     initial_grad = full(output.shape(), 1.0, output.dtype());
   }
 
+  output.set_grad(initial_grad);
+
   std::unordered_set<TensorImpl*> seen;
   std::vector<Tensor> topo;
   build_topology(output, seen, topo);
-  clear_intermediate_grads(topo);
-  output.set_grad(initial_grad);
 
   for (auto it = topo.rbegin(); it != topo.rend(); ++it) {
     Tensor current = *it;
@@ -156,6 +164,7 @@ void backward(Tensor& output, const std::optional<Tensor>& gradient, bool retain
     if (!meta || !meta->backward || !current.has_grad()) {
       continue;
     }
+    validate_saved_versions(current);
     const auto parent_grads = meta->backward(current.grad());
     if (parent_grads.size() != meta->parents.size()) {
       throw AutogradError("backward function returned the wrong number of gradients");
@@ -168,10 +177,6 @@ void backward(Tensor& output, const std::optional<Tensor>& gradient, bool retain
         accumulate_grad(parent, grad);
       }
     }
-  }
-
-  if (!retain_graph) {
-    release_graph(topo);
   }
 }
 

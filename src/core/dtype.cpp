@@ -6,13 +6,6 @@
 #include "tensorstudio/errors.hpp"
 
 namespace tensorstudio {
-namespace {
-
-std::string supported_dtype_message() {
-  return "supported dtypes are float32/f32, float64/float/double/f64, int32/i32, int64/int/i64, and bool/boolean";
-}
-
-}  // namespace
 
 std::string dtype_name(DType dtype) {
   switch (dtype) {
@@ -51,7 +44,7 @@ DType dtype_from_string(const std::string& name) {
   if (normalized == "bool" || normalized == "boolean") {
     return DType::Bool;
   }
-  throw DTypeError("unsupported dtype '" + name + "': " + supported_dtype_message());
+  throw DTypeError("unsupported dtype '" + name + "'");
 }
 
 std::size_t dtype_size(DType dtype) {

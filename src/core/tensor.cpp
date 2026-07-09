@@ -6,7 +6,6 @@
 #include <sstream>
 #include <type_traits>
 
-#include "tensorstudio/autograd.hpp"
 #include "tensorstudio/errors.hpp"
 
 namespace tensorstudio {
@@ -206,7 +205,7 @@ Tensor::Tensor(
   impl_->shape = std::move(shape);
   impl_->strides = std::move(strides);
   impl_->offset = offset;
-  impl_->device = impl_->storage->device();
+  impl_->device = cpu_device();
   impl_->autograd = std::make_shared<AutogradMeta>();
   set_requires_grad(requires_grad);
 }
@@ -237,15 +236,6 @@ bool Tensor::defined() const {
 void Tensor::ensure_defined() const {
   if (!defined()) {
     throw TensorStudioError("operation received an undefined Tensor");
-  }
-}
-
-void Tensor::ensure_inplace_allowed(const std::string& op_name) const {
-  ensure_defined();
-  if (requires_grad() && grad_enabled()) {
-    throw AutogradError(
-        "in-place " + op_name +
-        " on a tensor that requires gradients is only supported inside tensorstudio.no_grad()");
   }
 }
 
@@ -293,28 +283,6 @@ Device Tensor::device() const {
   return impl_->device;
 }
 
-Tensor Tensor::to_device(const Device& device) const {
-  ensure_defined();
-  if (!is_device_available(device)) {
-    throw DeviceError(
-        "device '" + device.str() + "' is not available in this TensorStudio build; " +
-        "available devices are CPU-only unless an accelerator backend is compiled and enabled");
-  }
-  if (impl_->device == device) {
-    return *this;
-  }
-  if (device.is_cpu()) {
-    Tensor out(shape(), dtype(), requires_grad());
-    out.copy_from(*this);
-    return out;
-  }
-  throw DeviceError("device transfer to '" + device.str() + "' is not implemented in this build");
-}
-
-Tensor Tensor::cpu() const {
-  return to_device(cpu_device());
-}
-
 Tensor Tensor::clone() const {
   ensure_defined();
   Tensor out(shape(), dtype(), requires_grad());
@@ -327,37 +295,6 @@ Tensor Tensor::detach() const {
   return Tensor(impl_->storage, impl_->dtype, impl_->shape, impl_->strides, impl_->offset, false);
 }
 
-void Tensor::detach_() {
-  ensure_defined();
-  if (!impl_->autograd) {
-    impl_->autograd = std::make_shared<AutogradMeta>();
-  }
-  impl_->autograd->requires_grad = false;
-  impl_->autograd->grad.reset();
-  impl_->autograd->parents.clear();
-  impl_->autograd->backward = {};
-  impl_->autograd->graph_consumed = false;
-}
-
-bool Tensor::is_leaf() const {
-  ensure_defined();
-  if (!impl_->autograd) {
-    return true;
-  }
-  return !impl_->autograd->graph_consumed && !impl_->autograd->backward &&
-         impl_->autograd->parents.empty();
-}
-
-void Tensor::clear_history() {
-  ensure_defined();
-  if (!impl_->autograd) {
-    impl_->autograd = std::make_shared<AutogradMeta>();
-  }
-  impl_->autograd->parents.clear();
-  impl_->autograd->backward = {};
-  impl_->autograd->graph_consumed = false;
-}
-
 bool Tensor::requires_grad() const {
   ensure_defined();
   return impl_->autograd && impl_->autograd->requires_grad;
@@ -366,17 +303,12 @@ bool Tensor::requires_grad() const {
 void Tensor::set_requires_grad(bool value) {
   ensure_defined();
   if (value && !dtype_is_floating(impl_->dtype)) {
-    throw DTypeError(
-        "requires_grad is only supported for floating point tensors, got dtype " +
-        dtype_name(impl_->dtype));
+    throw DTypeError("requires_grad is only supported for floating point tensors");
   }
   if (!impl_->autograd) {
     impl_->autograd = std::make_shared<AutogradMeta>();
   }
   impl_->autograd->requires_grad = value;
-  if (value) {
-    impl_->autograd->graph_consumed = false;
-  }
 }
 
 bool Tensor::has_grad() const {
@@ -472,6 +404,7 @@ void Tensor::copy_from(const Tensor& other) {
       const auto* source =
           other.impl_->storage->data() + static_cast<std::size_t>(other.offset()) * dtype_size(other.dtype());
       std::memcpy(target, source, bytes);
+      bump_storage_version();
       return;
     }
     for (int64_t i = 0; i < numel(); ++i) {
@@ -482,6 +415,7 @@ void Tensor::copy_from(const Tensor& other) {
       set_value_at_logical(i, other.value_at_logical(i));
     }
   }
+  bump_storage_version();
 }
 
 void Tensor::add_scaled_(const Tensor& other, double scale) {
@@ -494,6 +428,7 @@ void Tensor::add_scaled_(const Tensor& other, double scale) {
   if (is_contiguous() && other.is_contiguous()) {
     if (dtype() == other.dtype() && dtype_is_floating(dtype())) {
       add_scaled_contiguous_same_dtype(*this, other, scale);
+      bump_storage_version();
       return;
     }
     for (int64_t i = 0; i < numel(); ++i) {
@@ -506,22 +441,30 @@ void Tensor::add_scaled_(const Tensor& other, double scale) {
       set_value_at_logical(i, value_at_logical(i) + other.value_at_logical(i) * scale);
     }
   }
+  bump_storage_version();
 }
 
-void Tensor::add_(const Tensor& other, double alpha) {
-  ensure_inplace_allowed("add_");
-  add_scaled_(other, alpha);
+std::uint64_t Tensor::storage_version() const {
+  ensure_defined();
+  return impl_->storage->version();
 }
 
-void Tensor::fill_(double value) {
-  ensure_inplace_allowed("fill_");
-  for (int64_t i = 0; i < numel(); ++i) {
-    set_value_at_logical(i, value);
+void Tensor::bump_storage_version() {
+  ensure_defined();
+  impl_->storage->bump_version();
+}
+
+Tensor Tensor::to_device(const Device& target, bool copy) const {
+  ensure_defined();
+  if (!target.is_cpu()) {
+    throw DeviceError(
+        "cannot move tensor from '" + device().str() + "' to '" + target.str() +
+        "': non-CPU tensor storage and copy kernels are not enabled in this build");
   }
-}
-
-void Tensor::zero_() {
-  fill_(0.0);
+  if (copy) {
+    return clone();
+  }
+  return *this;
 }
 
 std::shared_ptr<TensorImpl> Tensor::impl() const {

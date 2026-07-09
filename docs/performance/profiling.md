@@ -36,6 +36,22 @@ When a case is slow, separate these costs:
 For tiny tensors, dispatch and allocation can dominate. For larger tensors, the
 inner C++ loops and memory access pattern matter more.
 
+## Storage Telemetry
+
+Native storage allocation counters are exposed for local diagnostics:
+
+```python
+import tensorstudio as ts
+
+ts.reset_storage_telemetry()
+x = ts.zeros((1024, 1024))
+print(ts.storage_telemetry())
+```
+
+The telemetry reports cumulative allocations, active allocations, active bytes,
+and peak active bytes for TensorStudio's native CPU `Storage` objects. It is a
+measurement aid, not a full memory profiler.
+
 ## Windows Notes
 
 On Windows, make sure benchmarks are run from the same Python version and wheel

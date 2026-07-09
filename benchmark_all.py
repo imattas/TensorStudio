@@ -3,13 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from benchmarks.benchmark_report import (
-    evaluate_thresholds,
-    load_thresholds,
-    render_benchmark_report,
-    run_benchmark_data,
-    write_benchmark_report,
-)
+from benchmarks.benchmark_report import run_benchmarks
 
 ALL_SECTIONS = {
     "elementwise",
@@ -20,7 +14,6 @@ ALL_SECTIONS = {
     "activations",
     "autograd",
     "training_loop",
-    "backends",
 }
 
 
@@ -43,36 +36,14 @@ def main() -> None:
         action="store_true",
         help="Print the full Markdown report after writing it.",
     )
-    parser.add_argument(
-        "--thresholds",
-        type=Path,
-        default=Path("benchmarks") / "thresholds.json",
-        help="Benchmark regression threshold file.",
-    )
-    parser.add_argument(
-        "--check-thresholds",
-        action="store_true",
-        help="Fail if TensorStudio median benchmark times exceed thresholds.",
-    )
     args = parser.parse_args()
 
     selected_sections = set(args.section or ALL_SECTIONS)
-    cases, libraries, results = run_benchmark_data(selected_sections)
-    report = render_benchmark_report(cases, libraries, results)
-    write_benchmark_report(report, args.output)
+    report = run_benchmarks(selected_sections, args.output)
     if args.print:
         print(report)
     else:
         print(f"Wrote benchmark report to {args.output}")
-    if args.check_thresholds:
-        thresholds = load_thresholds(args.thresholds)
-        failures = evaluate_thresholds(thresholds, results)
-        if failures:
-            print("Benchmark threshold failures:")
-            for failure in failures:
-                print(f"- {failure}")
-            raise SystemExit(1)
-        print(f"Benchmark thresholds passed using {args.thresholds}")
 
 
 if __name__ == "__main__":

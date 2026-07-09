@@ -32,33 +32,27 @@ Before adding an optimized kernel:
 ## Common Bottlenecks
 
 Allocation:
-Creating many temporary tensors can be more expensive than the math.
-TensorStudio `1.6.0` and later include a bounded native storage pool for repeated
-allocation sizes. It reuses blocks after tensors release their final reference
-and zeroes reused storage before handing it back to preserve existing behavior.
-Prefer fused kernels only when the behavior is stable and tests are strong.
+Creating many temporary tensors can be more expensive than the math. Prefer
+fused kernels only when the behavior is stable and tests are strong.
 
 Strides:
 Contiguous tensors are easiest to optimize. Strided views need careful indexing
 and should be benchmarked separately.
+
+Matrix multiplication:
+Contiguous `float32` 2D matmul keeps the faster accumulator strategy for small
+and medium matrices and uses a native cache-blocked path for larger workloads.
+Mixed dtypes, strided views, batched matmul, and optional BLAS-backed builds
+remain future optimization work.
 
 Broadcasting:
 Broadcast setup should happen once per operation. Avoid recomputing shape
 metadata inside the innermost loop.
 
 Threading:
-Use the native thread pool only when the tensor is large enough to repay
-scheduling overhead. Tiny eager operations should usually remain single-thread.
-
-SIMD:
-The first SIMD-oriented path is compiler-friendly typed `float32` and
-`float64` contiguous loops. Do not require CPU-specific instruction sets in
-portable wheels unless runtime dispatch is in place.
-
-BLAS:
-Use CBLAS/Accelerate for compatible contiguous matrix multiplication when the
-build environment exposes it. Keep a tested portable fallback because many
-source and wheel environments do not have a redistributable BLAS stack.
+Large contiguous unary, binary, and full-reduction CPU kernels use a
+conservative C++ thread dispatcher. Small tensors stay single-threaded so
+thread startup does not dominate interactive workloads.
 
 Autograd:
 Backward formulas should reuse existing native primitives when that keeps the
@@ -67,9 +61,9 @@ may be worth adding later.
 
 ## Near-Term Performance Priorities
 
-- Wider typed kernels for more math operations.
-- Better matrix multiplication tiling when BLAS is unavailable.
+- Faster reductions for larger contiguous and strided tensors.
+- Better matrix multiplication for larger square and rectangular cases.
 - Fewer temporary tensors in common backward formulas.
-- Runtime-dispatched SIMD instruction paths after portability hardening.
-- More threaded backward kernels once race-free accumulation paths are pinned
-  down by tests.
+- Optional SIMD loops for simple contiguous elementwise kernels.
+- Broader threaded CPU kernels, especially backward, convolution, pooling, and
+  normalization paths.

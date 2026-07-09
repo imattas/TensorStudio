@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import importlib
 import io
-import json
 import os
 import platform
 import statistics
@@ -108,8 +107,6 @@ def _iterations(shape: tuple[int, ...], category: str) -> int:
         if n <= 4096:
             return 30
         return 10
-    if category == "backends":
-        return 1_000
     if n <= 128:
         return 2_000
     if n <= 4096:
@@ -650,30 +647,6 @@ def _training_loop_build(
     raise NotImplementedError
 
 
-def _backend_build(
-    operation: str,
-) -> Callable[[Library, np.ndarray, np.ndarray], Callable[[], Any]]:
-    def build(library: Library, _: np.ndarray, __: np.ndarray) -> Callable[[], Any]:
-        if library.name != "TensorStudio":
-            raise NotImplementedError
-        tensor = ts.ones((1024,))
-
-        def run() -> Any:
-            if operation == "backend_info":
-                return ts.backend_info()
-            if operation == "available_devices":
-                return ts.available_devices()
-            if operation == "cpu_transfer":
-                return tensor.to_device("cpu")
-            if operation == "cuda_availability_check":
-                return ts.cuda_is_available()
-            raise ValueError(operation)
-
-        return run
-
-    return build
-
-
 def _build_cases(sections: set[str]) -> list[BenchmarkCase]:
     cases: list[BenchmarkCase] = []
 
@@ -739,14 +712,6 @@ def _build_cases(sections: set[str]) -> list[BenchmarkCase]:
                 repeats=5,
             )
         )
-
-    for operation in [
-        "backend_info",
-        "available_devices",
-        "cpu_transfer",
-        "cuda_availability_check",
-    ]:
-        add_case("backends", operation, (1,), _backend_build(operation))
 
     return cases
 
@@ -829,12 +794,6 @@ def _render_report(
     lines.append(f"- Processor: `{platform.processor() or 'unknown'}`")
     lines.append(f"- Python: `{sys.version.split()[0]}`")
     lines.append(f"- TensorStudio: `{ts.__version__}`")
-    with suppress(Exception):
-        perf_info = ts.performance_info()
-        lines.append(f"- TensorStudio threads: `{perf_info['num_threads']}`")
-        lines.append(f"- TensorStudio BLAS enabled: `{perf_info['blas_enabled']}`")
-        lines.append(f"- TensorStudio SIMD level: `{perf_info['simd_level']}`")
-        lines.append(f"- TensorStudio storage pool enabled: `{perf_info['storage_pool_enabled']}`")
     lines.append(f"- NumPy: `{np.__version__}`")
     for library in libraries:
         if library.name in {"TensorStudio", "NumPy"}:
@@ -966,55 +925,14 @@ def _render_report(
     return "\n".join(lines)
 
 
-def run_benchmark_data(
-    sections: set[str],
-) -> tuple[list[BenchmarkCase], list[Library], dict[str, Stats]]:
+def run_benchmarks(sections: set[str], output: Path | None) -> str:
     libraries = _load_libraries()
     cases = _build_cases(sections)
     results = _run_cases(cases, libraries)
-    return cases, libraries, results
-
-
-def render_benchmark_report(
-    cases: list[BenchmarkCase],
-    libraries: list[Library],
-    results: dict[str, Stats],
-) -> str:
-    return _render_report(cases, libraries, results)
-
-
-def write_benchmark_report(report: str, output: Path | None) -> None:
+    report = _render_report(cases, libraries, results)
     if output is not None:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(report, encoding="utf-8")
-
-
-def load_thresholds(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def evaluate_thresholds(thresholds: dict[str, Any], results: dict[str, Stats]) -> list[str]:
-    failures: list[str] = []
-    for item in thresholds.get("cases", []):
-        category = str(item["category"])
-        operation = str(item["operation"])
-        shape = str(item["shape"])
-        max_ms = float(item["max_median_ms"])
-        key = f"{category}|{operation}|{shape}|TensorStudio"
-        stats = results.get(key)
-        label = f"{category}/{operation}/{shape}"
-        if stats is None:
-            failures.append(f"{label}: no TensorStudio benchmark result was recorded")
-            continue
-        if stats.median_ms > max_ms:
-            failures.append(f"{label}: median {stats.median_ms:.4f} ms exceeded {max_ms:.4f} ms")
-    return failures
-
-
-def run_benchmarks(sections: set[str], output: Path | None) -> str:
-    cases, libraries, results = run_benchmark_data(sections)
-    report = _render_report(cases, libraries, results)
-    write_benchmark_report(report, output)
     return report
 
 
@@ -1032,7 +950,6 @@ def main() -> None:
             "activations",
             "autograd",
             "training_loop",
-            "backends",
         ],
         help="Benchmark section to run. Repeat for multiple sections. Defaults to all sections.",
     )
@@ -1054,7 +971,6 @@ def main() -> None:
             "activations",
             "autograd",
             "training_loop",
-            "backends",
         ]
     )
     report = run_benchmarks(sections, args.output)

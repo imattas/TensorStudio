@@ -18,32 +18,6 @@ print(x.grad.tolist())
 
 For non-scalar outputs, pass an explicit gradient tensor.
 
-```python
-y = x.softmax(axis=0)
-y.backward(ts.ones(y.shape))
-```
-
-## Retaining And Releasing Graphs
-
-By default, backward frees non-leaf graph history after gradients are computed:
-
-```python
-loss = (x * x).sum()
-loss.backward()
-```
-
-Calling `loss.backward()` again raises an error because the graph was freed.
-Pass `retain_graph=True` on the first call only when the same graph must be
-reused:
-
-```python
-loss.backward(retain_graph=True)
-loss.backward()
-```
-
-Retained graph passes clear intermediate gradients before each pass so leaf
-gradients accumulate predictably.
-
 ## Broadcasting Gradients
 
 When a forward operation broadcasts an input, the backward pass sums gradients
@@ -70,5 +44,3 @@ avoids unstable left-or-right-only behavior.
 Integer and boolean tensors do not carry autograd history. Arg reductions return
 `int64` indices and are intentionally non-differentiable.
 
-Boolean reductions (`all` and `any`) and random sampling ops are also
-non-differentiable.

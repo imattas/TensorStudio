@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import tensorstudio as ts
+from tensorstudio.errors import AutogradError
 
 
 def _finite_difference(values: np.ndarray, objective, eps: float = 1e-5) -> np.ndarray:
@@ -170,6 +172,81 @@ def test_cast_concat_stack_autograd() -> None:
     (ts.stack([c, d], axis=1) * ts.tensor([[1.0, 2.0], [3.0, 4.0]])).sum().backward()
     np.testing.assert_allclose(c.grad.numpy(), np.array([1.0, 3.0]), rtol=1e-6)
     np.testing.assert_allclose(d.grad.numpy(), np.array([2.0, 4.0]), rtol=1e-6)
+
+
+def test_checkpoint_recomputes_forward_and_preserves_gradients() -> None:
+    calls = {"count": 0}
+    x = ts.tensor([1.0, -2.0, 3.0], requires_grad=True)
+
+    def block(input: ts.Tensor) -> ts.Tensor:
+        calls["count"] += 1
+        return ((input * input) + 1.0).sum()
+
+    loss = ts.checkpoint(block, x)
+
+    assert calls["count"] == 1
+    assert loss.requires_grad is True
+    loss.backward()
+
+    assert calls["count"] == 2
+    np.testing.assert_allclose(x.grad.numpy(), np.array([2.0, -4.0, 6.0]), rtol=1e-6)
+
+
+def test_checkpoint_accepts_explicit_backward_gradient() -> None:
+    x = ts.tensor([1.0, 2.0, 3.0], requires_grad=True)
+    weights = ts.tensor([1.0, 0.5, 0.25])
+
+    y = ts.checkpoint(lambda input: input * input, x)
+    y.backward(weights)
+
+    np.testing.assert_allclose(x.grad.numpy(), np.array([2.0, 2.0, 1.5]), rtol=1e-6)
+
+
+def test_checkpoint_returns_plain_output_without_grad_inputs() -> None:
+    calls = {"count": 0}
+    x = ts.tensor([1.0, 2.0, 3.0])
+
+    def block(input: ts.Tensor) -> ts.Tensor:
+        calls["count"] += 1
+        return input * 2.0
+
+    y = ts.checkpoint(block, x)
+
+    assert calls["count"] == 1
+    assert y.requires_grad is False
+    np.testing.assert_allclose(y.numpy(), np.array([2.0, 4.0, 6.0]), rtol=1e-6)
+
+
+def test_backward_detects_in_place_parent_mutation() -> None:
+    x = ts.tensor([1.0, 2.0, 3.0], requires_grad=True)
+    loss = (x * x).sum()
+
+    x._assign(ts.ones(x.shape))
+
+    with pytest.raises(AutogradError, match="modified in-place"):
+        loss.backward()
+
+
+def test_backward_detects_in_place_mutation_through_shared_storage() -> None:
+    x = ts.tensor([[1.0, 2.0], [3.0, 4.0]], requires_grad=True)
+    row = x[0]
+    loss = (row * row).sum()
+
+    x._assign(ts.zeros(x.shape))
+
+    with pytest.raises(AutogradError, match="modified in-place"):
+        loss.backward()
+
+
+def test_optimizer_update_after_backward_is_still_allowed() -> None:
+    parameter = ts.tensor([1.0, 2.0, 3.0], requires_grad=True)
+    loss = (parameter * parameter).sum()
+    loss.backward()
+
+    optimizer = ts.optim.SGD([parameter], lr=0.1)
+    optimizer.step()
+
+    np.testing.assert_allclose(parameter.numpy(), np.array([0.8, 1.6, 2.4]), rtol=1e-6)
 
 
 def test_reshape_transpose_autograd() -> None:

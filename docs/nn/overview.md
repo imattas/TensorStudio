@@ -87,20 +87,9 @@ model.load_state_dict(state)
 Available modules:
 
 - `nn.Linear`
-- `nn.Conv1d`
 - `nn.Conv2d`
-- `nn.ConvTranspose2d`
-- `nn.DepthwiseConv2d`
 - `nn.MaxPool2d`
 - `nn.AvgPool2d`
-- `nn.AdaptiveAvgPool2d`
-- `nn.AdaptiveMaxPool2d`
-- `nn.GlobalAvgPool2d`
-- `nn.GlobalMaxPool2d`
-- `nn.BatchNorm1d`
-- `nn.BatchNorm2d`
-- `nn.LayerNorm`
-- `nn.Embedding`
 - `nn.Sequential`
 - `nn.Identity`
 - `nn.ReLU`
@@ -108,11 +97,6 @@ Available modules:
 - `nn.Sigmoid`
 - `nn.Tanh`
 - `nn.Softplus`
-- `nn.GELU`
-- `nn.ELU`
-- `nn.SELU`
-- `nn.SiLU`
-- `nn.Mish`
 - `nn.Dropout`
 - `nn.Flatten`
 
@@ -128,7 +112,7 @@ model = nn.Sequential(
 `Dropout` uses inverted dropout in training mode and is a no-op in eval mode.
 
 `Conv2d` expects NCHW input and stores weights as
-`(out_channels, in_channels / groups, kernel_h, kernel_w)`.
+`(out_channels, in_channels, kernel_h, kernel_w)`.
 
 ```python
 conv = nn.Conv2d(in_channels=1, out_channels=4, kernel_size=3, padding=1)
@@ -137,9 +121,8 @@ y = conv(x)
 assert y.shape == (8, 4, 28, 28)
 ```
 
-The convolution implementation is CPU-only and supports autograd for the input,
-weight, and optional bias. Grouped convolution, depthwise convolution, `Conv1d`,
-and `ConvTranspose2d` are available in `1.9.0`.
+The initial convolution implementation is CPU-only and supports autograd for
+the input, weight, and optional bias.
 
 Pooling layers expect NCHW input and are parameter-free.
 
@@ -168,36 +151,18 @@ Available loss modules:
 - `nn.BCELoss`
 - `nn.BCEWithLogitsLoss`
 - `nn.CrossEntropyLoss`
-- `nn.NLLLoss`
-- `nn.FocalLoss`
-- `nn.KLDivLoss`
-- `nn.CosineEmbeddingLoss`
 - `nn.HuberLoss`
 
 Functional equivalents live in `tensorstudio.nn.functional`:
 
 - `linear`
-- `conv1d`
 - `conv2d`
-- `conv_transpose2d`
-- `embedding`
 - `max_pool2d`
 - `avg_pool2d`
-- `adaptive_avg_pool2d`
-- `adaptive_max_pool2d`
-- `global_avg_pool2d`
-- `global_max_pool2d`
-- `batch_norm`
-- `layer_norm`
 - `relu`
 - `leaky_relu`
 - `sigmoid`
 - `tanh`
-- `gelu`
-- `elu`
-- `selu`
-- `silu`
-- `mish`
 - `softmax`
 - `log_softmax`
 - `softplus`
@@ -206,10 +171,6 @@ Functional equivalents live in `tensorstudio.nn.functional`:
 - `binary_cross_entropy`
 - `binary_cross_entropy_with_logits`
 - `cross_entropy`
-- `nll_loss`
-- `focal_loss`
-- `kl_div`
-- `cosine_embedding_loss`
 - `huber_loss`
 
 `BCELoss` expects probabilities, not logits. Inputs are clamped with a small

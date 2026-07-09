@@ -23,8 +23,8 @@ Windows, Linux, and macOS.
 After the release checklist passes, tag the stable release:
 
 ```bash
-git tag v2.0.0
-git push origin v2.0.0
+git tag v2.1.0
+git push origin v2.1.0
 ```
 
 Stable release notes must avoid unsupported performance claims. Publish measured
@@ -36,17 +36,12 @@ exist.
 Workflows:
 
 - `ci.yml`: lint, type check, editable install, import test, pytest, and an
-  example on Windows, Linux, and macOS. It also builds wheel/sdist artifacts on
-  each major platform and verifies clean installs with
-  `tools/verify_artifacts.py`.
-- `wheels.yml`: cibuildwheel artifacts for Windows first, Linux second, macOS
-  third, plus sdist, clean wheel/sdist smoke checks, and benchmark report
-  artifacts.
-- `publish.yml`: artifact verification plus PyPI publishing through
-  `pypa/gh-action-pypi-publish` using Trusted Publishing only.
-- `publish-testpypi.yml`: the same artifact path aimed at TestPyPI for dry-run
-  publishing.
-- `docs.yml`: strict MkDocs build and GitHub Pages deployment from `main`.
+  example on Windows, Linux, and macOS.
+- `wheels.yml`: parallel cibuildwheel artifacts for Windows AMD64, Linux
+  x86_64/aarch64, macOS x86_64/arm64, plus sdist.
+- `publish.yml`: builds the same full artifact set, verifies every artifact,
+  then publishes through `pypa/gh-action-pypi-publish` using Trusted Publishing
+  only.
 
 The publish workflow must include:
 
@@ -69,7 +64,7 @@ clean environment:
 python -m venv .venv-testpypi
 . .venv-testpypi/bin/activate
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==2.0.0
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==2.1.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
@@ -80,28 +75,12 @@ On Windows PowerShell:
 python -m venv .venv-testpypi
 .\.venv-testpypi\Scripts\Activate.ps1
 python -m pip install -U pip
-python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==2.0.0
+python -m pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ tensorstudio==2.1.0
 python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version__)"
 deactivate
 ```
 
 Promote to real PyPI only after TestPyPI install and runtime checks pass.
-
-## Artifact Verification
-
-`tools/verify_artifacts.py` is the local and CI clean-install smoke verifier:
-
-```bash
-python tools/verify_artifacts.py --wheel-dir dist --sdist-dir dist
-```
-
-It creates temporary virtual environments, installs the built wheel or sdist,
-imports `tensorstudio._C`, checks the package version, and runs a tiny autograd
-smoke test. This catches missing package data, broken wheel tags, native import
-errors, and source-build regressions before upload.
-
-See [Platform Compatibility](platform-compatibility.md) for wheel tags, ABI
-notes, and source-build expectations.
 
 ## Version Checklist
 

@@ -190,6 +190,17 @@ def test_matmul_reductions_and_activations() -> None:
     np.testing.assert_allclose(x.clip(-0.5, 0.5).numpy(), np.clip(x.numpy(), -0.5, 0.5))
 
 
+def test_blocked_float32_matmul_matches_numpy() -> None:
+    rng = np.random.default_rng(123)
+    left_np = rng.normal(size=(80, 513)).astype(np.float32)
+    right_np = rng.normal(size=(513, 513)).astype(np.float32)
+
+    result = ts.from_numpy(left_np) @ ts.from_numpy(right_np)
+
+    assert result.dtype == "float32"
+    np.testing.assert_allclose(result.numpy(), left_np @ right_np, rtol=1e-4, atol=1e-4)
+
+
 def test_advanced_math_ops_match_numpy() -> None:
     values = np.array([-0.7, -0.2, 0.0, 0.4], dtype=np.float32)
     x = ts.from_numpy(values)

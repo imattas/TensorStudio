@@ -1,4 +1,4 @@
-# Benchmarks
+﻿# Benchmarks
 
 TensorStudio includes simple local benchmark scripts under `benchmarks/`.
 
@@ -8,53 +8,19 @@ The benchmarks are meant to provide rough local context, not marketing claims.
 Do not claim TensorStudio is faster than NumPy or other frameworks unless a
 carefully controlled benchmark proves it.
 
-## Run The Unified Benchmark Report
+## Run Elementwise Benchmarks
 
 ```bash
 python benchmark_all.py
-```
-
-The unified report covers:
-
-- elementwise add
-- chained elementwise + ReLU
-- activations
-- reductions
-- matrix multiplication
-- convolution
-- pooling
-- autograd
-- tiny training loop
-- backend/device metadata checks
-
-Run the loose local regression thresholds with:
-
-```bash
-python benchmark_all.py --check-thresholds
-```
-
-Thresholds live in `benchmarks/thresholds.json`. They are intentionally broad
-release smoke checks, not proof of superiority over another library.
-
-Run one section with:
-
-```bash
-python benchmark_all.py --section backends
-python benchmark_all.py --section matmul
-```
-
-Backend benchmarks record `backend_info`, `available_devices`, CPU transfer
-overhead, and accelerator availability checks. They are not CUDA or Metal
-performance claims.
-
-## Run Elementwise Legacy Script
-
-```bash
 python benchmarks/bench_tensor_ops.py
 ```
 
-This older focused script compares elementwise add and ReLU against equivalent
-NumPy operations.
+This compares:
+
+- elementwise add
+- ReLU
+
+against equivalent NumPy operations.
 
 ## Run Matmul Benchmarks
 
@@ -89,22 +55,25 @@ equivalents where available.
 ## Interpreting Results
 
 Expect NumPy and PyTorch to be faster for many medium and large operations
-because they use highly optimized native kernels. TensorStudio `1.6.0` and later add a
-native thread pool, compiler-vectorization-friendly `float32` and `float64`
-loops, bounded storage reuse, and optional CBLAS/Accelerate `matmul`, but it
-still favors clarity, portability, and a compact C++ implementation over full
-kernel-library performance.
+because they use highly optimized native kernels. TensorStudio `2.1.0` still
+favors clarity, portability, and a compact C++ implementation over full kernel
+library performance.
 
 The current benchmark report records local NumPy, TensorFlow, PyTorch, and JAX
 win/loss counts when those libraries are installed. Detailed tables include
 explicit win columns and a fastest-library column for each case.
 On the Windows CPython 3.10 run checked into `benchmarks/results.md`,
-TensorStudio wins some simple NumPy reference-loop cases and some
-JAX-dispatch-heavy eager cases, but loses many NumPy-comparable elementwise,
-reduction, matrix multiplication, activation, and autograd cases. Those losses
-are expected until TensorStudio has broader runtime dispatch, deeper kernel
-coverage, BLAS-enabled wheels where practical, and more specialized backward
-kernels.
+TensorStudio `2.1.0` won 28 NumPy-comparable cases and lost 75. TensorFlow and
+PyTorch were not installed for that run. JAX CPU dispatch was available;
+TensorStudio won 87 JAX-comparable local cases and lost 11. Wins mostly came
+from small eager activations, small axis reductions, and simple NumPy
+convolution/pooling references. Losses remained clear for larger matrix
+multiplication, larger reductions, larger transcendental activations, and
+autograd-heavy cases. Those losses are expected until TensorStudio has BLAS,
+SIMD dispatch, threading, and a real kernel scheduler.
+
+Native storage telemetry can be sampled before and after focused benchmarks
+with `ts.storage_telemetry()` when allocation behavior matters.
 
 Useful benchmark notes:
 
@@ -112,7 +81,6 @@ Useful benchmark notes:
 - Close other heavy processes.
 - Record Python version and CPU.
 - Record TensorStudio version.
-- Record `tensorstudio.performance_info()`.
 - Read win columns together with speedup columns. A win applies only to that
   exact operation, shape, dtype, Python version, and CPU.
 - Do not compare debug builds with release builds.
@@ -122,5 +90,4 @@ Useful benchmark notes:
 - Add CI benchmark trend recording.
 - Add broader shape sweep benchmarks.
 - Add CI smoke benchmarks.
-- Add memory allocation measurements.
-- Add CUDA and Metal suites only after those backends execute real kernels.
+- Add allocation regression thresholds using native storage telemetry.

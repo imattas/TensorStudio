@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from . import _C
+from .dtypes import CastingMode
+from .dtypes import cast as _cast
 from .tensor import Tensor
 
 PairLike = int | tuple[int, int] | list[int]
@@ -84,10 +86,6 @@ def matmul(left: Tensor, right: Any) -> Tensor:
     return _C.matmul(left, right)
 
 
-def bmm(left: Tensor, right: Any) -> Tensor:
-    return _C.bmm(left, right)
-
-
 def conv2d(
     input: Tensor,
     weight: Tensor,
@@ -95,7 +93,6 @@ def conv2d(
     stride: PairLike = 1,
     padding: PairLike = 0,
     dilation: PairLike = 1,
-    groups: int = 1,
 ) -> Tensor:
     """Apply a 2D NCHW convolution with CPU kernels and autograd support."""
 
@@ -112,46 +109,7 @@ def conv2d(
         padding_w,
         dilation_h,
         dilation_w,
-        groups,
     )
-
-
-def conv_transpose2d(
-    input: Tensor,
-    weight: Tensor,
-    bias: Tensor | None = None,
-    stride: PairLike = 1,
-    padding: PairLike = 0,
-    output_padding: PairLike = 0,
-    dilation: PairLike = 1,
-    groups: int = 1,
-) -> Tensor:
-    """Apply a 2D NCHW transposed convolution with CPU kernels and autograd support."""
-
-    stride_h, stride_w = _pair(stride, "stride")
-    padding_h, padding_w = _pair(padding, "padding")
-    output_padding_h, output_padding_w = _pair(output_padding, "output_padding")
-    dilation_h, dilation_w = _pair(dilation, "dilation")
-    return _C.conv_transpose2d(
-        input,
-        weight,
-        bias,
-        stride_h,
-        stride_w,
-        padding_h,
-        padding_w,
-        output_padding_h,
-        output_padding_w,
-        dilation_h,
-        dilation_w,
-        groups,
-    )
-
-
-def embedding(indices: Tensor, weight: Tensor) -> Tensor:
-    """Lookup embedding rows with a native CPU kernel and weight gradients."""
-
-    return _C.embedding(indices, weight)
 
 
 def max_pool2d(
@@ -212,33 +170,6 @@ def mean(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor
     return _C.mean(input, axis, keepdims)
 
 
-def var(
-    input: Tensor,
-    axis: int | None = None,
-    keepdims: bool = False,
-    correction: int = 0,
-) -> Tensor:
-    return _C.var(input, axis, keepdims, correction)
-
-
-def variance(
-    input: Tensor,
-    axis: int | None = None,
-    keepdims: bool = False,
-    correction: int = 0,
-) -> Tensor:
-    return _C.variance(input, axis, keepdims, correction)
-
-
-def std(
-    input: Tensor,
-    axis: int | None = None,
-    keepdims: bool = False,
-    correction: int = 0,
-) -> Tensor:
-    return _C.std(input, axis, keepdims, correction)
-
-
 def max(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
     return _C.max(input, axis, keepdims)
 
@@ -253,14 +184,6 @@ def argmax(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Te
 
 def argmin(input: Tensor, axis: int | None = None, keepdims: bool = False) -> Tensor:
     return _C.argmin(input, axis, keepdims)
-
-
-def all(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
-    return _C.all(input, axis, keepdims)
-
-
-def any(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:  # noqa: A001
-    return _C.any(input, axis, keepdims)
 
 
 def relu(input: Tensor) -> Tensor:
@@ -281,18 +204,6 @@ def exp(input: Tensor) -> Tensor:
 
 def log(input: Tensor) -> Tensor:
     return _C.log(input)
-
-
-def logsumexp(input: Tensor, axis: AxisLike = None, keepdims: bool = False) -> Tensor:
-    return _C.logsumexp(input, axis, keepdims)
-
-
-def softmax(input: Tensor, axis: int = -1) -> Tensor:
-    return _C.softmax(input, axis)
-
-
-def log_softmax(input: Tensor, axis: int = -1) -> Tensor:
-    return _C.log_softmax(input, axis)
 
 
 def log1p(input: Tensor) -> Tensor:
@@ -343,8 +254,8 @@ def clip(input: Tensor, min_value: float, max_value: float) -> Tensor:
     return _C.clamp(input, min_value, max_value)
 
 
-def astype(input: Tensor, dtype: str) -> Tensor:
-    return _C.astype(input, dtype)
+def astype(input: Tensor, dtype: str, casting: CastingMode = "unsafe") -> Tensor:
+    return _cast(input, dtype, casting=casting)
 
 
 def concat(tensors: list[Tensor] | tuple[Tensor, ...], axis: int = 0) -> Tensor:
@@ -363,20 +274,8 @@ def flatten(input: Tensor) -> Tensor:
     return _C.flatten(input)
 
 
-def transpose(input: Tensor, axis0: int | None = None, axis1: int | None = None) -> Tensor:
-    return _C.transpose(input, axis0, axis1)
-
-
-def permute(input: Tensor, axes: tuple[int, ...] | list[int]) -> Tensor:
-    return _C.permute(input, axes)
-
-
-def squeeze(input: Tensor, axis: int | None = None) -> Tensor:
-    return _C.squeeze(input, axis)
-
-
-def unsqueeze(input: Tensor, axis: int) -> Tensor:
-    return _C.unsqueeze(input, axis)
+def transpose(input: Tensor) -> Tensor:
+    return _C.transpose(input)
 
 
 __all__ = [
@@ -389,17 +288,12 @@ __all__ = [
     "astype",
     "atan",
     "avg_pool2d",
-    "all",
-    "any",
-    "bmm",
     "clamp",
     "clip",
     "concat",
     "cos",
     "conv2d",
-    "conv_transpose2d",
     "div",
-    "embedding",
     "equal",
     "exp",
     "flatten",
@@ -408,9 +302,7 @@ __all__ = [
     "less",
     "less_equal",
     "log",
-    "log_softmax",
     "log1p",
-    "logsumexp",
     "matmul",
     "max",
     "max_pool2d",
@@ -422,24 +314,17 @@ __all__ = [
     "neg",
     "not_equal",
     "pow",
-    "permute",
     "relu",
     "reshape",
     "rsqrt",
     "sigmoid",
     "sin",
-    "softmax",
     "stack",
     "sub",
     "sum",
-    "squeeze",
     "sqrt",
-    "std",
     "tan",
     "tanh",
     "transpose",
-    "unsqueeze",
-    "var",
-    "variance",
     "where",
 ]

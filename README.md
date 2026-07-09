@@ -1,4 +1,4 @@
-# TensorStudio
+﻿# TensorStudio
 
 [![CI](https://github.com/imattas/TensorStudio/actions/workflows/ci.yml/badge.svg)](https://github.com/imattas/TensorStudio/actions/workflows/ci.yml)
 [![Wheels](https://github.com/imattas/TensorStudio/actions/workflows/wheels.yml/badge.svg)](https://github.com/imattas/TensorStudio/actions/workflows/wheels.yml)
@@ -7,33 +7,8 @@
 TensorStudio is a compact C++ tensor and autograd engine with a Python API for
 learning, experimentation, and lightweight ML workloads.
 
-TensorStudio `2.0.0` is a CPU-only stable API foundation with native C++
-threading, storage reuse, SIMD-friendly typed kernels, and optional
-CBLAS/Accelerate matrix multiplication when available. It adds native stable
-softmax/logsumexp, batched matrix multiplication, statistical reductions,
-boolean reductions, seeded random distributions, and a hardened eager autograd
-lifecycle. The neural-network layer now includes grouped/depthwise/1D/
-transposed convolution, normalization layers, embeddings, richer activations,
-initializers, additional losses, and model summaries. The project layer adds
-dataset factories, deterministic train/validation splitting, metrics, callbacks,
-multi-format configs, checkpoint resume helpers, and starter project templates.
-The interchange layer adds richer NPZ metadata, optional SafeTensors weight
-storage, ONNX metadata inspection, supported-subset ONNX import/execution, and
-model metadata helpers. The hardware layer now exposes formal CPU/CUDA/Metal
-device descriptors, backend availability reporting, device-aware storage
-boundaries, explicit transfer APIs, and backend benchmark artifacts while
-keeping the published wheels honest about CPU-only execution. The graph layer
-adds constrained symbolic tracing, JSON graph serialization, simple graph
-optimization, eager-backed graph execution, profiling hooks, and memory-plan
-metadata. The ecosystem layer adds experimental COO sparse tensors, public
-dataset format readers, tiny model-zoo factories, language-model helpers,
-quantization research utilities, a custom-kernel registry, single-process
-distributed planning helpers, and an optional ONNX Runtime adapter. The v2
-foundation adds dataset manifests/checksums, a small dataset cache wrapper, CSR
-sparse matrices, compact attention/Transformer encoder blocks, quantization
-calibration, CPU DLPack import, and ONNX Runtime provider diagnostics.
-It is eager-first, intentionally compact, and not a replacement for mature ML
-frameworks.
+TensorStudio `2.1.0` is a CPU-only stable API foundation. It is eager-only,
+intentionally small, and not a replacement for mature ML frameworks.
 
 ## Install
 
@@ -50,8 +25,7 @@ python -m pip install -U pip
 python -m pip install -e ".[dev]"
 ```
 
-Install optional extras for ONNX export, optional ONNX Runtime delegation, and
-Pillow-backed image inputs:
+Install optional extras for ONNX export and Pillow-backed image inputs:
 
 ```bash
 python -m pip install "tensorstudio[onnx,vision]"
@@ -109,7 +83,6 @@ print((x + y).tolist())
 print((x @ y).numpy())
 print(x.reshape((4,)).tolist())
 print(x[0, :].tolist())
-print(x.unsqueeze(0).permute(1, 2, 0).shape)
 ```
 
 ## Tensor API
@@ -126,15 +99,12 @@ a = ts.zeros((2, 3))
 b = ts.rand((2, 3))
 c = ts.eye(3)
 d = ts.linspace(0.0, 1.0, 5)
-labels = ts.randint((4,), low=0, high=3, seed=3)
-mask = ts.bernoulli((2, 3), probability=0.25, seed=5)
 
 print(a.shape, a.strides, a.device, a.is_contiguous)
 print((b.clamp(0.2, 0.8) + 1).mean().item())
 print(b.sum(axis=1).tolist())
 print(ts.concat([b, b], axis=0).shape, b.astype("float64").dtype)
 print(c.tolist(), d.tolist())
-print(labels.tolist(), mask.any(axis=1).tolist())
 print(ts.zeros_like(b).shape, ts.randn_like(b, seed=11).dtype)
 ```
 
@@ -163,29 +133,14 @@ print(loss.item())
 print(x.grad.tolist())
 ```
 
-Stable reductions and normalized probabilities are available as Tensor methods,
-functional ops, and `tensorstudio.math` helpers:
+Higher-level helpers live in `tensorstudio.math`:
 
 ```python
-values = ts.tensor([[1000.0, 1001.0, 999.0], [1.0, 2.0, 3.0]])
+values = ts.tensor([[1.0, 2.0], [3.0, 4.0]])
 
 print(ts.math.variance(values).item())
 print(ts.math.std(values, axis=0).tolist())
 print(ts.math.norm(values, ord=2).item())
-print(values.softmax(axis=1).tolist())
-print(ts.logsumexp(values, axis=1).tolist())
-```
-
-Batched matrix multiplication and a small documented `einsum` subset cover
-common model and scientific-programming patterns:
-
-```python
-left = ts.randn((2, 3, 4), seed=1)
-right = ts.randn((2, 4, 5), seed=2)
-
-print((left @ right).shape)
-print(ts.bmm(left, right).shape)
-print(ts.einsum("bij,bjk->bik", left, right).shape)
 ```
 
 ## Autograd
@@ -200,20 +155,22 @@ loss.backward()
 print(x.grad.tolist())
 ```
 
-Reuse a graph explicitly when needed:
-
-```python
-loss = (x * x).sum()
-loss.backward(retain_graph=True)
-loss.backward()
-```
-
 Use `no_grad()` when you want eager computation without recording a graph:
 
 ```python
 with ts.no_grad():
     y = x * 2
-    x.zero_()
+```
+
+Use `checkpoint()` for Tensor-only eager blocks where recomputing during
+backward is preferable to retaining forward intermediates:
+
+```python
+def block(input: ts.Tensor) -> ts.Tensor:
+    return (input.relu() * input).sum()
+
+loss = ts.checkpoint(block, x)
+loss.backward()
 ```
 
 ## Neural Networks
@@ -245,35 +202,13 @@ print(model.state_dict().keys())
 print(model.parameter_count())
 ```
 
-The neural-network surface also includes initialization helpers,
-normalization layers, embeddings, grouped/depthwise/1D/transposed convolution,
-adaptive/global pooling, richer activations, and model summaries:
-
-```python
-model = nn.Sequential(
-    nn.Conv2d(1, 8, kernel_size=3, padding=1),
-    nn.BatchNorm2d(8),
-    nn.GELU(),
-    nn.GlobalAvgPool2d(),
-    nn.Flatten(),
-    nn.Linear(8, 10),
-)
-nn.init.kaiming_uniform_(model[0].weight, nonlinearity="relu", seed=7)
-print(nn.summary(model, input_shape=(1, 1, 28, 28))["total_parameters"])
-```
-
 ## Vision
 
 TensorStudio includes a practical computer-vision namespace for local image
 classification workflows: Pillow-backed image IO, transform pipelines,
 deterministic augmentations, `ImageFolder` datasets, metrics, image grids,
-bounding-box drawing, and compact CNN classifiers running through native
-Conv2d/pooling kernels.
-The current vision surface includes batch-aware transforms, color jitter, random
-resized crop, rotation, affine transforms, cutout, mixup, CutMix, detection
-helpers, segmentation mask helpers, detection/segmentation folder datasets,
-ResNet-style blocks, MobileNet-style depthwise blocks, a compact UNet, and
-prediction/mask/feature-map visualization helpers.
+bounding-box drawing, image-folder manifests with checksums, and compact CNN
+classifiers running through native Conv2d/pooling kernels.
 
 ```python
 import numpy as np
@@ -301,22 +236,27 @@ optimizer.step()
 print(ts.vision.accuracy(model(x), target))
 ```
 
-## Data And Metrics
+Create a deterministic local dataset manifest when you want reproducible image
+indexes and checksum validation:
+
+```python
+manifest = ts.vision.build_image_manifest("dataset", "dataset/manifest.json")
+print(ts.vision.validate_image_manifest(manifest)["valid"])
+
+dataset = ts.vision.ImageManifestDataset("dataset/manifest.json", transform=transform)
+```
+
+## DataLoader
 
 ```python
 import tensorstudio as ts
-from tensorstudio.data import DataLoader, from_arrays, train_val_split
+from tensorstudio.data import DataLoader, TensorDataset
 
-dataset = from_arrays([[0.0], [1.0], [2.0], [3.0]], [[1.0], [3.0], [5.0], [7.0]])
-train_data, val_data = train_val_split(dataset, val_fraction=0.25, seed=42)
-loader = DataLoader(train_data, batch_size=2, shuffle=True, seed=42)
+dataset = TensorDataset(ts.arange(6).reshape((6, 1)), ts.arange(6))
+loader = DataLoader(dataset, batch_size=2, shuffle=True, seed=42)
 
 for features, targets in loader:
     print(features.shape, targets.shape)
-
-prediction = ts.tensor([[0.2, 0.8], [0.7, 0.3]])
-target = ts.tensor([1, 0], dtype="int64")
-print(ts.metrics.accuracy(prediction, target))
 ```
 
 The v1 DataLoader is intentionally single-process so it works cleanly on
@@ -324,152 +264,50 @@ Windows without multiprocessing setup.
 
 ## Projects And Training
 
-`tensorstudio.project` provides project folders, JSON/TOML/YAML config loading,
-deterministic seeding, reusable trainers, validation loops, callbacks, safe NPZ
-weight files, trusted full checkpoints, and generated starter templates:
+`tensorstudio.project` provides project folders, JSON config, reusable trainers,
+safe NPZ weight files, and trusted full checkpoints:
 
 ```python
 import tensorstudio as ts
 from tensorstudio import nn, optim
-from tensorstudio.data import DataLoader, from_arrays, train_val_split
-from tensorstudio.project import (
-    CSVLogger,
-    CheckpointCallback,
-    LrLogger,
-    Project,
-    ProjectConfig,
-    Trainer,
-    save_state_dict,
-    seed_everything,
-)
+from tensorstudio.data import DataLoader, TensorDataset
+from tensorstudio.project import Project, ProjectConfig, Trainer, save_state_dict
 
-seed_everything(7)
-dataset = from_arrays([[0.0], [1.0], [2.0], [3.0]], [[1.0], [3.0], [5.0], [7.0]])
-train_data, val_data = train_val_split(dataset, val_fraction=0.25, seed=7)
+x = ts.tensor([[0.0], [1.0], [2.0], [3.0]])
+y = ts.tensor([[1.0], [3.0], [5.0], [7.0]])
 
 model = nn.Linear(1, 1)
-optimizer = optim.SGD(model.parameters(), lr=0.05)
-trainer = Trainer(model, optimizer, nn.MSELoss(), metric_fn=ts.metrics.mean_squared_error)
+loader = DataLoader(TensorDataset(x, y), batch_size=2)
+trainer = Trainer(model, optim.SGD(model.parameters(), lr=0.05), nn.MSELoss())
 project = Project("runs/linear", ProjectConfig(name="linear-regression", seed=7))
 
-history = trainer.fit(
-    DataLoader(train_data, batch_size=2),
-    epochs=50,
-    validation_loader=DataLoader(val_data, batch_size=1),
-    callbacks=[
-        LrLogger(),
-        CSVLogger(project.logs_dir / "history.csv"),
-        CheckpointCallback(project.checkpoints_dir / "best.tsmodel", save_best_only=True),
-    ],
-)
+history = trainer.fit(loader, epochs=50)
 save_state_dict(model, project.checkpoint_path("weights"))
 print(history.last)
 ```
 
-## Hardware And Devices
+## Hardware Diagnostics
 
-TensorStudio `1.14.0` exposes explicit device descriptors and backend metadata.
-The published wheels execute tensors on CPU only; CUDA and Metal descriptors are
-available for feature checks and clear errors.
-
-```python
-import tensorstudio as ts
-
-print(ts.available_devices())
-print(ts.backend_info())
-
-x = ts.ones((2, 2), device="cpu")
-print(x.to("float64").dtype)
-print(x.to_device("cpu").device)
-print(ts.cuda_is_available())
-```
-
-Passing `device="cuda"` or `device="metal"` on CPU-only wheels raises
-`DeviceError` instead of silently falling back.
-
-## Graph Runtime
-
-TensorStudio `1.15.0` adds a constrained graph runtime for supported tensor
-programs. It traces functions written against symbolic `GraphTensor` inputs,
-serializes the graph to JSON, applies simple inspectable optimization passes,
-and executes the resulting plan through TensorStudio eager tensor operations.
-It does not trace arbitrary Python control flow and is not a machine-code JIT.
+TensorStudio exposes a TensorFlow-inspired hardware boundary for planning real
+backends without claiming unavailable accelerators are executable:
 
 ```python
 import tensorstudio as ts
 
+print(ts.backend_device_properties("cpu"))
+print(ts.logical_device_info())
+print(ts.kernel_placement_info("add", "cuda:0", "float32"))
+print(ts.backend_execution_plan("add", "cuda:0", "float32"))
+print(ts.to_device(ts.arange(3), "cpu", copy=True).device)
+print(ts.storage_telemetry())
 
-def model(x):
-    return ((x * 2.0) + 1.0).relu().mean()
-
-
-graph = ts.trace(model, [ts.TensorSpec((4,), dtype="float32", name="x")])
-compiled = ts.compile_graph(graph)
-x = ts.tensor([-2.0, -0.25, 1.0, 3.0])
-
-print(compiled(x).item())
-print(compiled.profile(x)["nodes"])
-print(compiled.memory_plan())
-
-ts.save_graph(graph, "model.tsgraph.json")
-loaded = ts.load_graph("model.tsgraph.json")
-print(loaded.run(x).item())
+with ts.device_scope("cpu"):
+    placed = ts.zeros((2, 2))
+print(placed.device)
 ```
 
-## Ecosystem Utilities
-
-TensorStudio `2.0.0` expands the late-roadmap ecosystem layer without
-pretending to be a production-scale distributed or accelerator runtime.
-
-```python
-import tensorstudio as ts
-from tensorstudio import nn
-
-sparse = ts.sparse_coo_tensor([[0, 1], [1, 0]], [2.0, 3.0], (2, 2))
-print(sparse.to_dense().tolist())
-print((sparse @ ts.ones((2, 1))).tolist())
-
-model = ts.create_model("tiny_mlp", input_dim=2, hidden_dim=4, output_dim=1)
-print(ts.model_info("tiny_mlp")["task"], model(ts.ones((1, 2))).shape)
-
-vocab = nn.Vocabulary.build(["small tensor models", "small language batch"])
-inputs, targets = nn.make_causal_lm_batch(vocab.encode("small tensor models"), 2)
-lm = nn.CausalLanguageModel(vocab_size=len(vocab), embedding_dim=4, max_length=4)
-print(nn.causal_language_model_loss(lm(inputs), targets).item())
-
-quantized = ts.quantization.quantize_tensor(ts.tensor([-1.0, 0.0, 1.0]))
-print(quantized.dequantize().tolist())
-
-ts.register_kernel("double", lambda x: x * 2.0, overwrite=True)
-print(ts.call_kernel("double", ts.ones((2,))).tolist())
-ts.unregister_kernel("double")
-
-print(ts.distributed.data_parallel_plan(dataset_size=10, batch_size=4))
-```
-
-```python
-manifest = ts.data.build_dataset_manifest("data")
-print(manifest.validate())
-
-csr = ts.csr_from_dense(ts.tensor([[0.0, 2.0], [3.0, 0.0]]))
-print((csr @ ts.ones((2, 1))).tolist())
-
-attention = nn.MultiHeadSelfAttention(embed_dim=4, num_heads=2)
-print(attention(ts.randn((1, 3, 4), seed=7), causal=True).shape)
-
-stats = ts.quantization.calibrate_tensor(ts.tensor([-1.0, 0.0, 2.0]))
-print(stats.to_dict())
-```
-
-For ONNX files, TensorStudio has two paths:
-
-- `ts.import_onnx()` imports and executes a constrained static subset through
-  TensorStudio tensor ops.
-- `ts.run_onnx()` can delegate to the optional `onnxruntime` package when
-  installed with `tensorstudio[onnxruntime]`; otherwise it can fall back to the
-  supported TensorStudio importer for compatible graphs.
-- `ts.check_onnxruntime_compatibility()` and
-  `ts.onnxruntime_available_providers()` report runtime/provider availability.
+The current package executes CPU kernels only. CUDA, Metal, and plugin
+descriptors report clear placement, fallback, transfer, and runtime metadata.
 
 ## Performance
 
@@ -486,46 +324,28 @@ python benchmarks/benchmark_report.py
 columns for NumPy, TensorFlow, PyTorch, and JAX when those libraries are
 available locally.
 
-Useful runtime diagnostics:
-
-```python
-import tensorstudio as ts
-
-print(ts.performance_info())
-ts.set_num_threads(4)
-```
-
-Run the loose local regression thresholds with:
-
-```bash
-python benchmark_all.py --check-thresholds
-```
-
-On one Windows CPython 3.10 development run reporting `2.0.0`, with
-TensorStudio threads enabled, storage pooling enabled, SSE2 autovectorization
-reported, and no BLAS provider found, TensorStudio beat NumPy on 7 local
-benchmark cases and lost on 96 NumPy-comparable cases. JAX CPU dispatch was
-available on that machine; TensorStudio won 45 local cases and lost 53. The
-strongest local wins were the simple NumPy convolution/pooling reference loops
-and some small JAX-dispatch-heavy eager cases. NumPy and JAX were faster for
-many elementwise, reduction, matrix multiplication, larger activation, and
-autograd workloads.
+On one Windows CPython 3.10 development run reporting `2.1.0`, TensorStudio
+beat NumPy on 28 local benchmark cases and lost on 75 NumPy-comparable cases.
+TensorFlow and PyTorch were not installed in that run; JAX CPU dispatch was
+available, where TensorStudio won 87 local cases and lost 11. The strongest
+local wins were small eager activations, small contiguous axis reductions, and
+the simple NumPy convolution/pooling references where Python-loop references
+dominate; larger matrix multiplication, larger reductions, larger
+transcendental activations, and larger autograd workloads remain faster in
+NumPy or JAX.
 See `benchmarks/results.md` for the full table, platform details, and exact
 timings.
 
 Snapshot from that local run:
 
-| operation | shape | TensorStudio | NumPy | JAX CPU dispatch | TS vs NumPy | TS vs JAX |
+| operation | shape | TensorStudio | NumPy | JAX CPU | TS vs NumPy | TS vs JAX |
 |---|---:|---:|---:|---:|---:|---:|
-| `sigmoid` | `(32,)` | 0.0221 ms | 0.0068 ms | 0.1092 ms | 0.3106x | 4.9529x |
-| `mean` | `(32,)` | 0.0256 ms | 0.0129 ms | 0.0210 ms | 0.5052x | 0.8221x |
-| `sum_axis1` | `(16, 16)` | 0.0290 ms | 0.0034 ms | 0.0187 ms | 0.1170x | 0.6453x |
-| `chain_relu` | `(128,)` | 0.1596 ms | 0.0099 ms | 0.1898 ms | 0.0621x | 1.1892x |
-| `matmul` | `(256, 256)` | 3.6061 ms | 0.5097 ms | 0.3583 ms | 0.1413x | 0.0994x |
-| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2448 ms | 1.9636 ms | 0.1606 ms | 8.0224x | 0.6561x |
-| `max_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0392 ms | 0.3468 ms | n/a | 8.8440x | n/a |
-| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0460 ms | 1.0295 ms | n/a | 22.4030x | n/a |
-| `elementwise_backward` | `(1024,)` | 4.1790 ms | n/a | n/a | n/a | n/a |
+| `sigmoid` | `(32,)` | 0.0066 ms | 0.0150 ms | 0.2849 ms | 2.2809x | 43.3741x |
+| `mean` | `(32,)` | 0.0032 ms | 0.0131 ms | 0.0219 ms | 4.0458x | 6.7654x |
+| `matmul` | `(256, 256)` | 10.3296 ms | 0.4178 ms | 0.2270 ms | 0.0404x | 0.0220x |
+| `conv2d_3x3_padding1` | `(1, 1, 8, 8)` | 0.2238 ms | 2.4749 ms | 0.1492 ms | 11.0568x | 0.6666x |
+| `avg_pool2d_2x2` | `(1, 1, 16, 16)` | 0.0222 ms | 1.1843 ms | n/a | 53.4440x | n/a |
+| `elementwise_backward` | `(1024,)` | 3.4431 ms | n/a | n/a | n/a | n/a |
 
 Speedup is `competitor median / TensorStudio median`, so values above `1.0x`
 favor TensorStudio.
@@ -553,28 +373,8 @@ NPZ helpers:
 ```python
 state = model.state_dict()
 ts.save_npz(state, "weights.tsnpz")
+print(ts.check_npz_compatibility("weights.tsnpz"))
 model.load_state_dict(ts.load_npz("weights.tsnpz"))
-```
-
-For safe tensor-only weight files, install the optional SafeTensors extra:
-
-```bash
-python -m pip install "tensorstudio[safetensors]"
-```
-
-```python
-ts.save_safetensors(model.state_dict(), "weights.safetensors")
-state = ts.load_safetensors("weights.safetensors")
-metadata = ts.inspect_model_metadata("weights.safetensors")
-```
-
-Supported ONNX graphs can be inspected and imported for TensorStudio execution:
-
-```python
-ts.export_onnx(model, "model.onnx", input_shape=(1, 2))
-print(ts.inspect_onnx("model.onnx")["operators"])
-imported = ts.import_onnx("model.onnx")
-print(imported(ts.ones((1, 2))).shape)
 ```
 
 ## ONNX Export
@@ -597,10 +397,46 @@ model = nn.Sequential(
 ts.export_onnx(model, "classifier.onnx", input_shape=(1, 1, 4, 4))
 ```
 
-The exporter supports `Linear`, `Conv2d`, grouped/depthwise `Conv2d`,
-`ConvTranspose2d`, `Flatten`, `ReLU`, `Sigmoid`, `Tanh`, `MaxPool2d`, and
-`AvgPool2d`. TensorStudio also includes ONNX metadata inspection and a
-supported-subset importer for static graphs. It is not a general ONNX runtime.
+The exporter supports `Linear`, `Conv2d`, `Flatten`, `ReLU`, `Sigmoid`,
+`Tanh`, `MaxPool2d`, and `AvgPool2d`.
+
+TensorStudio can also inspect ONNX metadata and check optional ONNX Runtime
+provider compatibility. When `tensorstudio[onnxruntime]` is installed, it can
+also run compatible static ONNX graphs through ONNX Runtime and convert outputs
+back to TensorStudio tensors:
+
+```python
+info = ts.inspect_onnx("classifier.onnx")
+runtime = ts.onnx_runtime_info(providers=["CPUExecutionProvider"])
+compat = ts.check_onnx_runtime_compatibility(
+    "classifier.onnx",
+    providers=["CPUExecutionProvider"],
+)
+outputs = ts.run_onnx_inference(
+    "classifier.onnx",
+    {"input": ts.zeros((1, 1, 4, 4))},
+    providers=["CPUExecutionProvider"],
+)
+```
+
+TensorStudio does not import ONNX graphs into TensorStudio modules yet, and it
+does not bundle its own ONNX runtime.
+
+## Model Format Inspection
+
+TensorStudio can inspect model-format metadata without executing untrusted model
+code:
+
+```python
+print(ts.inspect_model_format("classifier.onnx")["op_counts"])
+print(ts.inspect_keras("model.keras")["layer_classes"])
+print(ts.inspect_saved_model("saved_model")["variables"])
+print(ts.inspect_hdf5("weights.h5")["has_hdf5_signature"])
+print(ts.inspect_tflite("model.tflite")["has_tflite_identifier"])
+```
+
+These helpers are metadata-only. They do not import TensorFlow/Keras models,
+execute custom layers, run TFLite graphs, or load arbitrary Python objects.
 
 ## Development
 
@@ -643,50 +479,47 @@ tokens or print secrets.
 
 - CPU backend only.
 - Eager execution only.
-- No CUDA or Metal tensor execution yet. CUDA/Metal device descriptors and
-  build metadata exist, but unavailable accelerators raise `DeviceError`.
-- Optional BLAS-backed matrix multiplication depends on the build environment
-  exposing a compatible CBLAS/Accelerate interface; otherwise TensorStudio uses
-  a portable C++ fallback.
-- No machine-code graph compiler or production distributed runtime.
-  TensorStudio includes a constrained eager-backed graph runtime and
-  single-process distributed planning helpers.
-- Convolution and pooling support are CPU-only. Native kernels include NCHW
-  `conv2d`, grouped/depthwise convolution, `conv_transpose2d`, `max_pool2d`,
-  `avg_pool2d`, and embedding lookup; they are not CUDA/cuDNN replacements.
+- No CUDA or Metal backend yet.
+- No BLAS-backed matrix multiplication yet.
+- No graph compiler or distributed runtime.
+- Native storage telemetry exists for allocation diagnostics, but TensorStudio
+  does not yet have an advanced caching allocator.
+- Checkpointing supports Tensor positional inputs and a single Tensor output.
+- Assignment/update paths are protected by storage-version autograd checks, but
+  TensorStudio does not expose a broad in-place tensor operation API.
+- Convolution and pooling support are currently limited to CPU NCHW
+  `conv2d`, `max_pool2d`, and `avg_pool2d` style workloads.
 - Vision covers local image-classification utilities, metrics, visualization,
-  detection/segmentation helpers, compact CNNs, and a compact UNet. It is not
-  an OpenCV replacement and does not include pretrained large model zoos,
-  end-to-end detection/segmentation trainers, video IO, or GPU image kernels
-  yet.
-- ONNX support covers export, metadata inspection, import/execution for a
-  limited static subset, and optional delegation to the external ONNX Runtime
-  package through `tensorstudio[onnxruntime]`. TensorStudio's native importer is
-  not a full ONNX runtime.
+  checksummed image manifests, and compact CNNs. It is not an OpenCV
+  replacement and does not include pretrained model zoos,
+  detection/segmentation training stacks, video IO, or GPU image kernels yet.
+- ONNX support exports a limited set of TensorStudio modules and provides
+  metadata/runtime diagnostics plus optional ONNX Runtime inference for
+  compatible static graphs, but does not import ONNX graphs yet.
 - Reductions support all-element, single-axis, and tuple/list-axis reductions
   for `sum`, `mean`, `max`, and `min`.
 - Arg reductions support all-element flat indices or one axis at a time for
   `argmax` and `argmin`.
 - Selection helpers `where`, `maximum`, and `minimum` are native C++ tensor ops
   with broadcasting and autograd support for floating-point branches.
-- Basic integer/slice indexing is supported as native C++ views with autograd
-  scatter-back. Advanced list, tensor, and boolean-mask indexing are not
-  implemented yet.
+- Basic integer/slice indexing and several advanced list, tensor, and
+  boolean-mask indexing forms are supported with autograd scatter-back where
+  differentiable; full NumPy advanced-indexing parity is still incomplete.
 - Dtype casting is basic and does not include a full promotion/casting policy.
 - Experimental performance; benchmarks are local references only.
 - Pickle serialization is for trusted TensorStudio objects only.
 
 ## Roadmap
 
-- CUDA and Metal execution backends
+- CUDA backend
 - Graph/JIT mode
 - Broader convolution ops, adaptive/global pooling, and image-model examples
 - Richer dataset utilities
-- Larger model zoo examples and pretrained-weight metadata
-- Broader ONNX operator coverage and optional runtime providers
-- Runtime-dispatched SIMD kernels
-- Better non-BLAS matrix multiplication tiling
-- More threaded backward kernels
+- Model zoo examples
+- ONNX import and broader export/runtime coverage
+- Improved caching allocator
+- SIMD kernels
+- Broader multithreaded forward and backward kernels
 
 ## License
 

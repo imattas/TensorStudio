@@ -95,6 +95,38 @@ def test_image_io_grid_visualization_and_imagefolder(tmp_path) -> None:
     assert boxed.shape == (4, 4, 3)
 
 
+def test_image_manifest_dataset_and_validation(tmp_path) -> None:
+    pytest.importorskip("PIL.Image")
+    cat_dir = tmp_path / "cat"
+    dog_dir = tmp_path / "dog"
+    cat_dir.mkdir()
+    dog_dir.mkdir()
+    cat = np.full((3, 3, 3), [255, 0, 0], dtype=np.uint8)
+    dog = np.full((3, 3, 3), [0, 0, 255], dtype=np.uint8)
+    ts.vision.save_image(cat, cat_dir / "cat.png")
+    ts.vision.save_image(dog, dog_dir / "dog.png")
+    manifest_path = tmp_path / "manifest.json"
+
+    manifest = ts.vision.build_image_manifest(tmp_path, manifest_path)
+    loaded = ts.vision.load_image_manifest(manifest_path)
+    validation = ts.vision.validate_image_manifest(loaded)
+    dataset = ts.vision.ImageManifestDataset(manifest_path)
+    images, targets = next(iter(ts.data.DataLoader(dataset, batch_size=2)))
+
+    assert manifest["sample_count"] == 2
+    assert loaded["classes"] == ["cat", "dog"]
+    assert all(sample["sha256"] for sample in loaded["samples"])
+    assert validation["valid"] is True
+    assert dataset.classes == ["cat", "dog"]
+    assert images.shape == (2, 3, 3, 3)
+    assert targets.shape == (2,)
+
+    (cat_dir / "cat.png").write_bytes(b"changed")
+    invalid = ts.vision.validate_image_manifest(loaded)
+    assert invalid["valid"] is False
+    assert invalid["checksum_mismatches"] == ["cat/cat.png"]
+
+
 def test_vision_metrics() -> None:
     logits = ts.tensor([[0.1, 0.9, 0.0], [2.0, 1.0, 0.0], [0.0, 0.1, 0.2]])
     target = ts.tensor([1, 2, 2], dtype="int64")

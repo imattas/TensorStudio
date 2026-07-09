@@ -1,8 +1,8 @@
 # Data
 
 `tensorstudio.data` provides a minimal map-style dataset and dataloader layer.
-It is deliberately single-process in v1 so it works cleanly on Windows and in
-simple teaching environments.
+It is deliberately single-process in v1 so it works
+cleanly on Windows and in simple teaching environments.
 
 ## Dataset
 
@@ -33,33 +33,6 @@ dataset = TensorDataset(features, targets)
 ```
 
 Each item is returned as a tuple.
-
-## ArrayDataset
-
-`from_arrays` converts NumPy-like feature arrays and optional labels into a
-dataset backed by TensorStudio tensors:
-
-```python
-from tensorstudio.data import from_arrays
-
-dataset = from_arrays([[0.0], [1.0], [2.0]], [[1.0], [3.0], [5.0]])
-```
-
-Use it for small tabular experiments, examples, and tests where loading all
-data into memory is acceptable.
-
-## Train/Validation Splits
-
-`train_val_split` returns deterministic `Subset` views:
-
-```python
-from tensorstudio.data import train_val_split
-
-train_data, val_data = train_val_split(dataset, val_fraction=0.2, seed=42)
-```
-
-See [Dataset Creation](dataset-creation.md) for array, tensor, image-folder,
-and metadata-summary helpers.
 
 ## DataLoader
 

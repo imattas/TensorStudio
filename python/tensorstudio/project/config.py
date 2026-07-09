@@ -7,14 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-import yaml
-
 from tensorstudio.typing import PathLikeStr
-
-try:
-    import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10 fallback
-    import tomli as tomllib
 
 
 @dataclass(slots=True)
@@ -58,33 +51,10 @@ class ProjectConfig:
 
     @classmethod
     def load(cls, path: PathLikeStr) -> ProjectConfig:
-        data = load_config_dict(path)
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
         if not isinstance(data, dict):
-            raise ValueError("project config file must contain an object")
+            raise ValueError("project config JSON must contain an object")
         return cls.from_dict(data)
-
-
-def load_config_dict(path: PathLikeStr) -> dict[str, Any]:
-    """Load a JSON, TOML, or YAML config file."""
-
-    config_path = Path(path)
-    suffix = config_path.suffix.lower()
-    text = config_path.read_text(encoding="utf-8")
-    if suffix == ".json":
-        data = json.loads(text)
-    elif suffix == ".toml":
-        data = tomllib.loads(text)
-    elif suffix in {".yaml", ".yml"}:
-        data = yaml.safe_load(text)
-    else:
-        raise ValueError("config files must use .json, .toml, .yaml, or .yml")
-    if not isinstance(data, dict):
-        raise ValueError("config file must contain a mapping")
-    return data
-
-
-def load_project_config(path: PathLikeStr) -> ProjectConfig:
-    return ProjectConfig.from_dict(load_config_dict(path))
 
 
 class Project:
@@ -142,4 +112,4 @@ class Project:
         return cls(project_root, config=config, create=False)
 
 
-__all__ = ["Project", "ProjectConfig", "load_config_dict", "load_project_config"]
+__all__ = ["Project", "ProjectConfig"]

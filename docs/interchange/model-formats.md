@@ -1,8 +1,7 @@
 # Model Formats
 
-TensorStudio supports model interchange formats only where behavior can be
-implemented honestly, inspected safely, and covered by tests. The goal is useful
-small-framework interoperability, not a fake claim of universal compatibility.
+TensorStudio supports a small set of model interchange formats where behavior
+can be implemented honestly and tested.
 
 ## Supported Today
 
@@ -10,68 +9,54 @@ TensorStudio state dictionaries:
 
 - `nn.Module.state_dict()` returns flat tensor dictionaries.
 - `save_npz` and `load_npz` store those dictionaries without pickle.
-- `save_npz(..., metadata={...})` records TensorStudio version, tensor count,
-  tensor names, shapes, dtypes, `requires_grad` flags, and user metadata.
-- `load_npz_metadata()` and `inspect_model_metadata()` can inspect the archive
-  metadata before loading tensor values.
-
-SafeTensors:
-
-- `save_safetensors` and `load_safetensors` support flat tensor weight maps.
-- SafeTensors files do not use pickle and are appropriate for tensor-only
-  weights.
-- TensorStudio reports tensor names, shapes, dtypes, count, and embedded
-  SafeTensors metadata through `inspect_model_metadata()`.
+- `inspect_npz` and `check_npz_compatibility` report versioned archive
+  compatibility before loading tensors.
 
 Trusted pickle checkpoints:
 
 - `save` and `load` can round-trip Python objects.
-- `save_checkpoint` stores versioned checkpoint metadata for model state,
-  optimizer state, and user metadata.
-- Checkpoint metadata inspection requires `trusted_pickle=True` because pickle
-  is executable code.
 - Only load pickle files from trusted sources.
 
-ONNX:
+ONNX export:
 
-- Supported TensorStudio module stacks can be exported to ONNX with static input
-  shapes.
-- Supported ONNX files can be inspected for graph inputs, outputs, opset,
-  initializers, node counts, operator names, and producer fields.
-- TensorStudio can import and execute a constrained static ONNX subset:
-  `Gemm`, `Relu`, `Sigmoid`, `Tanh`, `Flatten`, `Conv`, `ConvTranspose`,
-  `MaxPool`, and `AveragePool`.
-- `run_onnx()` can delegate execution to the external ONNX Runtime package
-  when installed through `tensorstudio[onnxruntime]`.
-- Unsupported operators, multiple graph inputs or outputs, dynamic graph
-  features, and asymmetric padding are rejected clearly.
+- Supported TensorStudio module stacks can be exported to ONNX.
+- Export is limited to known layers and static shapes.
+- `inspect_onnx` reports safe graph metadata and checker status.
+- `check_onnx_runtime_compatibility` reports optional ONNX Runtime provider
+  compatibility without running inference.
+- `run_onnx_inference` can execute compatible static ONNX graphs through the
+  optional ONNX Runtime dependency and return TensorStudio tensors or NumPy
+  arrays.
 
-## Practical Format Research
+Metadata-only inspection:
 
-These formats are intentionally supported:
+- `inspect_model_format(path)` routes supported model files to a safe inspector.
+- `inspect_keras(path)` reads `.keras` archive JSON metadata without extracting
+  the archive or loading custom code.
+- `inspect_saved_model(path)` reports TensorFlow SavedModel directory structure,
+  protobuf file presence, variables, and assets without importing TensorFlow.
+- `inspect_hdf5(path)` checks HDF5/Keras weight-file signatures and, when
+  optional `h5py` is available, reports groups, datasets, dtypes, shapes, and
+  root attributes without loading a model.
+- `inspect_tflite(path)` identifies TensorFlow Lite flatbuffer files without
+  loading or executing the graph.
 
-- TensorStudio NPZ for safe local state dictionaries and experiment artifacts.
-- SafeTensors for safe tensor-only weight exchange.
-- ONNX for static graph exchange when TensorStudio has matching eager tensor
-  operations.
+```python
+info = ts.inspect_model_format("model.keras")
+print(info["format"], info["safe_metadata_only"])
+print(ts.inspect_tflite("model.tflite")["has_tflite_identifier"])
+```
 
-These formats are not implemented in `2.0.0`:
+## Planned In Roadmap Order
 
-- PyTorch `.pt` and `.pth`: loading general PyTorch files often executes pickle
-  and depends on PyTorch-specific module code. TensorStudio should interoperate
-  through SafeTensors, ONNX, or explicit state conversion instead.
-- TensorFlow SavedModel and Keras `.keras`: these formats encode TensorFlow
-  runtime semantics that TensorStudio does not implement yet. Future support
-  should start with metadata inspection or ONNX-mediated paths, not partial
-  execution claims.
-- HDF5 weight files: possible for tensor-only arrays, but it adds another
-  optional dependency and needs a tested schema before being advertised.
-- DLPack capsules: useful after TensorStudio has mature device semantics and
-  non-CPU storage ownership rules.
+- Richer NPZ metadata for model and optimizer state.
+- Safe tensor storage formats such as `safetensors`.
+- ONNX import for a tested subset of static graphs.
+- TensorStudio-native execution of imported ONNX graphs only when TensorStudio
+  has matching native ops.
 
 ## Unsupported Formats
 
 TensorStudio does not claim compatibility with every neural-network file format.
-Formats that require executing arbitrary Python code, depending on another
-framework runtime, or supporting dynamic graph features should be rejected
-clearly rather than partially loaded.
+Formats that require executing arbitrary Python code or unsupported dynamic
+graphs should be rejected clearly rather than partially loaded.

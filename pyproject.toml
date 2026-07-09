@@ -7,7 +7,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "tensorstudio"
-version = "2.0.0"
+version = "2.1.0"
 description = "TensorStudio is a compact C++ tensor and autograd engine with a Python API for learning, experimentation, and lightweight ML workloads."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,7 +31,6 @@ classifiers = [
 ]
 dependencies = [
   "numpy>=1.24",
-  "PyYAML>=6",
   "tomli>=2.0; python_version < '3.11'",
 ]
 
@@ -47,7 +46,6 @@ dev = [
   "pre-commit>=3.7",
   "onnx>=1.16",
   "Pillow>=10",
-  "safetensors>=0.4",
 ]
 docs = [
   "mkdocs>=1.6",
@@ -60,17 +58,8 @@ onnxruntime = [
   "onnx>=1.16",
   "onnxruntime>=1.18",
 ]
-safetensors = [
-  "safetensors>=0.4",
-]
 vision = [
   "Pillow>=10",
-]
-all = [
-  "onnx>=1.16",
-  "onnxruntime>=1.18",
-  "Pillow>=10",
-  "safetensors>=0.4",
 ]
 
 [project.urls]
@@ -82,6 +71,30 @@ Issues = "https://github.com/imattas/TensorStudio/issues"
 cmake.version = ">=3.18"
 wheel.packages = ["python/tensorstudio"]
 build-dir = "build/{wheel_tag}"
+
+[tool.scikit-build.sdist]
+exclude = [
+  ".agents",
+  ".env",
+  ".git",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  ".venv*",
+  "build",
+  "build-*",
+  "dist",
+  "downloaded-artifacts",
+  "downloaded-artifacts-*",
+  "site",
+  "wheel_artifacts",
+  "*.egg-info",
+  "*.dylib",
+  "*.pyd",
+  "*.so",
+  "*.tsmodel",
+  "__pycache__",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

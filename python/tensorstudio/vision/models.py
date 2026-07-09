@@ -2,18 +2,7 @@
 
 from __future__ import annotations
 
-from tensorstudio.nn import (
-    Conv2d,
-    ConvTranspose2d,
-    DepthwiseConv2d,
-    Flatten,
-    Linear,
-    MaxPool2d,
-    Module,
-    ReLU,
-    Sequential,
-)
-from tensorstudio.ops import concat
+from tensorstudio.nn import Conv2d, Flatten, Linear, MaxPool2d, Module, ReLU, Sequential
 from tensorstudio.tensor import Tensor
 
 
@@ -50,106 +39,6 @@ class ConvBlock(Module):
             f"in_channels={self.in_channels}, out_channels={self.out_channels}, "
             f"kernel_size={self.kernel_size}, padding={self.padding}, pool={self.pool}"
         )
-
-
-class ResidualBlock(Module):
-    """Small ResNet-style residual block for NCHW tensors."""
-
-    def __init__(self, channels: int, hidden_channels: int | None = None) -> None:
-        super().__init__()
-        if channels <= 0:
-            raise ValueError("channels must be positive")
-        hidden = channels if hidden_channels is None else hidden_channels
-        if hidden <= 0:
-            raise ValueError("hidden_channels must be positive")
-        self.channels = channels
-        self.hidden_channels = hidden
-        self.layers = Sequential(
-            Conv2d(channels, hidden, kernel_size=3, padding=1),
-            ReLU(),
-            Conv2d(hidden, channels, kernel_size=3, padding=1),
-        )
-        self.activation = ReLU()
-
-    def forward(self, input: Tensor) -> Tensor:
-        return self.activation(self.layers(input) + input)
-
-    def extra_repr(self) -> str:
-        return f"channels={self.channels}, hidden_channels={self.hidden_channels}"
-
-
-class DepthwiseSeparableBlock(Module):
-    """MobileNet-style depthwise convolution followed by pointwise projection."""
-
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        stride: int | tuple[int, int] = 1,
-    ) -> None:
-        super().__init__()
-        if in_channels <= 0 or out_channels <= 0:
-            raise ValueError("in_channels and out_channels must be positive")
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.stride = stride
-        self.layers = Sequential(
-            DepthwiseConv2d(in_channels, kernel_size=3, stride=stride, padding=1),
-            ReLU(),
-            Conv2d(in_channels, out_channels, kernel_size=1),
-            ReLU(),
-        )
-
-    def forward(self, input: Tensor) -> Tensor:
-        return self.layers(input)
-
-    def extra_repr(self) -> str:
-        return (
-            f"in_channels={self.in_channels}, out_channels={self.out_channels}, "
-            f"stride={self.stride}"
-        )
-
-
-class CompactUNet(Module):
-    """Compact one-level UNet for small segmentation experiments."""
-
-    def __init__(self, in_channels: int, num_classes: int, base_channels: int = 8) -> None:
-        super().__init__()
-        if in_channels <= 0 or num_classes <= 0 or base_channels <= 0:
-            raise ValueError("in_channels, num_classes, and base_channels must be positive")
-        self.in_channels = in_channels
-        self.num_classes = num_classes
-        self.base_channels = base_channels
-        self.enc1 = _double_conv(in_channels, base_channels)
-        self.pool = MaxPool2d(kernel_size=2)
-        self.bridge = _double_conv(base_channels, base_channels * 2)
-        self.up = ConvTranspose2d(base_channels * 2, base_channels, kernel_size=2, stride=2)
-        self.dec1 = _double_conv(base_channels * 2, base_channels)
-        self.head = Conv2d(base_channels, num_classes, kernel_size=1)
-
-    def forward(self, input: Tensor) -> Tensor:
-        skip = self.enc1(input)
-        bridge = self.bridge(self.pool(skip))
-        upsampled = self.up(bridge)
-        if upsampled.shape[-2:] != skip.shape[-2:]:
-            upsampled = upsampled[..., : skip.shape[-2], : skip.shape[-1]]
-        merged = concat([upsampled, skip], axis=1)
-        return self.head(self.dec1(merged))
-
-    def extra_repr(self) -> str:
-        return (
-            f"in_channels={self.in_channels}, num_classes={self.num_classes}, "
-            f"base_channels={self.base_channels}"
-        )
-
-
-def _double_conv(in_channels: int, out_channels: int) -> Sequential:
-    return Sequential(
-        Conv2d(in_channels, out_channels, kernel_size=3, padding=1),
-        ReLU(),
-        Conv2d(out_channels, out_channels, kernel_size=3, padding=1),
-        ReLU(),
-    )
 
 
 class ImageClassifier(Module):
@@ -262,20 +151,10 @@ def make_image_classifier(
     return ImageClassifier(input_shape, num_classes, channels).model
 
 
-def make_unet(in_channels: int, num_classes: int, base_channels: int = 8) -> CompactUNet:
-    """Build a compact UNet segmentation model."""
-
-    return CompactUNet(in_channels, num_classes, base_channels)
-
-
 __all__ = [
-    "CompactUNet",
     "ConvBlock",
-    "DepthwiseSeparableBlock",
     "ImageClassifier",
-    "ResidualBlock",
     "TinyConvClassifier",
     "make_cnn_classifier",
     "make_image_classifier",
-    "make_unet",
 ]

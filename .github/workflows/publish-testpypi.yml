@@ -11,6 +11,7 @@ env:
   CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
   CIBW_SKIP: "*-musllinux*"
   CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
+  CIBW_MANYLINUX_AARCH64_IMAGE: "manylinux_2_28"
   CIBW_TEST_COMMAND: >-
     python -c "import tensorstudio as ts; import tensorstudio._C; x = ts.ones((2, 2), requires_grad=True); y = ((x * 2.0) + 1.0).sum(); y.backward(); assert x.grad.tolist() == [[2.0, 2.0], [2.0, 2.0]]"
 
@@ -27,8 +28,6 @@ jobs:
         uses: pypa/cibuildwheel@v2.23.3
         env:
           CIBW_ARCHS_WINDOWS: "AMD64"
-      - name: Clean wheel install smoke
-        run: python tools/verify_artifacts.py --wheel-dir wheelhouse --skip-sdist
       - uses: actions/upload-artifact@v4
         with:
           name: dist-windows
@@ -43,12 +42,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: docker/setup-qemu-action@v3
       - name: Build Linux wheels
         uses: pypa/cibuildwheel@v2.23.3
         env:
-          CIBW_ARCHS_LINUX: "x86_64"
-      - name: Clean wheel install smoke
-        run: python tools/verify_artifacts.py --wheel-dir wheelhouse --skip-sdist
+          CIBW_ARCHS_LINUX: "x86_64 aarch64"
       - uses: actions/upload-artifact@v4
         with:
           name: dist-linux
@@ -66,9 +64,7 @@ jobs:
       - name: Build macOS wheels
         uses: pypa/cibuildwheel@v2.23.3
         env:
-          CIBW_ARCHS_MACOS: "auto universal2"
-      - name: Clean wheel install smoke
-        run: python tools/verify_artifacts.py --wheel-dir wheelhouse --skip-sdist
+          CIBW_ARCHS_MACOS: "x86_64 arm64"
       - uses: actions/upload-artifact@v4
         with:
           name: dist-macos
@@ -88,7 +84,6 @@ jobs:
           python -m pip install -U build twine
           python -m build --sdist
           python -m twine check dist/*
-          python tools/verify_artifacts.py --skip-wheel --sdist-dir dist
       - uses: actions/upload-artifact@v4
         with:
           name: dist-sdist

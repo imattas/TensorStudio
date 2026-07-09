@@ -5,7 +5,6 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
-#include "tensorstudio/errors.hpp"
 #include "tensorstudio/ops.hpp"
 
 namespace tensorstudio::bindings {
@@ -37,7 +36,6 @@ void bind_ops(py::module_& module) {
   module.def("neg", &neg);
   module.def("pow", &pow, py::arg("input"), py::arg("exponent"));
   module.def("matmul", [](const Tensor& left, py::object right) { return matmul(left, ensure_tensor(right)); });
-  module.def("bmm", [](const Tensor& left, py::object right) { return bmm(left, ensure_tensor(right)); });
   module.def(
       "conv2d",
       [](const Tensor& input,
@@ -48,14 +46,13 @@ void bind_ops(py::module_& module) {
          int64_t padding_h,
          int64_t padding_w,
          int64_t dilation_h,
-         int64_t dilation_w,
-         int64_t groups) {
+         int64_t dilation_w) {
         std::optional<Tensor> maybe_bias;
         if (!bias.is_none()) {
           maybe_bias = ensure_tensor(bias);
         }
         return conv2d(
-            input, weight, maybe_bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w, groups);
+            input, weight, maybe_bias, stride_h, stride_w, padding_h, padding_w, dilation_h, dilation_w);
       },
       py::arg("input"),
       py::arg("weight"),
@@ -65,53 +62,7 @@ void bind_ops(py::module_& module) {
       py::arg("padding_h") = 0,
       py::arg("padding_w") = 0,
       py::arg("dilation_h") = 1,
-      py::arg("dilation_w") = 1,
-      py::arg("groups") = 1);
-  module.def(
-      "conv_transpose2d",
-      [](const Tensor& input,
-         const Tensor& weight,
-         py::object bias,
-         int64_t stride_h,
-         int64_t stride_w,
-         int64_t padding_h,
-         int64_t padding_w,
-         int64_t output_padding_h,
-         int64_t output_padding_w,
-         int64_t dilation_h,
-         int64_t dilation_w,
-         int64_t groups) {
-        std::optional<Tensor> maybe_bias;
-        if (!bias.is_none()) {
-          maybe_bias = ensure_tensor(bias);
-        }
-        return conv_transpose2d(
-            input,
-            weight,
-            maybe_bias,
-            stride_h,
-            stride_w,
-            padding_h,
-            padding_w,
-            output_padding_h,
-            output_padding_w,
-            dilation_h,
-            dilation_w,
-            groups);
-      },
-      py::arg("input"),
-      py::arg("weight"),
-      py::arg("bias") = py::none(),
-      py::arg("stride_h") = 1,
-      py::arg("stride_w") = 1,
-      py::arg("padding_h") = 0,
-      py::arg("padding_w") = 0,
-      py::arg("output_padding_h") = 0,
-      py::arg("output_padding_w") = 0,
-      py::arg("dilation_h") = 1,
-      py::arg("dilation_w") = 1,
-      py::arg("groups") = 1);
-  module.def("embedding", &embedding, py::arg("indices"), py::arg("weight"));
+      py::arg("dilation_w") = 1);
   module.def(
       "max_pool2d",
       &max_pool2d,
@@ -149,33 +100,6 @@ void bind_ops(py::module_& module) {
       return mean(tensor, normalized_axis, keep);
     });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
-  module.def("var", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
-    if (axis.is_none()) {
-      return variance(input, correction);
-    }
-    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
-      throw ShapeError("var axis must be None or an int; use tensorstudio.math.variance for tuple axes");
-    }
-    return variance(input, py::cast<int64_t>(axis), keepdims, correction);
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
-  module.def("variance", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
-    if (axis.is_none()) {
-      return variance(input, correction);
-    }
-    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
-      throw ShapeError("variance axis must be None or an int; use tensorstudio.math.variance for tuple axes");
-    }
-    return variance(input, py::cast<int64_t>(axis), keepdims, correction);
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
-  module.def("std", [](const Tensor& input, py::object axis, bool keepdims, int64_t correction) {
-    if (axis.is_none()) {
-      return stddev(input, correction);
-    }
-    if (!py::isinstance<py::int_>(axis) || py::isinstance<py::bool_>(axis)) {
-      throw ShapeError("std axis must be None or an int; use tensorstudio.math.std for tuple axes");
-    }
-    return stddev(input, py::cast<int64_t>(axis), keepdims, correction);
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false, py::arg("correction") = 0);
   module.def("max", [](const Tensor& input, py::object axis, bool keepdims) {
     return reduce_from_py(input, std::move(axis), keepdims, "max", [](const Tensor& tensor) {
       return max(tensor);
@@ -204,34 +128,11 @@ void bind_ops(py::module_& module) {
       return argmin(tensor, normalized_axis, keep);
     });
   }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
-  module.def("all", [](const Tensor& input, py::object axis, bool keepdims) {
-    return reduce_from_py(input, std::move(axis), keepdims, "all", [](const Tensor& tensor) {
-      return tensorstudio::all(tensor);
-    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
-      return tensorstudio::all(tensor, normalized_axis, keep);
-    });
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
-  module.def("any", [](const Tensor& input, py::object axis, bool keepdims) {
-    return reduce_from_py(input, std::move(axis), keepdims, "any", [](const Tensor& tensor) {
-      return tensorstudio::any(tensor);
-    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
-      return tensorstudio::any(tensor, normalized_axis, keep);
-    });
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
   module.def("relu", &relu);
   module.def("sigmoid", &sigmoid);
   module.def("tanh", &tanh);
   module.def("exp", &exp);
   module.def("log", &log);
-  module.def("logsumexp", [](const Tensor& input, py::object axis, bool keepdims) {
-    return reduce_from_py(input, std::move(axis), keepdims, "logsumexp", [](const Tensor& tensor) {
-      return logsumexp(tensor);
-    }, [](const Tensor& tensor, int64_t normalized_axis, bool keep) {
-      return logsumexp(tensor, normalized_axis, keep);
-    });
-  }, py::arg("input"), py::arg("axis") = py::none(), py::arg("keepdims") = false);
-  module.def("softmax", &softmax, py::arg("input"), py::arg("axis") = -1);
-  module.def("log_softmax", &log_softmax, py::arg("input"), py::arg("axis") = -1);
   module.def("log1p", &log1p);
   module.def("sqrt", &sqrt);
   module.def("rsqrt", &rsqrt);
@@ -252,23 +153,7 @@ void bind_ops(py::module_& module) {
   module.def("stack", &stack, py::arg("tensors"), py::arg("axis") = 0);
   module.def("reshape", [](const Tensor& input, py::object shape) { return reshape(input, shape_from_py(shape)); });
   module.def("flatten", &flatten);
-  module.def("transpose", [](const Tensor& input, py::object axis0, py::object axis1) {
-    if (axis0.is_none() && axis1.is_none()) {
-      return transpose(input);
-    }
-    if (!axis0.is_none() && !axis1.is_none()) {
-      return transpose(input, py::cast<int64_t>(axis0), py::cast<int64_t>(axis1));
-    }
-    throw ShapeError("transpose expects either no axes or both axis0 and axis1");
-  }, py::arg("input"), py::arg("axis0") = py::none(), py::arg("axis1") = py::none());
-  module.def("permute", [](const Tensor& input, py::object axes) { return permute(input, shape_from_py(axes)); });
-  module.def("squeeze", [](const Tensor& input, py::object axis) {
-    if (axis.is_none()) {
-      return squeeze(input);
-    }
-    return squeeze(input, py::cast<int64_t>(axis));
-  }, py::arg("input"), py::arg("axis") = py::none());
-  module.def("unsqueeze", &unsqueeze, py::arg("input"), py::arg("axis"));
+  module.def("transpose", &transpose);
 }
 
 }  // namespace tensorstudio::bindings

@@ -19,7 +19,6 @@ from typing import Any
 
 import numpy as np
 
-from ._version import __version__
 from .tensor import Tensor, from_numpy
 from .typing import PathLikeStr
 
@@ -44,12 +43,7 @@ def load(path: PathLikeStr) -> Any:
         return pickle.load(file)  # noqa: S301
 
 
-def save_npz(
-    obj: Tensor | dict[str, Tensor],
-    path: PathLikeStr,
-    *,
-    metadata: dict[str, Any] | None = None,
-) -> None:
+def save_npz(obj: Tensor | dict[str, Tensor], path: PathLikeStr) -> None:
     """Save a tensor or flat state_dict to a portable ``.npz`` file.
 
     The archive stores raw NumPy arrays and JSON metadata with
@@ -92,16 +86,13 @@ def save_npz(
     else:
         raise TypeError("save_npz expects a Tensor or dict[str, Tensor]")
 
-    archive_metadata = {
+    metadata = {
         "format": _NPZ_FORMAT,
-        "version": 2,
-        "tensorstudio_version": __version__,
+        "version": 1,
         "kind": kind,
-        "tensor_count": len(entries),
         "tensors": entries,
-        "metadata": dict(metadata or {}),
     }
-    arrays[_NPZ_METADATA_KEY] = np.array(json.dumps(archive_metadata, sort_keys=True))
+    arrays[_NPZ_METADATA_KEY] = np.array(json.dumps(metadata, sort_keys=True))
 
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -119,7 +110,7 @@ def load_npz(path: PathLikeStr) -> Tensor | dict[str, Tensor]:
         metadata = json.loads(str(archive[_NPZ_METADATA_KEY].item()))
         if metadata.get("format") != _NPZ_FORMAT:
             raise ValueError("not a TensorStudio npz archive")
-        if metadata.get("version") not in {1, 2}:
+        if metadata.get("version") != 1:
             raise ValueError(f"unsupported TensorStudio npz version: {metadata.get('version')}")
 
         tensors: dict[str, Tensor] = {}
@@ -142,141 +133,95 @@ def load_npz(path: PathLikeStr) -> Tensor | dict[str, Tensor]:
         raise ValueError(f"unsupported TensorStudio npz archive kind: {kind!r}")
 
 
-def load_npz_metadata(path: PathLikeStr) -> dict[str, Any]:
-    """Return TensorStudio NPZ archive metadata without loading tensor values."""
+def inspect_npz(path: PathLikeStr) -> dict[str, Any]:
+    """Inspect TensorStudio NPZ metadata without constructing tensors."""
 
-    with np.load(Path(path), allow_pickle=False) as archive:
+    archive_path = Path(path)
+    with np.load(archive_path, allow_pickle=False) as archive:
+        files = list(archive.files)
         if _NPZ_METADATA_KEY not in archive:
             raise ValueError("not a TensorStudio npz archive: missing metadata")
         metadata = json.loads(str(archive[_NPZ_METADATA_KEY].item()))
         if metadata.get("format") != _NPZ_FORMAT:
             raise ValueError("not a TensorStudio npz archive")
-        return dict(metadata)
 
+        tensor_entries: list[dict[str, Any]] = []
+        missing_arrays: list[str] = []
+        expected_arrays = {_NPZ_METADATA_KEY}
+        for entry in metadata.get("tensors", []):
+            key = str(entry.get("key"))
+            expected_arrays.add(key)
+            array_present = key in archive
+            if not array_present:
+                missing_arrays.append(key)
+                array_dtype = None
+                array_shape = None
+            else:
+                array = archive[key]
+                array_dtype = str(array.dtype)
+                array_shape = list(array.shape)
+            tensor_entries.append(
+                {
+                    "name": str(entry.get("name", "")),
+                    "key": key,
+                    "dtype": str(entry.get("dtype")),
+                    "shape": list(entry.get("shape", [])),
+                    "requires_grad": bool(entry.get("requires_grad", False)),
+                    "array_present": array_present,
+                    "array_dtype": array_dtype,
+                    "array_shape": array_shape,
+                }
+            )
 
-def save_safetensors(
-    tensors: dict[str, Tensor],
-    path: PathLikeStr,
-    *,
-    metadata: dict[str, str] | None = None,
-) -> None:
-    """Save a tensor mapping to the SafeTensors format.
+        extra_arrays = sorted(name for name in files if name not in expected_arrays)
+        version = metadata.get("version")
+        kind = metadata.get("kind")
+        compatible = version == 1 and kind in {"tensor", "state_dict"} and not missing_arrays
+        reason = ""
+        if version != 1:
+            reason = f"unsupported TensorStudio npz version: {version}"
+        elif kind not in {"tensor", "state_dict"}:
+            reason = f"unsupported TensorStudio npz archive kind: {kind!r}"
+        elif missing_arrays:
+            reason = "TensorStudio npz archive is missing one or more array payloads"
 
-    This requires the optional dependency:
-    ``python -m pip install 'tensorstudio[safetensors]'``.
-    """
-
-    try:
-        from safetensors.numpy import save_file
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "SafeTensors support requires: python -m pip install 'tensorstudio[safetensors]'"
-        ) from exc
-    arrays = _tensor_mapping_to_arrays(tensors)
-    output_path = Path(path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    safe_metadata = {"format": "tensorstudio.safetensors", "tensorstudio_version": __version__}
-    safe_metadata.update(metadata or {})
-    save_file(arrays, str(output_path), metadata=safe_metadata)
-
-
-def load_safetensors(path: PathLikeStr) -> dict[str, Tensor]:
-    """Load a SafeTensors tensor mapping as TensorStudio tensors."""
-
-    try:
-        from safetensors.numpy import load_file
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "SafeTensors support requires: python -m pip install 'tensorstudio[safetensors]'"
-        ) from exc
-    arrays = load_file(str(path))
-    return {name: from_numpy(np.array(value, copy=True)) for name, value in arrays.items()}
-
-
-def inspect_model_metadata(
-    path: PathLikeStr,
-    *,
-    trusted_pickle: bool = False,
-) -> dict[str, Any]:
-    """Inspect metadata for supported TensorStudio, SafeTensors, and ONNX files.
-
-    Trusted pickle checkpoints require ``trusted_pickle=True`` because reading
-    pickle files can execute arbitrary code.
-    """
-
-    input_path = Path(path)
-    suffix = input_path.suffix.lower()
-    if suffix in {".npz", ".tsnpz"}:
-        return load_npz_metadata(input_path)
-    if suffix == ".safetensors":
-        return _inspect_safetensors_metadata(input_path)
-    if suffix == ".onnx":
-        from tensorstudio.interchange import inspect_onnx
-
-        return inspect_onnx(input_path)
-    if suffix in {".tsmodel", ".pkl", ".pickle"}:
-        if not trusted_pickle:
-            raise ValueError("trusted_pickle=True is required to inspect pickle checkpoints")
-        checkpoint = load(input_path)
-        if not isinstance(checkpoint, dict):
-            raise ValueError("checkpoint metadata expects a dictionary payload")
-        model_state = checkpoint.get("model")
-        model_tensors = len(model_state) if isinstance(model_state, dict) else 0
         return {
-            "format": "tensorstudio.checkpoint",
-            "tensorstudio_version": checkpoint.get("tensorstudio_version"),
-            "epoch": checkpoint.get("epoch"),
-            "has_optimizer": "optimizer" in checkpoint,
-            "has_scheduler": "scheduler" in checkpoint,
-            "model_tensor_count": model_tensors,
-            "metadata": checkpoint.get("metadata", {}),
+            "path": str(archive_path),
+            "format": metadata.get("format"),
+            "version": version,
+            "kind": kind,
+            "tensor_count": len(tensor_entries),
+            "tensors": tensor_entries,
+            "archive_arrays": files,
+            "missing_arrays": missing_arrays,
+            "extra_arrays": extra_arrays,
+            "compatible": compatible,
+            "reason": reason,
         }
-    raise ValueError(f"unsupported metadata format for {input_path}")
 
 
-def _tensor_mapping_to_arrays(tensors: dict[str, Tensor]) -> dict[str, np.ndarray]:
-    arrays: dict[str, np.ndarray] = {}
-    for name, value in tensors.items():
-        if not isinstance(name, str):
-            raise TypeError("tensor mapping keys must be strings")
-        if not isinstance(value, Tensor):
-            raise TypeError("tensor mapping values must be Tensor objects")
-        arrays[name] = value.numpy()
-    return arrays
+def check_npz_compatibility(path: PathLikeStr) -> dict[str, Any]:
+    """Return versioned TensorStudio NPZ compatibility metadata."""
 
-
-def _inspect_safetensors_metadata(path: Path) -> dict[str, Any]:
-    try:
-        from safetensors import safe_open
-    except ImportError as exc:  # pragma: no cover - optional dependency
-        raise ImportError(
-            "SafeTensors support requires: python -m pip install 'tensorstudio[safetensors]'"
-        ) from exc
-    with safe_open(str(path), framework="numpy") as handle:
-        keys = list(handle.keys())
-        tensors = [
-            {
-                "name": key,
-                "shape": list(handle.get_tensor(key).shape),
-                "dtype": str(handle.get_tensor(key).dtype),
-            }
-            for key in keys
-        ]
-        return {
-            "format": "safetensors",
-            "metadata": dict(handle.metadata() or {}),
-            "tensor_count": len(keys),
-            "tensors": tensors,
-        }
+    info = inspect_npz(path)
+    return {
+        "path": info["path"],
+        "format": info["format"],
+        "version": info["version"],
+        "kind": info["kind"],
+        "compatible": info["compatible"],
+        "tensor_count": info["tensor_count"],
+        "missing_arrays": info["missing_arrays"],
+        "extra_arrays": info["extra_arrays"],
+        "reason": info["reason"],
+    }
 
 
 __all__ = [
-    "inspect_model_metadata",
+    "check_npz_compatibility",
+    "inspect_npz",
     "load",
     "load_npz",
-    "load_npz_metadata",
-    "load_safetensors",
     "save",
     "save_npz",
-    "save_safetensors",
 ]

@@ -2,6 +2,6 @@
 
 namespace tensorstudio {
 
-inline constexpr const char* version = "2.0.0";
+inline constexpr const char* version = "2.1.0";
 
 }  // namespace tensorstudio

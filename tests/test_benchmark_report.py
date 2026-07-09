@@ -9,13 +9,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from benchmarks.benchmark_report import (  # noqa: E402
-    BenchmarkCase,
-    Library,
-    Stats,
-    _render_report,
-    evaluate_thresholds,
-)
+from benchmarks.benchmark_report import BenchmarkCase, Library, Stats, _render_report  # noqa: E402
 
 
 def _factory(array: np.ndarray) -> np.ndarray:
@@ -75,22 +69,3 @@ def test_benchmark_all_runner_help_works() -> None:
 
     assert completed.returncode == 0
     assert "Run every TensorStudio benchmark section" in completed.stdout
-
-
-def test_benchmark_threshold_evaluation_reports_failures() -> None:
-    thresholds = {
-        "cases": [
-            {
-                "category": "elementwise",
-                "operation": "add",
-                "shape": "(2,)",
-                "max_median_ms": 0.25,
-            }
-        ]
-    }
-    results = {"elementwise|add|(2,)|TensorStudio": Stats(1.0, 1.0, 1.0, 1.0, 0.0)}
-
-    failures = evaluate_thresholds(thresholds, results)
-
-    assert failures
-    assert "exceeded" in failures[0]

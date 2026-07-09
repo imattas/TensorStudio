@@ -6,7 +6,6 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 
-#include "tensorstudio/device.hpp"
 #include "tensorstudio/tensor.hpp"
 
 namespace tensorstudio::bindings {
@@ -21,7 +20,6 @@ py::object tensor_to_py_list(const Tensor& tensor);
 Tensor ensure_tensor(py::object object);
 Shape shape_from_py(py::object object);
 DType dtype_from_py(py::object object, DType fallback = DType::Float32);
-Device device_from_py(py::object object);
 Tensor reduce_from_py(
     const Tensor& input,
     py::object axis,

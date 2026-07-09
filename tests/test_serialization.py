@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import tensorstudio as ts
 from tensorstudio import nn
@@ -49,6 +51,17 @@ def test_npz_tensor_roundtrip_is_non_pickle(tmp_path) -> None:
     assert loaded.requires_grad is True
     np.testing.assert_allclose(loaded.numpy(), x.numpy())
 
+    info = ts.inspect_npz(path)
+    compat = ts.check_npz_compatibility(path)
+    assert info["compatible"] is True
+    assert info["format"] == "tensorstudio.npz"
+    assert info["version"] == 1
+    assert info["kind"] == "tensor"
+    assert info["tensor_count"] == 1
+    assert info["tensors"][0]["shape"] == [2, 2]
+    assert info["tensors"][0]["array_shape"] == [2, 2]
+    assert compat["compatible"] is True
+
 
 def test_npz_state_dict_roundtrip_loads_into_model(tmp_path) -> None:
     path = tmp_path / "state.tsnpz"
@@ -63,26 +76,39 @@ def test_npz_state_dict_roundtrip_loads_into_model(tmp_path) -> None:
     model.load_state_dict(loaded)
     np.testing.assert_allclose(model.state_dict()["0.weight"].numpy(), state["0.weight"].numpy())
 
+    info = ts.inspect_npz(path)
+    assert info["kind"] == "state_dict"
+    assert info["tensor_count"] == 4
+    assert info["missing_arrays"] == []
 
-def test_npz_metadata_and_safetensors_roundtrip(tmp_path) -> None:
-    state = {
-        "weight": ts.tensor([[1.0, 2.0], [3.0, 4.0]]),
-        "bias": ts.tensor([0.5, -0.5]),
+
+def test_npz_inspection_reports_unsupported_versions(tmp_path) -> None:
+    path = tmp_path / "future.tsnpz"
+    metadata = {
+        "format": "tensorstudio.npz",
+        "version": 999,
+        "kind": "tensor",
+        "tensors": [
+            {
+                "name": "",
+                "key": "arr_0",
+                "dtype": "float32",
+                "shape": [1],
+                "requires_grad": False,
+            }
+        ],
     }
-    npz_path = tmp_path / "state.tsnpz"
-    safe_path = tmp_path / "state.safetensors"
+    with path.open("wb") as file:
+        np.savez_compressed(
+            file,
+            arr_0=np.array([1.0], dtype=np.float32),
+            __tensorstudio_metadata__=np.array(json.dumps(metadata)),
+        )
 
-    ts.save_npz(state, npz_path, metadata={"task": "demo"})
-    metadata = ts.load_npz_metadata(npz_path)
-    inspected = ts.inspect_model_metadata(npz_path)
-    ts.save_safetensors(state, safe_path, metadata={"task": "demo"})
-    safe_loaded = ts.load_safetensors(safe_path)
-    safe_metadata = ts.inspect_model_metadata(safe_path)
+    info = ts.inspect_npz(path)
+    compat = ts.check_npz_compatibility(path)
 
-    assert metadata["version"] == 2
-    assert metadata["metadata"]["task"] == "demo"
-    assert inspected["tensor_count"] == 2
-    assert sorted(safe_loaded) == ["bias", "weight"]
-    np.testing.assert_allclose(safe_loaded["weight"].numpy(), state["weight"].numpy())
-    assert safe_metadata["tensor_count"] == 2
-    assert safe_metadata["metadata"]["task"] == "demo"
+    assert info["compatible"] is False
+    assert info["version"] == 999
+    assert "unsupported TensorStudio npz version" in info["reason"]
+    assert compat["compatible"] is False

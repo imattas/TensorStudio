@@ -41,14 +41,12 @@ operand shapes.
 
 ## Error Behavior
 
-Incompatible shapes raise `ShapeError` with the relevant shapes, the aligned
-axis that failed, and the two incompatible dimensions. TensorStudio does not
-silently reshape tensors.
+Incompatible shapes raise `ShapeError` with the relevant shapes. TensorStudio
+does not silently reshape tensors.
 
 ```python
 ts.ones((2, 3)) + ts.ones((4,))
 ```
 
-This is invalid because trailing dimensions `3` and `4` are incompatible. The
-error includes that axis-level mismatch so callers do not need to infer it from
-the two shapes manually.
+This is invalid because trailing dimensions `3` and `4` are incompatible.
+

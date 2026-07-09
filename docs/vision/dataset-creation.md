@@ -43,56 +43,47 @@ items = [
 dataset = ts.vision.ImageList(items, transform=transform)
 ```
 
-## DetectionFolder Layout
+## Image Manifests
 
-Detection datasets can use matching image and JSON annotation folders:
-
-```text
-dataset/
-  images/
-    frame-001.png
-  annotations/
-    frame-001.json
-```
-
-```json
-{
-  "boxes": [[0, 0, 32, 32]],
-  "labels": [1]
-}
-```
+Use manifests when you want a deterministic cache of a local image-folder
+dataset with class names, sample count, file sizes, and optional SHA-256
+checksums.
 
 ```python
-dataset = ts.vision.DetectionFolder("dataset")
-image, target = dataset[0]
-print(target["boxes"], target["labels"])
+manifest = ts.vision.build_image_manifest(
+    "dataset",
+    "dataset/manifest.json",
+    checksum=True,
+)
+
+validation = ts.vision.validate_image_manifest("dataset/manifest.json")
+print(validation["valid"])
+
+dataset = ts.vision.ImageManifestDataset(
+    "dataset/manifest.json",
+    transform=transform,
+)
 ```
 
-`tensorstudio.data.from_detection_folder()` provides the same dataset through
-the data factory namespace.
-
-## SegmentationFolder Layout
-
-Segmentation datasets use matching image and mask stems:
-
-```text
-dataset/
-  images/
-    sample.png
-  masks/
-    sample.png
-```
+The manifest JSON is stable and inspectable. It records relative paths so the
+same file can be loaded from another root:
 
 ```python
-dataset = ts.vision.SegmentationFolder("dataset")
-image, mask = dataset[0]
+dataset = ts.vision.ImageManifestDataset("manifest.json", root="/mnt/dataset")
 ```
 
-`tensorstudio.data.from_segmentation_folder()` provides the same dataset through
-the data factory namespace.
+`validate_image_manifest` reports missing files, size mismatches, and checksum
+mismatches without loading images.
 
-## Metadata And Splits
+## Future Dataset Builders
 
-All dataset types work with `tensorstudio.data.dataset_summary()` where the
-dataset exposes metadata and with deterministic `train_val_split()` for local
-experiments.
+The roadmap includes helpers that create datasets from:
+
+- Image folders.
+- Explicit image path lists.
+- Tensor/label pairs.
+- NumPy arrays.
+- Tabular arrays with labels.
+
+These builders should produce metadata summaries such as sample counts, class
+names, shape hints, and deterministic train/validation splits.

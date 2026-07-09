@@ -77,6 +77,38 @@ def test_dtype_helpers_normalize_and_infer() -> None:
     assert ts.result_type("int32", "float64", op="gt") == "bool"
 
 
+def test_dtype_casting_policy_modes() -> None:
+    assert ts.can_cast("int32", "int64") is True
+    assert ts.can_cast("int32", "float64", casting="safe") is True
+    assert ts.can_cast("int32", "float32", casting="safe") is False
+    assert ts.can_cast("int32", "float32", casting="unsafe") is True
+    assert ts.can_cast("float64", "float32", casting="same_kind") is True
+    assert ts.can_cast("int64", "int32", casting="same_kind") is True
+    assert ts.can_cast("float32", "float32", casting="no") is True
+    assert ts.can_cast("float32", "double", casting="no") is False
+
+    ints = ts.tensor([1, 2, 3], dtype="int32")
+    widened = ts.cast(ints, "int64", casting="safe")
+    assert widened.dtype == "int64"
+    np.testing.assert_array_equal(widened.numpy(), np.array([1, 2, 3], dtype=np.int64))
+
+    floats = ts.tensor([1.2, 2.8], dtype="float64")
+    narrowed = floats.astype("float32", casting="same_kind")
+    assert narrowed.dtype == "float32"
+    np.testing.assert_allclose(narrowed.numpy(), np.array([1.2, 2.8], dtype=np.float32))
+
+    default_unsafe = floats.to("int32")
+    assert default_unsafe.dtype == "int32"
+    np.testing.assert_array_equal(default_unsafe.numpy(), np.array([1, 2], dtype=np.int32))
+
+    with pytest.raises(TypeError, match="casting='safe'"):
+        floats.astype("float32", casting="safe")
+    with pytest.raises(TypeError, match="casting='safe'"):
+        ts.cast(ints, "float32", casting="safe")
+    with pytest.raises(ValueError, match="casting must be one of"):
+        ts.can_cast("int32", "int64", casting="wild")  # type: ignore[arg-type]
+
+
 def test_creation_helpers() -> None:
     assert ts.empty((2, 3)).shape == (2, 3)
     np.testing.assert_allclose(ts.zeros((2, 2)).numpy(), np.zeros((2, 2), dtype=np.float32))

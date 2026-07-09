@@ -1,9 +1,8 @@
 # Vision
 
 TensorStudio's vision package provides local image IO, preprocessing,
-augmentation, datasets, metrics, detection helpers, segmentation helpers,
-visualization helpers, compact CNN classifiers, and compact UNet-style models
-for image-recognition and small segmentation experiments.
+augmentation, datasets, metrics, visualization helpers, and compact CNN
+classifiers for image-recognition experiments.
 
 It is designed for small CPU-first workflows. It is not a replacement for
 OpenCV, torchvision, or specialized production vision stacks.
@@ -58,16 +57,6 @@ Available transform functions include:
 - `horizontal_flip`
 - `vertical_flip`
 - `random_horizontal_flip`
-- `batch_resize`
-- `batch_center_crop`
-- `batch_normalize`
-- `color_jitter`
-- `random_resized_crop`
-- `rotate`
-- `affine`
-- `cutout`
-- `mixup`
-- `cutmix`
 - `pad`
 - `rgb_to_grayscale`
 - `grayscale_to_rgb`
@@ -81,11 +70,6 @@ Callable transform classes include:
 - `CenterCrop`
 - `RandomCrop`
 - `RandomHorizontalFlip`
-- `ColorJitter`
-- `RandomResizedCrop`
-- `RandomRotation`
-- `RandomAffine`
-- `Cutout`
 
 ## ImageFolder
 
@@ -108,9 +92,7 @@ for images, labels in loader:
 ```
 
 `ImageList` is also available when you already have explicit `(path, target)`
-pairs. `DetectionFolder` and `SegmentationFolder` cover simple detection and
-segmentation folder layouts; see the dedicated pages for expected file
-structure.
+pairs.
 
 ## Models
 
@@ -132,17 +114,13 @@ for images, labels in loader:
 Available model helpers:
 
 - `ConvBlock`
-- `ResidualBlock`
-- `DepthwiseSeparableBlock`
 - `TinyConvClassifier`
 - `ImageClassifier`
-- `CompactUNet`
 - `make_cnn_classifier`
 - `make_image_classifier`
-- `make_unet`
 
-These models use TensorStudio native-backed `nn.Conv2d`, `nn.DepthwiseConv2d`,
-`nn.ConvTranspose2d`, `nn.ReLU`, `nn.MaxPool2d`, `nn.Flatten`, and `nn.Linear`.
+These models use TensorStudio `nn.Conv2d`, `nn.ReLU`, `nn.MaxPool2d`,
+`nn.Flatten`, and `nn.Linear`.
 
 ## Metrics
 
@@ -151,7 +129,6 @@ acc = ts.vision.accuracy(logits, labels.astype("int64"))
 top1, top5 = ts.vision.top_k_accuracy(logits, labels.astype("int64"), k=(1, 5))
 matrix = ts.vision.confusion_matrix(logits, labels.astype("int64"), num_classes=10)
 iou = ts.vision.box_iou([[0, 0, 10, 10]], [[5, 5, 15, 15]])
-mask_iou = ts.vision.mask_iou(prediction_mask, target_mask, num_classes=3)
 ```
 
 ## Visualization
@@ -159,9 +136,6 @@ mask_iou = ts.vision.mask_iou(prediction_mask, target_mask, num_classes=3)
 ```python
 grid = ts.vision.make_grid(images, nrow=4, padding=2)
 boxed = ts.vision.draw_bounding_boxes(image, [[2, 2, 20, 20]], labels=["cat"])
-predictions = ts.vision.draw_predictions(image, [[2, 2, 20, 20]], ["cat"], scores=[0.92])
-masked = ts.vision.overlay_mask(image, mask)
-features = ts.vision.feature_map_grid(model_features)
 ts.vision.save_image(grid, "batch.png")
 ts.vision.save_image(boxed, "boxed.png")
 ```
@@ -179,8 +153,7 @@ ts.export_onnx(model, "classifier.onnx", input_shape=(1, 3, 32, 32))
 
 - CPU-only image models.
 - No pretrained model zoo yet.
-- Detection and segmentation helpers are utilities, not full training
-  frameworks.
+- No object-detection or semantic-segmentation training framework yet.
 - No video IO.
 - No GPU image kernels or accelerated image decode path.
 - Transform operations that convert through NumPy are intended for input

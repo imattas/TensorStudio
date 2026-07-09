@@ -1,66 +1,37 @@
-# CPU Backend
+﻿# CPU Backend
 
-TensorStudio `1.14.0` supports CPU tensors only, with a stronger native runtime
-than earlier releases.
+TensorStudio `2.1.0` supports CPU tensors only.
 
 ## Device Abstraction
 
 The C++ core includes a device abstraction so future backends can fit into the
-same public model. Today, every executable tensor lives on CPU. CUDA and Metal
-descriptors are available for explicit availability checks, but allocation and
-execution on those devices are rejected in CPU wheels.
+same public model. Today, every executable tensor lives on CPU. CUDA, Metal,
+and registered plugin descriptors can be inspected through the hardware API,
+but non-CPU storage allocation is rejected until real backend storage and
+kernels exist.
+
+See [Backend Architecture](backend-architecture.md) for the registry and
+placement-diagnostics design.
 
 ## What CPU Means In v1
 
 - Storage is host memory.
 - Operations run synchronously.
-- Hot kernels are implemented in C++.
-- Large contiguous elementwise operations, reductions, matrix multiplication,
-  convolution, and pooling forward paths can use a small native thread pool.
-- Contiguous `float32` and `float64` elementwise kernels use typed loops that
-  avoid unnecessary `double` conversion and are friendly to compiler
-  autovectorization.
-- Contiguous `float32` and `float64` 2D matrix multiplication uses CBLAS or
-  Accelerate when the source build has compatible BLAS support; otherwise it
-  uses the portable C++ fallback.
-- A bounded storage reuse pool reduces repeated allocation cost while keeping
-  previous zero-initialization behavior.
-
-## Runtime Controls
-
-```python
-import tensorstudio as ts
-
-print(ts.performance_info())
-ts.set_num_threads(4)
-print(ts.get_num_threads())
-```
-
-Environment variables:
-
-- `TENSORSTUDIO_NUM_THREADS`: preferred native worker count.
-- `TENSORSTUDIO_DISABLE_THREADS=1`: force single-thread execution.
-- `TENSORSTUDIO_DISABLE_STORAGE_POOL=1`: disable storage reuse.
-- `TENSORSTUDIO_STORAGE_POOL_MAX_BLOCK_BYTES`: maximum reusable block size.
-
-The defaults favor portability. Very small tensors often run on one thread
-because thread scheduling overhead can dominate the math.
-
-## BLAS
-
-TensorStudio has an optional BLAS path, not a hard BLAS dependency. Source
-builds try to find a BLAS library with CMake. The optimized path is enabled
-only when a usable CBLAS-compatible interface is available:
-
-- macOS can use Accelerate.
-- Linux can use OpenBLAS, BLIS, MKL, or another CBLAS-compatible package when
-  headers and libraries are visible to CMake.
-- Windows can use OpenBLAS or MKL through a toolchain such as vcpkg or a
-  system install that exposes `cblas.h`.
-
-Official wheels may use the portable fallback if the wheel build environment
-does not provide a redistributable CBLAS setup. Check `ts.performance_info()`
-instead of assuming BLAS is present.
+- Kernels are native C++ loops; large contiguous elementwise and full-reduction
+  kernels use a conservative thread dispatcher.
+- Allocator metadata is exposed through `backend_allocator_info("cpu")`.
+- Native storage allocation counters are exposed through
+  `storage_telemetry()`.
+- Physical-device metadata is exposed through `backend_device_properties("cpu")`.
+- The CPU exposes one logical device through `logical_device_info("cpu")`.
+- Operation contracts are exposed through `backend_op_info()`.
+- CPU kernel capability metadata is exposed through `backend_kernel_info("cpu")`.
+- Eager placement can be inspected through `backend_execution_plan(op, "cpu")`.
+- CPU-to-CPU tensor movement is exposed through `Tensor.to_device("cpu")` and
+  `ts.to_device(tensor, "cpu", copy=True)`.
+- No persistent thread pool is used.
+- No BLAS dependency is required.
+- No SIMD-specific kernels are required.
 
 ## Portability
 
@@ -72,11 +43,9 @@ The code is intended to compile on:
 
 CMake and scikit-build-core coordinate the native extension build.
 
-## Accelerator Boundary
+## GPU Future Work
 
-CUDA and Metal execution are future work. The `1.14.0` backend boundary already
-defines device descriptors, backend availability metadata, CMake hooks, and
-device-aware storage validation. Real accelerator execution still requires:
+CUDA and other accelerator backends are future work. Adding them would require:
 
 - device-specific storage
 - copy operations
@@ -85,5 +54,4 @@ device-aware storage validation. Real accelerator execution still requires:
 - kernel implementations
 - expanded testing infrastructure
 
-The current CPU implementation keeps those concerns explicit instead of silently
-falling back from an unavailable accelerator to CPU.
+The current CPU implementation keeps those concerns out of the v1 release.

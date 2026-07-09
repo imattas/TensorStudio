@@ -23,24 +23,6 @@ python -c "import tensorstudio as ts; import tensorstudio._C; print(ts.__version
 pytest -q
 ```
 
-## Optional BLAS
-
-TensorStudio source builds can use CBLAS-backed `float32` and `float64`
-matrix multiplication when CMake finds a compatible BLAS library and `cblas.h`.
-Install a provider such as OpenBLAS, BLIS, or MKL through your distribution or
-toolchain.
-
-Examples:
-
-```bash
-sudo apt-get install libopenblas-dev
-python -m pip install -e ".[dev]"
-python -c "import tensorstudio as ts; print(ts.performance_info())"
-```
-
-If `blas_enabled` is `False`, TensorStudio is using the portable C++ fallback.
-That fallback is tested and intended to keep wheels/source builds portable.
-
 ## Build And Check
 
 ```bash
